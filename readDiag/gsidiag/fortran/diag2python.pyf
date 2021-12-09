@@ -1,0 +1,62 @@
+!    -*- f90 -*-
+! Note: the context of this file is case sensitive.
+
+python module diag2python ! in 
+    interface  ! in :diag2python
+        module diag2python ! in :diag2python:diag2python.f90
+            use readdiagmod
+            character,         allocatable, public, dimension(:)     :: chararray1d
+            character,         allocatable, public, dimension(:,:)   :: chararray2d
+            real,              allocatable, public, dimension(:)     :: array1d
+            real,              allocatable, public, dimension(:,:)   :: array2d
+            real,              allocatable, public, dimension(:,:,:) :: array3d
+
+            function open(filename, filename2) result (fnumber) ! in :diag2python:diag2python.f90:diag2python
+                character*(*), intent(in) :: filename
+                character*(*), intent(in) :: filename2
+                integer,                  :: fnumber
+            end function open
+
+            function close(fnumber) result (iret) ! in :diag2python:diag2python.f90:diag2python
+                integer intent(in) :: fnumber
+                integer            :: iret
+            end function close
+
+            subroutine getvarinfo(fnumber,varname,nkx) ! in :diag2python:diag2python.f90:diag2python
+                integer       intent(in   ) :: fnumber
+                character*(*) intent(in   ) :: varname
+                integer       intent(  out) :: nkx
+            end subroutine getvarinfo
+
+            function getnvars(fnumber) result(nvars) ! in :diag2python:diag2python.f90:diag2python
+                integer intent(in   ) :: fnumber
+                integer               :: nvars
+            end subroutine getnvars
+
+!            subroutine getvarnames(fnumber,nvars) ! in :diag2python:diag2python.f90:diag2python
+!                integer intent(in   ) :: fnumber
+!                integer intent(  out) :: nvars
+!            end subroutine getvarnames
+
+            subroutine getvarnames(fnumber,nvars,VarNames)! in :diag2python:diag2python.f90:diag2python
+                integer intent(in) :: fnumber
+                integer intent(in) :: nvars
+                character*3(len=3),intent(out) :: VarNames(nvars)
+
+            end subroutine getvarnames
+
+            subroutine getobs(fnumber,oname,otype, zlevs, n, nobs) ! in :diag2python:diag2python.f90:diag2python
+                integer             intent(in   ) :: fnumber
+                character*(*)       intent(in   ) :: oname
+                integer             intent(in   ) :: otype
+                real, dimension(n), intent(in   ) :: zlevs
+                integer             intent(  out) :: nobs
+                integer,            intent(in   ), check(len(zlevs)>=n),depend(zlevs) :: n=len(zlevs)
+            end subroutine getobs
+
+        end module diag2python
+    end interface 
+end python module diag2python
+
+! This file was auto-generated with f2py (version:2).
+! See http://cens.ioc.ee/projects/f2py2e/
