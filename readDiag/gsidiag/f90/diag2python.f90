@@ -245,7 +245,6 @@ module Diag2Python
             type is (conv)
                d%iret = ptr%open(trim(diagFile),trim(diagFileAnl))
             type is (rad)
-               print*,isis(1)
                if (isis(1).ne.'None')then
                   d%iret = ptr%open(trim(diagFile),trim(diagFileAnl), isisList=isis)
                else

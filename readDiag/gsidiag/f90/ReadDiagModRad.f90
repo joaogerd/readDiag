@@ -741,7 +741,6 @@ contains
      iret = 0
 
      if(present(IsisList))then
-     print*,'aqui2'
         ierr = file1%open(File_FGS, IsisList)
      else
         ierr = file1%open(File_FGS)

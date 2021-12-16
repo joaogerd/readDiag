@@ -50,7 +50,7 @@ class read_diag(object):
             extraInfo = True
 
         convIndex =['lat','lon', 'elev', 'prs', 'hgt', 'press', 'time', 'pbqc', 'iuse', 'iusev', 
-                   'wpbqc', 'inp_err', 'adj_err', 'end_err', 'robs', 'omf', 'oma', 'imp', 'dfs', 'kx']
+                   'wpbqc', 'inp_err', 'adj_err', 'end_err', 'robs', 'omf', 'oma', 'imp', 'dfs']
 
         radIndex  = ['lat','lon','elev','nchan','time','iuse','idqc','errinv','oer','tb_obs',
                      'omf','omf_nobc','emiss','oma','oma_nobc','imp','dfs']
@@ -115,10 +115,10 @@ class read_diag(object):
                    else:
                        df[sType] = pd.DataFrame(d2p.array2d.copy().T,index=radIndex[:13])
                    d2p.array2d = None
-        if self.FileType == 1:
-            self.obsInfo[obsName] = pd.concat(df.values(),keys=df.keys(), names=['kx','diag']).T
-        elif self.FileType == 2:
-            self.obsInfo[obsName] = pd.concat(df.values(),keys=df.keys(), names=['SatId','diag']).T
+            if self.FileType == 1:
+                self.obsInfo[obsName] = pd.concat(df.values(),keys=df.keys(), names=['kx','diag']).T
+            elif self.FileType == 2:
+                self.obsInfo[obsName] = pd.concat(df.values(),keys=df.keys(), names=['SatId','diag']).T
 
             
     def close(self):
