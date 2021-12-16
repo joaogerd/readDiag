@@ -63,11 +63,13 @@ TARG_PY := diag2python$(shell python3-config --extension-suffix)
 SRCS := \
 	m_string.f90    \
 	ReadDiagMod.f90 \
+	ReadDiagModRad.f90 \
 	diag2python.f90
 
 OBJS := \
 	$(ODIR)/m_string.o    \
    $(ODIR)/ReadDiagMod.o \
+   $(ODIR)/ReadDiagModRad.o \
 	$(ODIR)/diag2python.o \
 	$(ODIR)/DiagRead.o 
 
@@ -105,8 +107,9 @@ py: $(SRCS)
 # DEPENDENCIES
 $(ODIR)/m_string.o:	m_string.f90
 $(ODIR)/DiagRead.o:	DiagRead.f90	$(ODIR)/ReadDiagMod.o 
-$(ODIR)/diag2python.o:	diag2python.f90 $(ODIR)/ReadDiagMod.o	
+$(ODIR)/diag2python.o:	diag2python.f90 $(ODIR)/ReadDiagMod.o	$(ODIR)/ReadDiagModRad.o
 $(ODIR)/ReadDiagMod.o:	ReadDiagMod.f90 $(ODIR)/m_string.o
+$(ODIR)/ReadDiagModRad.o:	ReadDiagModRad.f90 $(ODIR)/m_string.o
 
 #
 $(OBJ_MAIN):	$(OBJS)

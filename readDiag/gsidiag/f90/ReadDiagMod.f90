@@ -113,15 +113,17 @@ module ReadDiagMod
 
   type :: Diag
      Private
-     type(ObsInfo), pointer         :: arq => null()
+     type(ObsInfo),   pointer       :: arq   => null()
      integer, public, pointer       :: nVars => null()
-     integer, public, pointer       :: nObs => null()
+     integer, public, pointer       :: nObs  => null()
+     logical                        :: impact
      contains
         generic,   public  :: Open        => Open_, Open__
         procedure, private :: Open_, Open__
         procedure, public  :: Close       => Close_
         procedure, public  :: CalcStat    => CalcStat_
         procedure, public  :: PrintCount  => PrintCountStat_
+        procedure, public  :: printObsInfo=> printObsInfo_
         procedure, public  :: GetTotalObs => GetTotalObs_
         procedure, public  :: GetNObs     => GetNObs_
         procedure, public  :: GetDate     => GetDate_
@@ -268,7 +270,6 @@ contains
      integer :: ipe
      integer :: lu
      integer :: i
-     character(len=15)                           :: MyName
      character(len=3)                            :: var
      character(8),allocatable,dimension(:)       :: cdiagbuf
      real(r_single),allocatable,dimension(:,:)   :: rdiagbuf
@@ -284,6 +285,7 @@ contains
      self%nVars = 0
      allocate(self%nObs)
      self%nObs = 0
+     self%impact = .false.
 
      lu  = 100
      ipe = 0
@@ -307,6 +309,7 @@ contains
 !     if(ios.ne.0) exit
      if(ios.ne.0) then
         print*,'error to open file',trim(FileName)
+        iret = -1
         return
      endif
 
@@ -415,7 +418,7 @@ contains
               endif
               
               ! if aircraft information
-              if (var .eq. '  t')then
+              if (var .eq. '  t' .and. ninfo .ge. 20)then
                  allocate(conv%pof)
                  conv%pof = rdiagbuf(20,i) ! data pof
                                            !    pof = 5 (ascending)
@@ -423,9 +426,14 @@ contains
                                            !    pof = 3 (cruise level)
                  allocate(conv%wvv)
                  conv%wvv = rdiagbuf(21,i) ! data vertical velocity
+              else
+                 allocate(conv%pof)
+                 conv%pof = udef
+                 allocate(conv%wvv)
+                 conv%wvv = udef
               endif
 
-              if (var .eq. 'sst')then
+              if (var .eq. 'sst' .and. ninfo .ge. 21)then
                  allocate(conv%tref)
                  conv%tref = rdiagbuf(21,i) ! sst Tr (adiative transfer model)
 
@@ -437,6 +445,15 @@ contains
 
                  allocate(conv%tz)
                  conv%tz   = rdiagbuf(24,i) ! sst d(tz)/d(tr) at zob
+              else
+                 allocate(conv%tref)
+                 conv%tref = udef
+                 allocate(conv%dtw)
+                 conv%dtw  = udef
+                 allocate(conv%dtc)
+                 conv%dtc  = udef
+                 allocate(conv%tz)
+                 conv%tz   = udef
               endif
 
               if(conv%robs .gt. 1.0e8) then
@@ -477,6 +494,8 @@ contains
 
      ! put observation info on global variable
      self%arq => info%FirstVar
+     !print*,trim(fileNameMask)
+     iret=self%PrintObsInfo()
 
 
      iret = 0
@@ -513,9 +532,8 @@ contains
      real, pointer :: err => null()
 
      integer    :: ierr
-     integer    :: i, j
 
-     
+     iret = 0     
 
      ierr = file1%open(File_FGS)
      if(ierr.ne.0)then
@@ -544,6 +562,7 @@ contains
      info2 => file2%arq%FirstVar
 
      info1%impact = .true. 
+     self%impact = .true.
      
      do while(associated(info1))
         OT1 => info1%OT%FirstKX
@@ -884,21 +903,20 @@ contains
 
   end function
 
-  ! Sorting by OT
-  subroutine SortOtype( self )
-     type(ObsInfo), pointer, intent(inout) :: self
-
-     type(ObsInfo), pointer :: Var => null()
-     type(ObsType), pointer :: OT  => null()
-
-     Var => self%FirstVar
-     do while(associated(Var))
-        Var%OT%FirstKX  => MergeSort(Var%OT%FirstKX)
-        Var => Var%NextVar
-     enddo
-     
-  end subroutine
-
+!  ! Sorting by OT
+!  subroutine SortOtype( self )
+!     type(ObsInfo), pointer, intent(inout) :: self
+!
+!     type(ObsInfo), pointer :: Var => null()
+!
+!     Var => self%FirstVar
+!     do while(associated(Var))
+!        Var%OT%FirstKX  => MergeSort(Var%OT%FirstKX)
+!        Var => Var%NextVar
+!     enddo
+!     
+!  end subroutine
+!
 !
 !--------------------------------------------------------------------!
 !BOP
@@ -1282,10 +1300,10 @@ contains
         v2 = trim(adjustl(tmp%VarName))
 
         if(v1 .eq. v2)then
-           print*,'NObsType: ',tmp%nkx, tmp%nobs
+           !print*,'NObsType: ',tmp%nkx, tmp%nobs
            OT => tmp%OT%FirstKX
            do while(associated(OT))
-              print*, trim(v1), OT%kx, OT%nobs
+              !print*, trim(v1), OT%kx, OT%nobs
               OT => OT%nextKX
            enddo
         endif
@@ -1351,9 +1369,6 @@ contains
 
      type(ObsInfo), pointer  :: var => null()
      type(ObsType), pointer  :: OT  => null()
-     type(node),    pointer  :: Now => null()
-
-     type(node),    pointer  :: root => null()
      type(node),    pointer  :: obs  => null()
      integer ::  i
 
@@ -1392,18 +1407,23 @@ contains
 
                  if (allocated(ObsTable)) deallocate(ObsTable)
             
-                 select case (trim(ObsName))
-                    case ('  q')
-                       allocate(ObsTable(OT%nObs,21), stat = istat)
-                    case (' uv')
-                       allocate(ObsTable(OT%nObs,21), stat = istat)
-                    case('  t')
-                       allocate(ObsTable(OT%nObs,22), stat = istat)
-                    case('sst')
-                       allocate(ObsTable(OT%nObs,24), stat = istat)
-                    case default
-                       allocate(ObsTable(OT%nObs,20), stat = istat)
-                 end select
+                 !select case (trim(ObsName))
+                 !   case ('  q')
+                 !      allocate(ObsTable(OT%nObs,21), stat = istat)
+                 !   case (' uv')
+                 !      allocate(ObsTable(OT%nObs,21), stat = istat)
+                 !   case('  t')
+                 !      allocate(ObsTable(OT%nObs,22), stat = istat)
+                 !   case('sst')
+                 !      allocate(ObsTable(OT%nObs,24), stat = istat)
+                 !   case default
+                 !      allocate(ObsTable(OT%nObs,20), stat = istat)
+                 !end select
+                 if(self%impact)then
+                    allocate(ObsTable(OT%nObs,19), stat = istat)
+                 else
+                    allocate(ObsTable(OT%nObs,16), stat = istat)
+                 endif
                  if(istat .gt. 0) return
             
                  do i = 1, OT%nObs
@@ -1426,25 +1446,27 @@ contains
                     ObsTable(i,14) = Obs%data%end_err ! final inverse observation error (unit**-1)
                     ObsTable(i,15) = Obs%data%robs    ! observation
                     ObsTable(i,16) = Obs%data%omf     ! obs-ges used in analysis (K)
-                    ObsTable(i,17) = Obs%data%oma     ! obs-anl used in analysis (K)
-                    ObsTable(i,18) = Obs%data%imp     ! observation impact
-                    ObsTable(i,19) = Obs%data%dfs     ! degree of freedom for signal
-                    ObsTable(i,20) = Obs%data%kx
+                    if (self%impact)then
+                       ObsTable(i,17) = Obs%data%oma     ! obs-anl used in analysis (K)
+                       ObsTable(i,18) = Obs%data%imp     ! observation impact
+                       ObsTable(i,19) = Obs%data%dfs     ! degree of freedom for signal
+                    endif
+                   ! ObsTable(i,20) = Obs%data%kx
             
-                    select case(trim(ObsName))
-                       case('  q')
-                          ObsTable(i,21) = Obs%data%qsges ! guess saturation specific humidity
-                       case(' uv')
-                          ObsTable(i,21) = Obs%data%factw ! 10m wind reduction factor
-                       case('  t')
-                          ObsTable(i,21) = Obs%data%pof ! data pof
-                          ObsTable(i,22) = Obs%data%wvv ! data vertical velocity
-                       case('sst')
-                          ObsTable(i,21) = Obs%data%tref ! sst Tr (adiative transfer model)
-                          ObsTable(i,22) = Obs%data%dtw  ! sst dt_warm at zob
-                          ObsTable(i,23) = Obs%data%dtc  ! sst dt_cool at zob
-                          ObsTable(i,24) = Obs%data%tz   ! sst d(tz)/d(tr) at zob
-                    end select
+                   ! select case(trim(ObsName))
+                   !    case('  q')
+                   !       ObsTable(i,21) = Obs%data%qsges ! guess saturation specific humidity
+                   !    case(' uv')
+                   !       ObsTable(i,21) = Obs%data%factw ! 10m wind reduction factor
+                   !    case('  t')
+                   !       ObsTable(i,21) = Obs%data%pof ! data pof
+                   !       ObsTable(i,22) = Obs%data%wvv ! data vertical velocity
+                   !    case('sst')
+                   !       ObsTable(i,21) = Obs%data%tref ! sst Tr (adiative transfer model)
+                   !       ObsTable(i,22) = Obs%data%dtw  ! sst dt_warm at zob
+                   !       ObsTable(i,23) = Obs%data%dtc  ! sst dt_cool at zob
+                   !       ObsTable(i,24) = Obs%data%tz   ! sst d(tz)/d(tr) at zob
+                   ! end select
             
                     Obs => Obs%next
 
@@ -1528,6 +1550,26 @@ contains
 
   endfunction
 
+  function printObsInfo_(self)result(iret)
+     class(diag) :: self
+     integer:: iret
+     type(ObsInfo), pointer  :: tmp => null()
+     type(ObsType), pointer  :: ot => null()
+
+     iret = 0
+     tmp => self%arq%FirstVar
+     do while(associated(tmp))
+        ot => tmp%OT%FirstKx
+        !print*,'--->',trim(tmp%varName)
+        do while(associated(ot))
+          !print*,'        - ',ot%kx
+          ot => ot%nextKx
+        enddo
+        tmp => tmp%nextVar
+     enddo
+
+  end function
+
   function testeCount__(self) result(iret)
      class(Diag),              intent(in   ) :: self
      type(ObsInfo), pointer :: Now => null()
@@ -1535,7 +1577,6 @@ contains
      type(node),    pointer :: dat => null()
 
      integer :: Total, Total00, Total01
-     integer, allocatable :: TotalVar(:)
      integer :: iret
 
      iret = 0

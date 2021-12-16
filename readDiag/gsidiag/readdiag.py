@@ -20,9 +20,16 @@
 #-----------------------------------------------------------------------------#
 #BOC
 
+"""
+This module defines the majority of gsidiag functions, including all plot types
+"""
+
 from diag2python import diag2python as d2p
-import numpy as np
 import pandas as pd
+import geopandas as gpd
+import numpy as np
+import matplotlib.pyplot as plt
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 class open(object):
     FileName  = None  # File name (gsi diag from ges or anl)
@@ -34,10 +41,16 @@ class open(object):
     nObs      = None  # Number of observations for vName
     used      = False # Variable used (or not) in GSI
 
-    def __init__(self,FileName, FileName2=None):
+    def __init__(self,FileName, FileName2=None,isis=None):
         self.FileName   = FileName
         self.FileName2  = FileName2
-        self.FNumber    = d2p.open(self.FileName, self.FileName2)
+        
+        if  isis == None :
+            self.isis  = []
+        else:
+            self.isis = isis
+
+        self.FNumber    = d2p.open(self.FileName, self.FileName2, self.isis)
 
         if (self.FNumber == -1):
             self.FNumber = None
@@ -54,9 +67,11 @@ class open(object):
 
         self.nVars      = d2p.getnvars(self.FNumber)
         vnames          = d2p.getvarnames(self.FNumber,self.nVars)
+        print(vnames)
         self.VarNames   = []
         self.ObsInfo    = {}
         for i, name in enumerate(vnames):
+            print(name.tostring().decode('UTF-8').strip())
             self.VarNames.append(name.tostring().decode('UTF-8').strip())
             ttt = d2p.getvarinfo(self.FNumber, self.VarNames[i])
             self.ObsInfo[self.VarNames[i]] = d2p.array2d.astype(int).copy()
@@ -77,7 +92,6 @@ class open(object):
         self.VarNames = None # Name of variables
         self.ObsInfo  = None 
         self.nObs     = None # Number of observations for vName
-
         return iret
 
 
@@ -305,7 +319,6 @@ class open(object):
             for kx in self.ObsInfo[var][:,0]:
                 variablesTypes.append(kx)
             variablesList.update({var:variablesTypes})
-
         return variablesList
 
     def pfileinfo(self):
@@ -671,3 +684,4 @@ class open(object):
 
 #EOC
 #-----------------------------------------------------------------------------#
+

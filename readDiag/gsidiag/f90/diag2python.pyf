@@ -1,0 +1,101 @@
+!    -*- f90 -*-
+! Note: the context of this file is case sensitive.
+
+python module diag2python ! in 
+    interface  ! in :diag2python
+        module diag2python ! in :diag2python:diag2python.f90
+            use readdiagmod
+            use readdiagmodrad, only: rdiag
+            character,         allocatable, public, dimension(:)     :: chararray1d
+            character,         allocatable, public, dimension(:,:)   :: chararray2d
+            real,              allocatable, public, dimension(:)     :: array1d
+            real,              allocatable, public, dimension(:,:)   :: array2d
+            real,              allocatable, public, dimension(:,:,:) :: array3d
+
+!            interface getobs
+!               module procedura getobsconv, getobsrad
+!            end interface
+
+            function open(filename, filename2, isis) result (fnumber) ! in :diag2python:diag2python.f90:diag2python
+                character*(*), intent(in) :: filename
+                character*(*), optional, intent(in) :: filename2 = 'None'
+                character,  optional, intent(in) :: isis(:,:) = 'None'
+                integer,                  :: fnumber
+            end function open
+
+            function close(fnumber) result (iret) ! in :diag2python:diag2python.f90:diag2python
+                integer intent(in) :: fnumber
+                integer            :: iret
+            end function close
+
+            subroutine getvarinfo(fnumber,varname,nkx) ! in :diag2python:diag2python.f90:diag2python
+                integer       intent(in   ) :: fnumber
+                character*(*) intent(in   ) :: varname
+                integer       intent(  out) :: nkx
+            end subroutine getvarinfo
+
+            function getnvars(fnumber) result(nvars) ! in :diag2python:diag2python.f90:diag2python
+                integer intent(in   ) :: fnumber
+                integer               :: nvars
+            end subroutine getnvars
+
+            subroutine getObsVarInfo(FNumber, nVars, vName, nTypes)
+               integer,                       intent(in   ) :: FNumber
+               integer,                       intent(in   ) :: nVars
+               character*15, dimension(nVars), intent(  out) :: vName
+               integer,     dimension(nVars), intent(  out) :: nTypes
+            end subroutine getConvVarInfo
+
+            subroutine getVarTypes(FNumber, vName, nTypes, vTypes, svTypes)
+               integer,                    intent(in   ) :: FNumber
+               character*15,               intent(in   ) :: vName
+               integer,                    intent(in   ) :: nTypes
+               integer,      dimension(nTypes), intent(  out) :: vTypes
+               character*15, dimension(nTypes), intent(  out) :: svTypes
+            end subroutine
+
+            subroutine getobs(fnumber,oname,otype, osatid, zlevs, n, nobs) ! in :diag2python:diag2python.f90:diag2python
+                integer             intent(in   ) :: fnumber
+                character*(*)       intent(in   ) :: oname
+                integer             intent(in   ) :: otype
+                character*(*)       intent(in   ) :: osatid
+                real, dimension(n), intent(in   ) :: zlevs
+                integer             intent(  out) :: nobs
+                integer,            intent(in   ), check(len(zlevs)>=n),depend(zlevs) :: n=len(zlevs)
+            end subroutine getobs
+!
+!            subroutine getVarNames(fnumber,nvars,varnames) ! in diag2python.f90:diag2python
+!                integer intent(in) :: fnumber
+!                integer, intent(in) :: nvars
+!                character*4,intent(out) :: varnames(nvars)
+!
+!            end subroutine getvarnames
+!
+!            subroutine getobsconv(fnumber,oname,otype, zlevs, n, nobs) ! in :diag2python:diag2python.f90:diag2python
+!                integer             intent(in   ) :: fnumber
+!                character*(*)       intent(in   ) :: oname
+!                integer             intent(in   ) :: otype
+!                real, dimension(n), intent(in   ) :: zlevs
+!                integer             intent(  out) :: nobs
+!                integer,            intent(in   ), check(len(zlevs)>=n),depend(zlevs) :: n=len(zlevs)
+!            end subroutine getobs
+!
+!            subroutine getobsrad(fnumber,sensor,satid, nobs) ! in :diag2python:diag2python.f90:diag2python
+!                integer             intent(in   ) :: fnumber
+!                character*(*)       intent(in   ) :: sensor
+!                character*(*)       intent(in   ) :: satid
+!                integer             intent(  out) :: nobs
+!            end subroutine getobs
+
+            function getFileType(FNumber)result(fileType) 
+               integer             :: FNumber
+               integer             :: fileType
+            end function
+            
+
+        end module diag2python
+    end interface 
+end python module diag2python
+
+! This file was auto-generated with f2py (version:2).
+! See http://cens.ioc.ee/projects/f2py2e/
