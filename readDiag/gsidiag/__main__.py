@@ -29,6 +29,7 @@ import geopandas as gpd
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+from cartopy import crs as ccrs
 
 def help():
     print('Esta é uma ajudada')
@@ -102,25 +103,62 @@ class read_diag(object):
                for i, vType in enumerate(vTypes):
                    nObs = d2p.getobs(self.FNumber, obsName, vType, 'None', self.zlevs, len(self.zlevs))
                    if extraInfo is True:
-                       df[vType] = pd.DataFrame(d2p.array2d.copy().T,index=convIndex)
+                       d = pd.DataFrame(d2p.array2d.copy().T,index=convIndex).T
+                       d2p.array2d = None
                    else:
-                       df[vType] = pd.DataFrame(d2p.array2d.copy().T,index=convIndex[:16])
-                   d2p.array2d = None
+                       d = pd.DataFrame(d2p.array2d.copy().T,index=convIndex[:16]).T
+                       d2p.array2d = None
+                   lon = (d.lon + 180) % 360 - 180
+                   lat = d.lat
+                   df[sType] = gpd.GeoDataFrame(d, geometry=gpd.points_from_xy(lon,lat))
+                
             elif self.FileType == 2:
             # for satellite data
                for i, sType in enumerate(sTypes):
                    nObs = d2p.getobs(self.FNumber, obsName, 0, sType, self.zlevs, len(self.zlevs))
                    if extraInfo is True:
-                       df[sType] = pd.DataFrame(d2p.array2d.copy().T,index=radIndex)
+                       d   = pd.DataFrame(d2p.array2d.copy().T,index=radIndex).T
+                       d2p.array2d = None
                    else:
-                       df[sType] = pd.DataFrame(d2p.array2d.copy().T,index=radIndex[:13])
-                   d2p.array2d = None
-            if self.FileType == 1:
-                self.obsInfo[obsName] = pd.concat(df.values(),keys=df.keys(), names=['kx','diag']).T
-            elif self.FileType == 2:
-                self.obsInfo[obsName] = pd.concat(df.values(),keys=df.keys(), names=['SatId','diag']).T
+                       d = pd.DataFrame(d2p.array2d.copy().T,index=radIndex[:13]).T
+                       d2p.array2d = None
+                   lon = (d.lon + 180) % 360 - 180
+                   lat = d.lat
+                   df[sType] = gpd.GeoDataFrame(d, geometry=gpd.points_from_xy(lon,lat))
 
-            
+            if self.FileType == 1:
+                self.obsInfo[obsName] = pd.concat(df.values(),keys=df.keys(), names=['kx','points'])
+            elif self.FileType == 2:
+                self.obsInfo[obsName] = pd.concat(df.values(),keys=df.keys(), names=['SatId','points'])
+
+    def plot(self, var, sat, diag, mask=None, ax=None, **plt_kwargs):
+
+         if ax is None:
+             fig = plt.figure(figsize=(12, 12))
+             ax  = fig.add_subplot(1, 1, 1, projection=ccrs.PlateCarree())
+
+         path=gpd.datasets.get_path('naturalearth_lowres')
+
+         world = gpd.read_file(path)
+         gdp_max = world['gdp_md_est'].max()
+         gdp_min = world['gdp_md_est'].min()
+
+         ax = world.plot(ax=ax, facecolor='lightgrey', edgecolor='grey', )
+         
+         if mask is None:
+             ax = self.obsInfo[var].loc[sat].plot(diag, ax=ax, **plt_kwargs)
+         else:
+             df = self.obsInfo[var].loc[sat]
+             ax = df.query(mask).plot(diag, ax=ax, **plt_kwargs)
+
+         
+#         if plt_kwargs['legend'] == True:
+#             plt.title( title=var+'_'+sat )
+
+
+
+         return fig, ax
+
     def close(self):
 
         """
