@@ -34,6 +34,12 @@ from cartopy import crs as ccrs
 def help():
     print('Esta é uma ajudada')
 
+#def read_diag(diagFile, diagFileAnl=None, isisList=None, zlevs=None):
+#
+#    rdiag = diag(diagFile, diagFileAnl, isisList, zlevs)
+#    
+#    return rdiag.obsInfo
+
 class read_diag(object):
     """
     read a diagnostic file from gsi. Return an array with
@@ -42,8 +48,8 @@ class read_diag(object):
 
     def __init__(self, diagFile, diagFileAnl=None, isisList=None, zlevs=None):
 
-        self.diagFile     = diagFile
-        self.diagFileAnl  = diagFileAnl
+        self._diagFile     = diagFile
+        self._diagFileAnl  = diagFileAnl
 
         if diagFileAnl == None:
             extraInfo = False
@@ -66,14 +72,14 @@ class read_diag(object):
                 l.append(i.ljust(s,' '))
             isis = np.array(l,dtype='c').T
             
-        self.FNumber    = d2p.open(self.diagFile, self.diagFileAnl, isis)
+        self._FNumber    = d2p.open(self._diagFile, self._diagFileAnl, isis)
 
-        if (self.FNumber == -1):
-            self.FNumber = None
+        if (self._FNumber == -1):
+            self._FNumber = None
             return
 
-        self.FileType   = d2p.getFileType(self.FNumber)
-        if (self.FileType == -1):
+        self._FileType   = d2p.getFileType(self._FNumber)
+        if (self._FileType == -1):
             print('Some wrong was happening!')
             return
         
@@ -88,20 +94,20 @@ class read_diag(object):
         # Get extra informations
         #
 
-        self.nVars      = d2p.getnvars(self.FNumber)
-        vnames,nTypes   = d2p.getObsVarInfo(self.FNumber,self.nVars);
+        self._nVars      = d2p.getnvars(self._FNumber)
+        vnames,nTypes   = d2p.getObsVarInfo(self._FNumber,self._nVars);
         self.varNames   = []
         self.obsInfo    = {}
         for i, name in enumerate(vnames):
             obsName = name.tostring().decode('UTF-8').strip()
             self.varNames.append(obsName)
-            vTypes, svTypes = d2p.getVarTypes(self.FNumber,obsName, nTypes[i])
+            vTypes, svTypes = d2p.getVarTypes(self._FNumber,obsName, nTypes[i])
             sTypes = svTypes.tostring().decode('UTF-8').strip().split()
             df = {}
-            if self.FileType == 1:
+            if self._FileType == 1:
             # for convetional data
                for i, vType in enumerate(vTypes):
-                   nObs = d2p.getobs(self.FNumber, obsName, vType, 'None', self.zlevs, len(self.zlevs))
+                   nObs = d2p.getobs(self._FNumber, obsName, vType, 'None', self.zlevs, len(self.zlevs))
                    if extraInfo is True:
                        d = pd.DataFrame(d2p.array2d.copy().T,index=convIndex).T
                        d2p.array2d = None
@@ -110,12 +116,12 @@ class read_diag(object):
                        d2p.array2d = None
                    lon = (d.lon + 180) % 360 - 180
                    lat = d.lat
-                   df[sType] = gpd.GeoDataFrame(d, geometry=gpd.points_from_xy(lon,lat))
+                   df[vType] = gpd.GeoDataFrame(d, geometry=gpd.points_from_xy(lon,lat))
                 
-            elif self.FileType == 2:
+            elif self._FileType == 2:
             # for satellite data
                for i, sType in enumerate(sTypes):
-                   nObs = d2p.getobs(self.FNumber, obsName, 0, sType, self.zlevs, len(self.zlevs))
+                   nObs = d2p.getobs(self._FNumber, obsName, 0, sType, self.zlevs, len(self.zlevs))
                    if extraInfo is True:
                        d   = pd.DataFrame(d2p.array2d.copy().T,index=radIndex).T
                        d2p.array2d = None
@@ -126,9 +132,9 @@ class read_diag(object):
                    lat = d.lat
                    df[sType] = gpd.GeoDataFrame(d, geometry=gpd.points_from_xy(lon,lat))
 
-            if self.FileType == 1:
+            if self._FileType == 1:
                 self.obsInfo[obsName] = pd.concat(df.values(),keys=df.keys(), names=['kx','points'])
-            elif self.FileType == 2:
+            elif self._FileType == 2:
                 self.obsInfo[obsName] = pd.concat(df.values(),keys=df.keys(), names=['SatId','points'])
 
     def plot(self, var, sat, diag, mask=None, ax=None, **plt_kwargs):
@@ -151,11 +157,11 @@ class read_diag(object):
              df = self.obsInfo[var].loc[sat]
              ax = df.query(mask).plot(diag, ax=ax, **plt_kwargs)
 
+         if 'title' in plt_kwargs:
+             ax.set_title(plt_kwargs['title'])
          
 #         if plt_kwargs['legend'] == True:
 #             plt.title( title=var+'_'+sat )
-
-
 
          return fig, ax
 
@@ -168,9 +174,9 @@ class read_diag(object):
         """
 
         iret = d2p.close(self.FNumber)
-        self.FileName = None # File name
-        self.FNumber  = None # File unit number to be closed
-        self.nVars    = None # Total of variables
+        self._FileName = None # File name
+        self._FNumber  = None # File unit number to be closed
+        self._nVars    = None # Total of variables
         self.VarNames = None # Name of variables
         self.ObsInfo  = None 
         self.nObs     = None # Number of observations for vName
