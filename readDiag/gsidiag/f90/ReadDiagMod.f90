@@ -117,6 +117,7 @@ module ReadDiagMod
      integer, public, pointer       :: nVars => null()
      integer, public, pointer       :: nObs  => null()
      logical                        :: impact
+     real, public                   :: udef
      contains
         generic,   public  :: Open        => Open_, Open__
         procedure, private :: Open_, Open__
@@ -286,7 +287,8 @@ contains
      allocate(self%nObs)
      self%nObs = 0
      self%impact = .false.
-
+     self%udef = udef
+     
      lu  = 100
      ipe = 0
      FileName=trim(FileNameMask)
@@ -579,8 +581,8 @@ contains
               err => kx1%data%error
 
               if(err .gt. eps .and. err .lt. 10.0)then
-                 kx1%data%imp   = (omf**2 - oma**2) / err
-                 kx1%data%dfs   = ( ( omf - oma ) * (oma) )  / err**2
+                 kx1%data%imp   = (oma**2 - omf**2) / err
+                 kx1%data%dfs   = ( ( oma - omf ) * (omf ) ) / err
               else
                  kx1%data%imp = udef
                  kx1%data%dfs = udef
