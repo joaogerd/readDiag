@@ -91,7 +91,11 @@ python module diag2python ! in
                integer             :: FNumber
                integer             :: fileType
             end function
-            
+
+            function getUndef(FNumber)result(undef) 
+               integer             :: FNumber
+               real                :: undef
+            end function           
 
         end module diag2python
     end interface 

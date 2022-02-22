@@ -15,6 +15,7 @@ module Diag2Python
    Public :: GetVarInfo
    Public :: GetnVars
    public :: getFileType
+   public :: getUndef
 !!   Public :: Gobt
 
    character(len=*),parameter :: myname = 'diag2python'
@@ -744,6 +745,28 @@ module Diag2Python
       enddo
       write(*,*)'error: File number does not exist:', FNumber
       fileType = -1
+   end function
+
+   function getUndef(FNumber) result(undef)
+      integer :: FNumber 
+      real    :: undef
+
+      type(acc), pointer :: f => null()
+
+      f => diagFile%root
+      do while(associated(f))
+         if (f%FNumber .eq. FNumber)then
+            select type (ptr => f%data)
+               type is (conv)
+                  undef = ptr%udef
+               type is (rad)
+                  undef = ptr%udef
+            end select
+            return
+         endif
+         f => f%next
+      enddo
+
    end function
 
 end module
