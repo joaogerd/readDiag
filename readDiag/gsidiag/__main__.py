@@ -74,8 +74,9 @@ class read_diag(object):
             
         self._FNumber    = d2p.open(self._diagFile, self._diagFileAnl, isis)
 
-        if (self._FNumber == -1):
+        if (self._FNumber <= -1):
             self._FNumber = None
+            print('Some was was wrong during reading files ...')
             return
 
         self._FileType   = d2p.getFileType(self._FNumber)
@@ -83,7 +84,8 @@ class read_diag(object):
             print('Some wrong was happening!')
             return
         
-
+        self._undef = d2p.getUndef(self._FNumber)
+        
         # set default levels to obtain data information
         if zlevs is None:
            self.zlevs = [1000.0,900.0,800.0,700.0,600.0,500.0,400.0,300.0,250.0,200.0,150.0,100.0,50.0,0.0]
@@ -94,7 +96,7 @@ class read_diag(object):
         # Get extra informations
         #
 
-        self._nVars      = d2p.getnvars(self._FNumber)
+        self._nVars     = d2p.getnvars(self._FNumber)
         vnames,nTypes   = d2p.getObsVarInfo(self._FNumber,self._nVars);
         self.varNames   = []
         self.obsInfo    = {}
@@ -110,6 +112,7 @@ class read_diag(object):
                    nObs = d2p.getobs(self._FNumber, obsName, vType, 'None', self.zlevs, len(self.zlevs))
                    if extraInfo is True:
                        d = pd.DataFrame(d2p.array2d.copy().T,index=convIndex).T
+                       d.loc[d.oer == self._undef,["oer","imp","dfs"]] = np.nan
                        d2p.array2d = None
                    else:
                        d = pd.DataFrame(d2p.array2d.copy().T,index=convIndex[:16]).T
@@ -124,6 +127,7 @@ class read_diag(object):
                    nObs = d2p.getobs(self._FNumber, obsName, 0, sType, self.zlevs, len(self.zlevs))
                    if extraInfo is True:
                        d   = pd.DataFrame(d2p.array2d.copy().T,index=radIndex).T
+                       d.loc[d.oer == self._undef,["oer","imp","dfs"]] = np.nan
                        d2p.array2d = None
                    else:
                        d = pd.DataFrame(d2p.array2d.copy().T,index=radIndex[:13]).T
