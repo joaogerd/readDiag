@@ -66,14 +66,18 @@ module ReadDiagMod
   
   integer, parameter  :: StrLen   = 512
   integer, parameter  :: i_kind   = selected_int_kind(8)
-  integer, parameter  :: r_single = selected_real_kind(6)
+  integer, parameter  :: r_kind = selected_real_kind(6)
 
   !
   ! Some parameters
   !
-  Real,    Parameter :: udef  = 1.0e15 ! Undefined Value
-  Logical, Parameter :: noiqc = .true. ! Logical Flag to OI QC (See GSI Manual)
-  real,    parameter :: eps   = 10.0_r_single * tiny(0.0_r_single)
+  Logical,      parameter :: noiqc = .true. ! Logical Flag to OI QC (See GSI Manual)
+  
+  Real(r_kind), parameter :: udef  = -1.0e15_r_kind ! Undefined Value
+  real(r_kind), parameter :: r10   = 10.0_r_kind
+  real(r_kind), parameter :: zero  =  0.0_r_kind
+  real(r_kind), parameter :: one   =  1.0_r_kind
+  real(r_kind), parameter :: rtiny = r10 * tiny(zero)
   !
   ! Levels to be Analyzed.
   ! These levels will be analyzed by layers
@@ -273,7 +277,7 @@ contains
      integer :: i
      character(len=3)                            :: var
      character(8),allocatable,dimension(:)       :: cdiagbuf
-     real(r_single),allocatable,dimension(:,:)   :: rdiagbuf
+     real(r_kind),allocatable,dimension(:,:)     :: rdiagbuf
      integer(i_kind)                             :: idate
      integer(i_kind)                             :: nchar,ninfo,nobs,mype
 
@@ -359,7 +363,7 @@ contains
               conv%inp_err = rdiagbuf(14,i)         ! prepbufr inverse obs error (unit**-1)
               conv%adj_err = rdiagbuf(15,i)         ! read_prepbufr inverse obs error (unit**-1)
               conv%end_err = rdiagbuf(16,i)         ! final inverse observation error (unit**-1)
-              if ( rdiagbuf(16,i) .gt. eps )then
+              if ( rdiagbuf(16,i) > rtiny )then
                  conv%error = 1.0/rdiagbuf(16,i)  ! final observation error (unit**-1)
               else
                  conv%error = udef
@@ -580,7 +584,7 @@ contains
               oma => kx1%data%oma
               err => kx1%data%error
 
-              if(err .gt. eps .and. err .lt. 10.0)then
+              if(err .ne. udef)then! .and. err .lt. 10.0)then
                  kx1%data%imp   = (oma**2 - omf**2) / err
                  kx1%data%dfs   = ( ( oma - omf ) * (omf ) ) / err
               else
@@ -602,6 +606,7 @@ contains
      self%arq => file1%arq
      self%nVars => file1%nVars
      self%nObs => file1%nObs
+     self%udef = file1%udef
 
      ierr = file2%close( )
 
@@ -612,36 +617,50 @@ contains
      integer     :: iret
 
      type(ObsInfo), pointer :: Obs => null()
+     type(ObsInfo), pointer :: firstVar => null()
+     type(ObsInfo), pointer :: nextVar => null()
      type(ObsType), pointer :: kx => null()
      type(node),    pointer :: ObsData => null()
 
      iret = 0
-
-     Obs => self%arq%FirstVar%NextVar
+     firstVar => self%arq%FirstVar
+     nextVar => FirstVar%NextVar
      do
 
-        kx => self%arq%FirstVar%OT%nextKX
+        kx => firstVar%OT%nextKX
         do
 
-           ObsData => self%arq%FirstVar%OT%head%next
+           ObsData => firstVar%OT%head%next
            do
-              deallocate(self%arq%FirstVar%OT%head)
+              deallocate(firstVar%OT%head)
               if(.not.associated(ObsData)) exit
-              self%arq%FirstVar%OT%head => ObsData
+              firstVar%OT%head => ObsData
               ObsData => ObsData%next
            enddo
 
-           deallocate(self%arq%FirstVar%OT)
+           deallocate(firstVar%OT)
            if(.not.associated(kx)) exit
-           self%arq%FirstVar%OT => kx
-           kx => self%arq%FirstVar%OT%nextKX
+           firstVar%OT => kx
+           kx => firstVar%OT%nextKX
 
         enddo
+        
+        if(allocated(firstVar%use) )deallocate(firstVar%use)
+        if(allocated(firstVar%nuse))deallocate(firstVar%nuse)
+        if(allocated(firstVar%rej) )deallocate(firstVar%rej)
+        if(allocated(firstVar%mon) )deallocate(firstVar%mon)
+        if(allocated(firstVar%vies))deallocate(firstVar%vies)
+        if(allocated(firstVar%rmse))deallocate(firstVar%rmse)
+        if(allocated(firstVar%mean))deallocate(firstVar%mean)
+        if(allocated(firstVar%std) )deallocate(firstVar%std)
+        if(allocated(firstVar%imp) )deallocate(firstVar%imp)
+        if(allocated(firstVar%dfs) )deallocate(firstVar%dfs)
 
-        deallocate(self%arq%FirstVar)
-        if(.not.associated(Obs)) exit
-        self%arq%FirstVar => Obs
-        Obs => self%arq%FirstVar%NextVar
+
+        deallocate(firstVar)
+        if(.not.associated(nextVar)) exit
+        firstVar => nextVar
+        nextVar => firstVar%NextVar
      enddo
 
   end function
@@ -1422,9 +1441,9 @@ contains
                  !      allocate(ObsTable(OT%nObs,20), stat = istat)
                  !end select
                  if(self%impact)then
-                    allocate(ObsTable(OT%nObs,19), stat = istat)
+                    allocate(ObsTable(OT%nObs,20), stat = istat)
                  else
-                    allocate(ObsTable(OT%nObs,16), stat = istat)
+                    allocate(ObsTable(OT%nObs,17), stat = istat)
                  endif
                  if(istat .gt. 0) return
             
@@ -1446,12 +1465,13 @@ contains
                     ObsTable(i,12) = Obs%data%inp_err ! prepbufr inverse obs error (unit**-1)
                     ObsTable(i,13) = Obs%data%adj_err ! read_prepbufr inverse obs error (unit**-1)
                     ObsTable(i,14) = Obs%data%end_err ! final inverse observation error (unit**-1)
-                    ObsTable(i,15) = Obs%data%robs    ! observation
-                    ObsTable(i,16) = Obs%data%omf     ! obs-ges used in analysis (K)
+                    ObsTable(i,15) = Obs%data%error   ! final observation error (unit)
+                    ObsTable(i,16) = Obs%data%robs    ! observation
+                    ObsTable(i,17) = Obs%data%omf     ! obs-ges used in analysis (K)
                     if (self%impact)then
-                       ObsTable(i,17) = Obs%data%oma     ! obs-anl used in analysis (K)
-                       ObsTable(i,18) = Obs%data%imp     ! observation impact
-                       ObsTable(i,19) = Obs%data%dfs     ! degree of freedom for signal
+                       ObsTable(i,18) = Obs%data%oma     ! obs-anl used in analysis (K)
+                       ObsTable(i,19) = Obs%data%imp     ! observation impact
+                       ObsTable(i,20) = Obs%data%dfs     ! degree of freedom for signal
                     endif
                    ! ObsTable(i,20) = Obs%data%kx
             

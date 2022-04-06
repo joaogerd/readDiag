@@ -24,12 +24,14 @@
 This module defines the majority of gsidiag functions, including all plot types
 """
 from diag2python import diag2python as d2p
+#from memory_profiler import profile
 import pandas as pd
 import geopandas as gpd
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from cartopy import crs as ccrs
+import gc
 
 def help():
     print('Esta é uma ajudada')
@@ -45,7 +47,7 @@ class read_diag(object):
     read a diagnostic file from gsi. Return an array with
     some information.
     """
-
+#    @profile(precision=8)
     def __init__(self, diagFile, diagFileAnl=None, isisList=None, zlevs=None):
 
         self._diagFile     = diagFile
@@ -56,8 +58,8 @@ class read_diag(object):
         else:
             extraInfo = True
 
-        convIndex =['lat','lon', 'elev', 'prs', 'hgt', 'press', 'time', 'pbqc', 'iuse', 'iusev', 
-                   'wpbqc', 'inp_err', 'adj_err', 'end_err', 'robs', 'omf', 'oma', 'imp', 'dfs']
+        convIndex =['lat','lon', 'elev', 'prs', 'hgt', 'press', 'time', 'idqc', 'iuse', 'iusev', 
+                   'wpbqc', 'inp_err', 'adj_err', 'end_err', 'oer', 'robs', 'omf', 'oma', 'imp', 'dfs']
 
         radIndex  = ['lat','lon','elev','nchan','time','iuse','idqc','errinv','oer','tb_obs',
                      'omf','omf_nobc','emiss','oma','oma_nobc','imp','dfs']
@@ -115,7 +117,7 @@ class read_diag(object):
                        d.loc[d.oer == self._undef,["oer","imp","dfs"]] = np.nan
                        d2p.array2d = None
                    else:
-                       d = pd.DataFrame(d2p.array2d.copy().T,index=convIndex[:16]).T
+                       d = pd.DataFrame(d2p.array2d.copy().T,index=convIndex[:17]).T
                        d2p.array2d = None
                    lon = (d.lon + 180) % 360 - 180
                    lat = d.lat
@@ -136,12 +138,14 @@ class read_diag(object):
                    lat = d.lat
                    df[sType] = gpd.GeoDataFrame(d, geometry=gpd.points_from_xy(lon,lat))
 
+
             if self._FileType == 1:
                 self.obsInfo[obsName] = pd.concat(df.values(),keys=df.keys(), names=['kx','points'])
             elif self._FileType == 2:
                 self.obsInfo[obsName] = pd.concat(df.values(),keys=df.keys(), names=['SatId','points'])
 
-    def plot(self, var, sat, diag, mask=None, ax=None, **plt_kwargs):
+
+    def plot(self, var, id, diag, mask=None, ax=None, **plt_kwargs):
 
          if ax is None:
              fig = plt.figure(figsize=(12, 12))
@@ -168,7 +172,7 @@ class read_diag(object):
 #             plt.title( title=var+'_'+sat )
 
          return fig, ax
-
+#    @profile(precision=8)
     def close(self):
 
         """
@@ -177,13 +181,16 @@ class read_diag(object):
         Usage: close()
         """
 
-        iret = d2p.close(self.FNumber)
+        iret = d2p.close(self._FNumber)
         self._FileName = None # File name
         self._FNumber  = None # File unit number to be closed
         self._nVars    = None # Total of variables
-        self.VarNames = None # Name of variables
-        self.ObsInfo  = None 
-        self.nObs     = None # Number of observations for vName
+        self.varNames  = None # Name of variables
+        self.obsInfo   = None 
+        self.nObs      = None # Number of observations for vName
+        del self
+        gc.collect()
+        
         return iret
 
 
