@@ -20,7 +20,7 @@ $ module swap PrgEnv-pgi PrgEnv-gnu
 * Obter uma cópia do ReadDiag do repositório:
 
 ```
-$ svn co https://svn.cptec.inpe.br/ad/trunk/ReadDiag
+$ gh repo clone GAD-DIMNT-CPTEC/readDiag
 ```
 
 * Compilação do pacote:
@@ -90,7 +90,7 @@ $ conda install -c anaconda geos pandas
 * Obter uma cópia do ReadDiag do repositório:
 
 ```
-$ svn co https://svn.cptec.inpe.br/ad/trunk/ReadDiag
+$ gh repo clone GAD-DIMNT-CPTEC/readDiag
 ```
 
 * Instalação do pacote:
