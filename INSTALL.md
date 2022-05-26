@@ -85,6 +85,8 @@ $ conda activate ReadDiag
 ```
 $ conda install -c conda-forge matplotlib basemap proj4 pyproj
 $ conda install -c anaconda geos pandas
+$ conda install -c conda-forge cartopy
+$ pip install geopandas
 ```
 
 * Obter uma cópia do ReadDiag do repositório:

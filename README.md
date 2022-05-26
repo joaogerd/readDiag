@@ -1,5 +1,7 @@
 # ReadDiag
 
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/GAD-DIMNT-CPTEC/readDiag/master)
+
 O pacote ReadDiag foi concebido para ser uma ferramenta que possibilita o fácil acesso aos arquivos diagnósticos gerados pelo [Gridpoint Statistical Interpolation (GSI) system](https://github.com/NOAA-EMC/GSI). Existem duas formas distintas de acessar (ler) os arquivos diagnósticos do GSI por meio do ReadDiag. A primeira é por meio da classe `readDiag.py` diretamente no python e a segunda é diretamente no fortran usando como base o modulo `ReadDiagMod.f90`.
 
 ## Requerimentos
@@ -26,6 +28,10 @@ python setup.py install
 
 Veja o notebook Jupyter `readdiag_example.ipynb` com vários exemplos de uso (em inglês).
 
-## TODO list
+## TODO 
 
-A lista com as necessidades do pacote pode sem encontrada no arquivo `TODO.md`.
+- [X] Feito
+- [ ] Verificar a issue https://github.com/GAD-DIMNT-CPTEC/readDiag/issues/1
+- [ ] Tarefa 1
+- [ ] Tarefa 2
+- [ ] etc :tada:
