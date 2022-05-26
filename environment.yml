@@ -1,4 +1,4 @@
-name: readDiag
+name: readDiag2
 channels:
   - anaconda
   - defaults
@@ -126,7 +126,7 @@ dependencies:
     - entrypoints
     - fastjsonschema
     - fiona
-    - geopandas
+    - geopandas=0.10.2
     - gsidiag
     - importlib-metadata
     - importlib-resources

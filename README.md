@@ -19,7 +19,7 @@ Para instalação no ambiente python alguns pacotes extras são necessários, as
 Para facilitar a configuração de um ambiente Python para uso com o readDiag, utilize o arquivo `environment.yml` com o conda:
 
 ```
-conda env create -n environment.yml
+conda env create -f environment.yml
 ```
 
 Caso não seja de interesse usar o pacote python, pode-se utilizar somente o modulo em fortran. Para tal, todas as dependências já estão inclusas no pacote. Porém, recomenda-se usar o compilador gfortran.
