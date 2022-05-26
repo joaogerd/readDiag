@@ -10,9 +10,17 @@ Para instalação no ambiente python alguns pacotes extras são necessários, as
 
 * matplotlib;
 * basemap;
+* cartopy;
 * proj4;
 * pyproj;
-* libgeos.
+* libgeos;
+* geopandas.
+
+Para facilitar a configuração de um ambiente Python para uso com o readDiag, utilize o arquivo `environment.yml` com o conda:
+
+```
+conda env create -n environment.yml
+```
 
 Caso não seja de interesse usar o pacote python, pode-se utilizar somente o modulo em fortran. Para tal, todas as dependências já estão inclusas no pacote. Porém, recomenda-se usar o compilador gfortran.
 
@@ -26,12 +34,4 @@ python setup.py install
 
 ## Uso
 
-Veja o notebook Jupyter `readdiag_example.ipynb` com vários exemplos de uso (em inglês).
-
-## TODO 
-
-- [X] Feito
-- [ ] Verificar a issue https://github.com/GAD-DIMNT-CPTEC/readDiag/issues/1
-- [ ] Tarefa 1
-- [ ] Tarefa 2
-- [ ] etc :tada:
+Veja o notebook Jupyter `gsidiag_test.ipynb` com vários exemplos de uso (em inglês).
