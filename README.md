@@ -34,4 +34,4 @@ python setup.py install
 
 ## Uso
 
-Veja o notebook Jupyter `gsidiag_test.ipynb` com vários exemplos de uso (em inglês).
+Veja o notebook Jupyter `gsidiag_test.ipynb` com vários exemplos de uso.
