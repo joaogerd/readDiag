@@ -47,7 +47,7 @@ class read_diag(object):
     read a diagnostic file from gsi. Return an array with
     some information.
     """
-#    @profile(precision=8)
+    #@profile(precision=8)
     def __init__(self, diagFile, diagFileAnl=None, isisList=None, zlevs=None):
 
         self._diagFile     = diagFile
@@ -75,7 +75,6 @@ class read_diag(object):
             isis = np.array(l,dtype='c').T
             
         self._FNumber    = d2p.open(self._diagFile, self._diagFileAnl, isis)
-
         if (self._FNumber <= -1):
             self._FNumber = None
             print('Some was was wrong during reading files ...')
@@ -172,7 +171,7 @@ class read_diag(object):
 #             plt.title( title=var+'_'+sat )
 
          return fig, ax
-#    @profile(precision=8)
+    #@profile(precision=8)
     def close(self):
 
         """

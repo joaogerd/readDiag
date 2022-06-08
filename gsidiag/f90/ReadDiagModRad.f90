@@ -198,11 +198,12 @@ module ReadDiagModRad
   !-------------------------------------------------------------------------
   type :: rDiag
      Private
-     type(ObsInfo), pointer         :: oInfo => null()
+     type(ObsInfo),   pointer       :: oInfo => null()
+     type(ObsInfo),   pointer       :: Head  => null()
      integer, public, pointer       :: nType => null()
-     integer, public, pointer       :: nObs  => null()
+     integer, public, pointer       :: nObs => null()
      integer, public, pointer       :: MaxChanl => null()
-     logical, public                        :: impact
+     logical, public                :: impact
      real(r_kind), public           :: udef
      contains
 !        procedure,   public  :: Open        => Open_
@@ -242,10 +243,10 @@ module ReadDiagModRad
      real,    allocatable    :: imp  (:)  ! observation impact
      real,    allocatable    :: dfs  (:)  ! degree of freedom for signal
 
-     type(SatPlat), pointer  :: oSat  => null() 
+     type(SatPlat), pointer  :: oSat  => null()
+     type(SatPlat), pointer  :: Head  => null()
 
      ! ObsInfo list
-     type(ObsInfo), pointer  :: First => null()
      type(ObsInfo), pointer  :: Next  => null()
   end type ObsInfo
 
@@ -258,10 +259,10 @@ module ReadDiagModRad
      real, allocatable      :: imp(:)
      real, allocatable      :: dfs(:)
      type(RadData), pointer :: oData => null()
+     type(RadData), pointer :: Head  => null()
 
      ! Satellite Plataform Id list
-     type(SatPlat), pointer :: First => null()
-     type(SatPlat), pointer :: Next  => null()
+     type(SatPlat), pointer :: next  => null()
   end type SatPlat
 
   type :: RadData
@@ -316,7 +317,6 @@ module ReadDiagModRad
      type(ChannelData), pointer :: chData(:) => null()
      
      ! Radiance data list
-     type(RadData), pointer :: First => null()
      type(RadData), pointer :: Next => null()
 
   end type
@@ -376,7 +376,7 @@ contains
 ! !INTERFACE:
   function Open_(self, FileNameMask, IsisList) result(iret)
      use m_string, only: str_template
-     class(rDiag)                     :: self
+     class(rDiag)                              :: self
 !
 ! !INPUT PARAMETERS:
 !
@@ -398,25 +398,86 @@ contains
 !EOP
 !--------------------------------------------------------------------!
 !EOC
+
+     if (.not.associated(self%Head))then    
+        !------------------------------------------!
+        ! Initialize some global variables
+        
+        allocate(self%nType)
+        self%nType = 0
+        
+        allocate(self%nObs)
+        self%nObs = 0
+   
+        allocate(self%MaxChanl)
+        self%MaxChanl = 0
+   
+        self%impact = .false.
+   
+        self%udef   = udef
+        !------------------------------------------!
+     endif
+
+   self%head => getData(FileNameMask, self%nType, self%maxChanl, isisList, iret)
+   self%oinfo => self%head
+
+
+!EOC
+!--------------------------------------------------------------------!
+end function
+
+
+!--------------------------------------------------------------------!
+!BOP
+! 
+! !FUNCTION: Open_()
+!
+! !DESCRIPTION: Função utilizada para abrir os arquivos diagnóticos
+!               das observações convencionais do GSI e carregar
+!               a informação na estrutura de dados ObsInfo
+!
+! !INTERFACE:
+  function getData(FileNameMask, nTypes, maxChanl, isisList, iret)result(head)
+     use m_string, only: str_template
+!
+! !INPUT PARAMETERS:
+!
+     Character(len=*),           intent(in   ) :: FileNameMask ! Nome do arquivo a ser lido
+                                                               ! use a palavra chave %e no nome 
+                                                               ! do arquivo para ler diretamente
+                                                               ! os diversos arquivos escritos
+                                                               ! por cada processo MPI do GSI 
+                                                               
+     Character(len=*), optional, intent(in   ) :: IsisList(:)  ! lista com o nome dos satélites/sensores
+                                                               ! a serem lidos
+!
+! !OUTPUT PARAMETERS:
+!
+     Integer,                    intent(  out) :: nTypes
+     Integer,                    intent(  out) :: maxChanl
+     Integer,          optional, intent(  out) :: iret ! Código de erro
+                                                       !   0 : Sem erro
+                                                       !  -1 : File not found
+                                                       ! -99 : Erro na leitura
+
+     type(obsInfo), pointer                    :: Head
+!EOP
+!--------------------------------------------------------------------!
+!EOC
      !
      ! local var
      !
 
      character(len=StrLen)  :: FileName
-     type(ObsInfo), pointer :: info => null()
 
      integer :: ios
      integer :: lu
      integer :: i, j
      integer :: nFiles, iFile
      character(len=15)      :: myName
-     logical                :: isNewType
      logical                :: existe
 
-
-
-
-    !
+     !
      ! Informations from file header
      ! Gerenal Info
      character(20)   :: isis    ! sensor/instrument/satellite id  ex.amsua_n15
@@ -460,47 +521,27 @@ contains
 
 
 
+     type(obsInfo),     pointer :: Info      => null()
      type(ChannelInfo), pointer :: chInfo(:) => null()
      type(ChannelData), pointer :: chData(:) => null()
-     type(RadData),     pointer :: rad     => null()
+     type(RadData),     pointer :: rad       => null()
 
+     nullify(head)
 
-     info => self%oInfo
-!     if(associated(self%oInfo))then
-!        print*,'Ja associado!'
-!        stop
-!     endif
-     if (.not.associated(info))then    
-        !------------------------------------------!
-        ! Initialize some global variables
-        allocate(self%nType)
-        self%nType = 0
-        
-        allocate(self%nObs)
-        self%nObs = 0
-   
-        allocate(self%MaxChanl)
-        self%MaxChanl = 0
-   
-        self%impact = .false.
-   
-        self%udef   = udef
-        !------------------------------------------!
-     endif     
      lu  = 100
-
      if(present(IsisList))then
         nFiles = size(IsisList)
      else
         nFiles = 1
      endif
-
+     
+     nTypes = 0
+     !nObs   = 0
      OpenFiles: do iFile = 1, nFiles
         FileName=trim(FileNameMask)
 
         if(present(IsisList))then
            myName = trim(adjustl(IsisList(iFile)))
-           !print*,'myName is:', trim(myName), iFile, nFiles, isisList(iFile)
            call str_template(strg=FileName,label=myName)
         endif
         
@@ -509,14 +550,13 @@ contains
         if( .not. existe)then
            write(*,'(A,1x,A)')'File not found:',trim(FileName)
            if (nFiles .eq. 1)then
-              iret = -1
+              if(present(iret))iret = -1
               return
            else
               cycle
            endif
         endif
         
-
         OPEN ( UNIT   = lu,            &
                FILE   = trim(FileName),&
                STATUS = 'OLD',         &
@@ -526,12 +566,12 @@ contains
                FORM   = 'UNFORMATTED')
         if(ios.ne.0) then
            print*,'error to open file',trim(FileName)
-           iret = -1
+           if(present(iret))iret = -1
            return
         endif
 
         read(lu,err=997) isis, dplat, obstype, jiter, nchanl, npred, idate, ireal, ipchan, iextra, jextra
-!        write(*,*) isis, dplat, obstype, jiter, nchanl, npred, idate, ireal, ipchan, iextra, jextra
+        !write(*,*) isis, dplat, obstype, jiter, nchanl, npred, idate, ireal, ipchan, iextra, jextra
 
         microwave = ( trim(obstype) == 'amsua' .or. &
                       trim(obstype) == 'amsub' .or. &
@@ -547,7 +587,7 @@ contains
 
          allocate(ChInfo(nchanl))
 
-         if(nchanl .gt. self%MaxChanl) self%MaxChanl = nchanl
+         if(nchanl .gt. MaxChanl) MaxChanl = nchanl
          
          do i = 1, nchanl
             read(lu) freq4, pol4, wave4, varch4, tlap4,iuse_rad, nuchan, ich
@@ -567,10 +607,8 @@ contains
         ! Read observation data
 
         allocate(diagbuf(ireal))
-!        allocate(diagbufchan(ipchan+npred+1,nchanl))
         allocate(diagbufchan(ipchan+npred+2,nchanl))
         if(iextra > 0) allocate(diagbufex(iextra,jextra))
-
 
         ReadSatData: do
         
@@ -682,13 +720,48 @@ contains
            rad%chData => chData
 
            !
-           ! insert data to conv structure
+           ! insert data to rad structure
            !
 
-           call insert(info, trim(ObsType), rad, nchanl, isNewType, idate)
+           if(.not.associated(head))then
+              allocate(head)
+              info => head
+              nTypes = nTypes + 1
+              call init_(                        &
+                         self   = info,          &
+                         oType  = trim(obsType), &
+                         idate  = idate,         &
+                         nChanl = nChanl,        &
+                         oData  = rad            &
+                        )
+           else
 
-           if ( isNewType ) self%nType = self%nType + 1
+              if (trim(obsType) == trim(info%Sensor))then
+                 call insert(info, trim(ObsType), rad, nchanl, idate)
+              else
 
+                 info => head
+                 do while(associated(info))
+                    if (trim(obsType) == trim(info%Sensor)) exit
+                    info => info%next
+                 enddo
+
+                 if(associated(info))then
+                    call insert(info, trim(ObsType), rad, nchanl, idate)
+                 else
+
+                    allocate(info)
+                    nTypes = nTypes + 1
+                    call init_(                        &
+                               self   = info,          &
+                               oType  = trim(obsType), &
+                               idate  = idate,         &
+                               nChanl = nChanl,        &
+                               oData  = rad            &
+                              )
+                 endif
+              endif
+           endif
 
         enddo ReadSatData
 
@@ -699,21 +772,23 @@ contains
         deallocate(diagbuf)
         deallocate(diagbufchan)
         if(iextra > 0) deallocate(diagbufex)
-
      enddo OpenFiles
+
      
-     self%oInfo => info%First
-
-     iret = 0
+     if(present(iret))iret = 0
      return
 
-997  iret = -95
+997  if(present(iret))iret = -95
      return
 
-998  iret = -96
+998  if(present(iret))iret = -96
      return
 
   end function
+
+!EOC
+!--------------------------------------------------------------------!
+
   function Open__(self, File_FGS, File_ANL, IsisList) result(iret)
      class(rDiag)                     :: self
      character(len=*),           intent(in   ) :: File_FGS
@@ -742,7 +817,109 @@ contains
      integer    :: k
 
      iret = 0
+     if(present(IsisList))then
+        ierr = file1%open(File_FGS, IsisList)
+        ierr = file2%open(File_ANL, IsisList)
+     else
+        ierr = file1%open(File_FGS)
+        ierr = file2%open(File_ANL)
+     endif
 
+     info1 => file1%head
+     info2 => file2%head
+
+     oSat1 => info1%head
+     oSat2 => info2%head
+     do while(associated(oSat1))
+
+        oData1 => oSat1%head
+        oData2 => oSat2%head
+        do while(associated(oData1))
+
+           do k=1,info1%nChanl
+
+              allocate(oData1%chData(k)%oma)
+              allocate(oData1%chData(k)%oma_nobc)
+              allocate(oData1%chData(k)%imp)
+              allocate(oData1%chData(k)%dfs)
+
+              oData1%chData(k)%oma      = oData2%chData(k)%omf
+              oData1%chData(k)%oma_nobc = oData2%chData(k)%omf_nobc
+              oData1%chData(k)%oer      = oData2%chData(k)%oer
+
+              omf => oData1%chData(k)%omf
+              oma => oData1%chData(k)%oma
+              err => oData1%chData(k)%oer
+
+              if(err .ne. udef .and. err .lt. 10.0)then
+                 oData1%chData(k)%imp = (oma**2 - omf**2) / err
+                 oData1%chData(k)%dfs = ( ( oma - omf ) * (omf) )  / err
+              else
+                 oData1%chData(k)%imp = udef
+                 oData1%chData(k)%dfs = udef
+              endif
+              
+           enddo
+
+           oData1 => oData1%next
+           oData2 => oData2%next
+        enddo
+        
+        oSat1 => oSat1%next
+        oSat2 => oSat2%next
+     enddo
+     iret = file2%close()
+     ! obtain some statistics
+     iret = file1%calcStat()
+
+     ! assign to self pointer
+     self%head => file1%head
+     self%oInfo => file1%head
+     self%nType => file1%nType
+     self%nObs => file1%nObs
+     self%MaxChanl => file1%MaxChanl
+     self%udef = file1%udef
+     self%impact = .true.
+
+
+     !print*,'verify data avaliable ...'
+     !info1 => self%head
+     !do while(associated(info1))
+     !   print*,trim(info1%sensor),info1%nChanl
+     !   info1 => info1%next
+     !enddo
+
+  end function
+  
+
+  function Open___(self, File_FGS, File_ANL, IsisList) result(iret)
+     class(rDiag)                     :: self
+     character(len=*),           intent(in   ) :: File_FGS
+     character(len=*),           intent(in   ) :: File_ANL
+     Character(len=*), optional, intent(in   ) :: IsisList(:)
+     Integer                                   :: iret
+
+
+     type(rDiag)             :: file1
+     type(ObsInfo), pointer  :: info1 => null()
+     type(SatPlat), pointer  :: oSat1 => null()
+     type(RadData), pointer  :: oData1 => null()
+
+     type(rDiag)             :: file2
+     type(ObsInfo), pointer  :: info2 => null()
+     type(SatPlat), pointer  :: oSat2 => null()
+     type(RadData), pointer  :: oData2 => null()
+
+     real, pointer :: oma => null()
+     real, pointer :: omf => null()
+     real, pointer :: err => null()
+
+     
+     character(len=20) :: isis
+     integer    :: ierr
+     integer    :: k
+
+     iret = 0
      if(present(IsisList))then
         ierr = file1%open(File_FGS, IsisList)
      else
@@ -753,11 +930,9 @@ contains
         iret = ierr
         return
      endif
-
-     info1 => file1%oInfo%First     
-     info1%impact = .true. 
+     info1 => file1%head     
      do while(associated(info1))
-        oSat1 => info1%oSat%First
+        oSat1 => info1%head
         do while(associated(oSat1))
            isis  = trim(info1%sensor)//"_"//trim(oSat1%idplat)
            ierr  = file2%open(File_ANL, [isis])
@@ -767,13 +942,13 @@ contains
               return
            endif
 
-           info2 => file2%oInfo%First
-           oSat2 => info2%oSat%First
+           info2 => file2%head
+           oSat2 => info2%head
 
-           oData1 => oSat1%oData%First
-           oData2 => oSat2%oData%First
+           oData1 => oSat1%head
+           oData2 => oSat2%head
            do while(associated(oData1))
-              
+
               do k=1,info1%nChanl
 
                  allocate(oData1%chData(k)%oma)
@@ -819,15 +994,15 @@ contains
 
      ! obtain some statistics
      iret = file1%calcStat()
-
+     
      ! assign to self pointer
-     self%oInfo => file1%oInfo
+     self%head => file1%head
+     self%oInfo => file1%head
      self%nType => file1%nType
      self%nObs => file1%nObs
      self%MaxChanl => file1%MaxChanl
      self%udef = file1%udef
-
-!     ierr = file2%close( )
+     self%impact = .true.
 
   end function
 
@@ -835,13 +1010,39 @@ contains
 
   function close_(self) result(iret)
      class(rDiag) :: self
-     integer     :: iret
+     integer      :: iret
 
-      iret = 0
-      call deleteObsInfo(self%oInfo)
-      nullify(self%oInfo)
-      self%nType = -1
-      self%nObs  = -1
+     type(ObsInfo), pointer :: current => null()
+     type(ObsInfo), pointer :: next => null()
+     integer :: istat
+
+     iret = 0
+
+     current => self%head
+     next => current%next
+     do 
+         if(allocated(current%imp)) deallocate(current%imp)
+         if(allocated(current%dfs)) deallocate(current%dfs)
+         call deleteSatId(current%head, istat)
+         iret = iret + istat
+         deallocate(current,stat=istat)
+         iret = iret + istat
+         if(.not.associated(next)) exit
+         current => next
+         next => current%next
+     enddo
+    
+
+     deallocate(self%nType, stat=istat)
+     iret = iret + istat
+
+     deallocate(self%nObs, stat=istat)
+     iret = iret + istat
+
+     deallocate(self%maxChanl, stat=istat)
+     iret = iret + istat
+
+     return
       
   end function
 
@@ -869,9 +1070,6 @@ contains
      !--------------------------------!
      ! Assingn Self information 
 
-     allocate(self, stat = iret)
-     istat = istat + iret
-
      self%Sensor = trim(otype)
      self%nChanl = nChanl
      self%nSatID = 1
@@ -880,13 +1078,13 @@ contains
      self%ymd    = int(idate/100)
      self%hms    = mod(idate,100) * 10000  
 
-     self%First  => self
      nullify(self%Next)
      !--------------------------------!
 
      !--------------------------------!
      ! Assingn oSat information
-     allocate(self%oSat, stat=iret)
+     allocate(self%Head, stat=iret)
+     self%oSat => self%Head
      istat = istat + iret
 
      self%oSat%idplat = oData%idplat
@@ -894,15 +1092,15 @@ contains
 !     self%oSat%imp    = udef
 !     self%oSat%dfs    = udef
 
-     self%oSat%First  => self%oSat
-     nullify(self%oSat%Next)
+     nullify(self%oSat%next)
      !--------------------------------!
 
      !--------------------------------!
      ! Assign oData infomation
 
-     self%oSat%oData  => oData
-     self%oSat%oData%First => self%oSat%oData
+     self%oSat%Head => oData
+     self%oSat%oData => self%oSat%Head
+
      nullify(self%oSat%oData%Next)
 
      if (istat .ne. 0 ) then 
@@ -920,17 +1118,16 @@ contains
 
   end function
 
-  recursive subroutine insert(self, oType, odata, nChanl, isNewType, idate)
+  recursive subroutine insert(info, oType, odata, nChanl, idate)
 
-    type(ObsInfo), pointer, intent(inout) :: self
+    type(obsInfo), pointer, intent(inout) :: info
     character(len=*),       intent(in   ) :: oType
     type(RadData), pointer, intent(in   ) :: odata
     integer,                intent(in   ) :: nChanl
-    logical, optional,      intent(  out) :: isNewType
     integer, optional,      intent(in   ) :: idate ! synoptic year/month/day
 
     integer                :: date
-
+    type(ObsInfo), pointer :: oInfo     => null()
     type(ObsInfo), pointer :: NewType   => null()
     type(ObsInfo), pointer :: Find      => null()
     type(ObsInfo), pointer :: FirstType => null()
@@ -938,7 +1135,6 @@ contains
 
     integer :: iret
 
-    if(present(isNewType)) isNewType = .FALSE.
 
     if(present(idate))then
        date = idate
@@ -946,146 +1142,74 @@ contains
        date = 0
     endif
 
-    !
-    ! Verify if self is null
-    !
+    if(trim(info%Sensor).eq.trim(oType))then
 
-    if(IsEmpty(self)) then
-       !
-       ! Only at First time
-       !
-       call init_(                       &
-                  self    = self,        &
-                  oType   = trim(oType), &
-                  idate   = date,        & 
-                  nChanl  = nChanl,      &
-                  oData   = oData        &
-                 )
-
-       if(present(isNewType)) isNewType = .TRUE.
-       return
-
-    endif
-    
-    ! If not empty insert data at a existing pointer
-
-    if(trim(self%Sensor).eq.trim(oType))then
        !
        ! Insert a new observation point
        ! in an existing variable
        !
-
-       self%nobs = self%nobs + 1    
-
+   
+       info%nobs = info%nobs + 1    
+   
        !
        ! Organize data by Sattelite plataform Id
        !
-
+   
        ! verify if current pointer have same SatId
-       if(self%oSat%idplat .eq. oData%idplat)then
-
-!          allocate(self%oSat%oData%next)
-
-          self%oSat%oData%next => oData
-          self%oSat%oData%next%First  => self%oSat%oData%First
-
-          self%oSat%oData      => self%oSat%oData%next
-
-          nullify(self%oSat%oData%next)
-
-          self%oSat%nobs       = self%oSat%nobs + 1
+       if(info%oSat%idplat .eq. oData%idplat)then
+   
+          info%oSat%oData%next => oData
+          info%oSat%oData      => info%oSat%oData%next
+   
+          nullify(info%oSat%oData%next)
+   
+          info%oSat%nobs       = info%oSat%nobs + 1
           
        else
-
+   
           ! find by required Sattelite Id
-          oSat => self%oSat%First
+          oSat => info%Head
           do while(associated(oSat))
             if(oData%idplat .eq. oSat%idplat)exit
-!            self%oSat => oSat
-            oSat      => oSat%Next
+            oSat => oSat%next
           enddo
-   
+    
           if(associated(oSat))then
-
-!             allocate(oSat%oData%next)
-
-             oSat%oData%next => oData
-             oSat%oData%next%First => self%oSat%oData%First
-             
-             oSat%oData      => oSat%oData%next
-             nullify(oSat%oData%next)
-
-             oSat%nobs       = oSat%nobs + 1
-
-          else
    
+             oSat%oData%next => oData
+             oSat%oData      => oSat%oData%next
+   
+             nullify(oSat%oData%next)
+   
+             oSat%nobs       = oSat%nobs + 1
+   
+          else
+    
              allocate(oSat, stat=iret)
              oSat%idplat     = oData%idplat
              oSat%nobs       = 1
-
-!             allocate(oSat%oData)
-             oSat%oData       => oData
-             oSat%oData%First => oSat%oData
-
-             nullify(oSat%oData%next)
    
-             oSat%First      => self%oSat%First
-             self%oSat%next  => oSat
-             self%oSat       => self%oSat%Next
-             nullify(self%oSat%next)
-
-             self%nSatId     = self%nSatId + 1
+             oSat%Head  => oData
+             oSat%oData => oSat%Head
+   
+             nullify(oSat%oData%next)
+    
+             info%oSat%next  => oSat
+             info%oSat       => info%oSat%Next
+             nullify(info%oSat%next)
+   
+             info%nSatId     = info%nSatId + 1
           endif
        endif
 
-     else ! Insert a new observatoion Type (Sensor)
+       return
 
-        !
-        ! Return to first Sensor
-        !
+    endif
 
-        Find => self%First
-        FirstType => self%First
-
-        !
-        ! Find by observation type (Sensor)
-        ! in the list
-
-        do while(associated(Find))
-           if(trim(Find%Sensor) .eq. trim(oType))then
-              call insert(Find, oType, oData, nChanl)
-              self => Find
-              return
-           endif
-!           self => Find
-           Find => Find%Next
-        enddo
-
-        !
-        ! if not found
-        ! create a NewVariable
-        !
-
-        allocate(NewType)
-        nullify(NewType%Next)
-        call init_(                      &
-                   self   = NewType,     &
-                   oType  = trim(oType), &
-                   idate  = date,        &
-                   nChanl = nChanl,      &
-                   oData  = oData        &
-                  )
-
-        NewType%First => FirstType
-        self%Next     => NewType
-        self          => self%Next
-
-        if(present(isNewType)) isNewType = .TRUE.
-
-     endif
 
 
     return
+
   end subroutine insert
 
 
@@ -1099,29 +1223,27 @@ contains
      type(RadData), pointer :: oData => null()
      integer                :: k
      
-     self%impact = .true.
-     oType => self%oInfo%First
+     oType => self%head
      do while(associated(oType))
-
         allocate(oType%imp(0:oType%nChanl))
         oType%imp = 0.0
         allocate(oType%dfs(0:oType%nChanl))
         oType%dfs    = 0.0
         oType%Used   = 0
         otype%noUsed = 0
-        oSat => oType%oSat%First
+        oSat => oType%head
         do while(associated(oSat))
-
            allocate(oSat%imp(0:oType%nChanl))
            oSat%imp = 0.0
            allocate(oSat%dfs(0:oType%nChanl))
            oSat%dfs = 0.0
            oSat%used   = 0
            oSat%noused = 0
-           oData => oSat%oData%First
+           oData => oSat%head
+           k=1
            do while(associated(oData))
-
-!            ! Account total observation impact ??!!
+             k=k+1
+            ! Account total observation impact ??!!
                do k = 1, oType%nchanl
                   if ( (oData%chData(k)%imp .ne. udef) .and. (oData%chInfo(k)%iuse .ge. 1))then
                      oSat%imp(k) = oSat%imp(k) + oData%chData(k)%imp
@@ -1183,14 +1305,14 @@ contains
      iret = 0
      write(*,'(A)')'-------------- Impact Info ------------------'
         print*,''
-     oType => self%oInfo%First
+     oType => self%head
      do while(associated(oType))
 !        write(*,'(1x,A10,4(1x,F16.3))') trim(oType%Sensor), oType%imp(0), oType%dfs(0), &
 !                                       oType%imp(0)/oType%Used, oType%dfs(0)/oType%Used
         write(*,'(1x,A10,A8,4(1x,A16))') trim(oType%Sensor),'satId','Impact','dfs','ave(imp)','ave(dfs)'
 
 !        write(*,'(11x,A10,4(1x,A16))')'satId','Impact','dfs','ave(imp)','ave(dfs)' 
-        oSat => oType%oSat%First
+        oSat => oType%head
         do while(associated(oSat))
            if(associated(oSat%Next))then
               write(*,'(8x,A3,A10,4(1x,F16.3))')'├──',trim(oSat%idplat), oSat%imp(0), oSat%dfs(0), &
@@ -1214,13 +1336,13 @@ contains
 
      write(*,'(A)')'-------------- Counting Info ------------------'
     ! Total
-     oType => self%oInfo%First
+     oType => self%head
      do while(associated(oType))
         total = oType%nObs*oType%nChanl
         write(*,'(1x,A10,3(I9))') trim(oType%Sensor)!, oType%nObs, oType%nChanl, total
         write(*,'(8x,A3,A10,3(1x,A16),2(1x,A8))')'│','id','nObs','used','not used', '% used','% not used'
 
-        oSat => oType%oSat%First
+        oSat => oType%head
         do while(associated(oSat))
            total   = oSat%nObs*oType%nChanl
            pused   = (oSat%Used/real(total,4))*100.0
@@ -1258,7 +1380,7 @@ contains
      endif
 
      allocate(imp(self%nType,0:self%MaxChanl))
-     oType => self%oInfo%First
+     oType => self%head
      do i=1,self%nType
         do j = 0, oType%nChanl
            imp(i,j) = oType%imp(j)
@@ -1286,20 +1408,19 @@ contains
      integer :: ierr
 
      if(present(istat)) istat = 0
-
      oT1 = trim(adjustl(Sensor))
      oS1 = trim(adjustl(SatId))
      !write(*,'(4(1x,A))')'Sensor:', trim(oT1),'SatPlat:', trim(oS1)
 
-     oType => Self%oInfo%First
+     oType => Self%head
      do while(associated(oType))
         oT2 = trim(adjustl(oType%Sensor))
         if( oT1 .eq. oT2 )then
-           oSat => oType%oSat%First
+           oSat => oType%head
            do while(associated(oSat))
               oS2 = trim(adjustl(oSat%idplat))
               if( oS1 .eq. oS2 )then
-              oData => oSat%oData%First
+              oData => oSat%head
               TotalObs = oSat%nObs * otype%nChanl
               if(allocated(ObsTable)) deallocate(ObsTable)
               if(Self%impact)then
@@ -1356,14 +1477,14 @@ contains
 
 
   function GetTotalObs_(self)result(nobs)
-     class(rDiag)          :: self
+     class(rDiag)        :: self
      integer             :: nobs
 
      type(ObsInfo), pointer  :: oType => null()
 
 
      nobs = 0
-     oType => self%oInfo%First
+     oType => self%head
      do while(associated(oType))
         nobs = nobs + oType%nobs
         oType => oType%Next
@@ -1381,13 +1502,13 @@ contains
      character(len=10)       :: v2
 
 !     v1 = trim(adjustl(Sensor))
-     oType => self%oInfo%First
+     oType => self%head
      !print*,'GObt_', associated(oType)
      do while(associated(oType))
         v2 = trim(adjustl(oType%Sensor))
 !        if(v1 .eq. v2)then
            write(*,'(1x,A,I4,I10)')'Number of Satellite: ',oType%nSatId, oType%nobs
-           oSat => oType%oSat%First
+           oSat => oType%head
            do while(associated(oSat))
               write(*,'(5x,2(A,1x),I10)') trim(v2), trim(oSat%idplat), oSat%nObs
               oSat => oSat%next
@@ -1422,7 +1543,7 @@ contains
      v1   = trim(adjustl(Sensor))
      nobs = 0
 
-     oType => self%oInfo%First
+     oType => self%head
      do while(associated(oType))
         v2 = trim(adjustl(oType%Sensor))
 
@@ -1435,11 +1556,13 @@ contains
 
   subroutine GetFirstSensor_(self, First)
      class(rDiag)            :: self
-     type(ObsInfo), pointer, intent(out) :: First => null()
+     type(ObsInfo), pointer, intent(out) :: First
 
-     First => self%oInfo%First
+     !nullify(First)
+     First => self%head
 
   end subroutine
+
 
   function GetSensors_(self, Sensor) result(iret)
      class(rDiag) :: self
@@ -1458,137 +1581,136 @@ contains
      return
   end function
 
-!    subroutine insertSat_(self, oData)
-!       type(SatPlat),  pointer, intent(inout) :: self
-!       type(RadSat), pointer, intent(in   ) :: oData
-!
-!       type(SatPlat),   pointer :: oSat => null()
-!       type(RadData), pointer :: obs  => null()
-!
-!
-!       if(.not. associated(self))then
-!
-!          allocate(oSat)
-!          oSat%idplat = oData%idplat
-!          oSat%nObs   = 1
-!          oSat%imp    = udef
-!          oSat%dfs    = udef
-!          oSat%oData  => oData
-!          oSat%First  => oSat
-!
-!          nullify(oSat%next)
-!          nullify(oSat%oData%next)
-!
-!          self%oSat%Next => oSat
-!          self%oSat => self%oSat%next
-!
-!       elseif(self%idplat .eq. oData%idplat)then
-! 
-!          self%nobs = self%nobs + 1
-!
-!          obs => oData
-!          obs%First => self%oData%First
-!
-!          self%oData%next => obs
-!          self%oData => self%oData%next
-!
-!          nullify(self%oData%next)
-!          
-!
-!       else
-!
-!         call insertSat_
-!
-!      endif 
-!
-!
-!    end subroutine
 
-!    subroutine insertData_(self, oData)
-!       type(RadData), pointer, intent(inout) :: self
-!       type(RadData), pointer, intent(in   ) :: oData
-
-    subroutine DeleteRadData(self)
+    subroutine DeleteRadData(self, iret)
        type(RadData), pointer, intent(inout) :: self
+       integer,                intent(  out) :: iret
        
        type(RadData), pointer :: current => null()
        type(RadData), pointer :: next => null()
 
        type(ChannelData), pointer :: chData(:) => null()
        integer :: i
-       if (.not. associated(self%first)) return
+       integer :: istat
 
-       current => self%first
+       iret = 0
+       
+       current => self
        next => current%next
        do
-           if(associated(current%imp)) deallocate(current%imp)
-           if(associated(current%dfs)) deallocate(current%dfs)
-           if(associated(current%cls)) deallocate(current%cls)
-           if(associated(current%cldp)) deallocate(current%cldp)
-           if(associated(current%clw)) deallocate(current%clw)
-           if(associated(current%tpwc)) deallocate(current%tpwc)
-           nullify(current%chInfo)
+           if(associated(current%imp)) then
+              deallocate(current%imp, stat=istat)
+              iret = iret + istat
+           endif
 
-           chData => current%ChData
-           do i=1, current%nchanl
-              if(allocated(chData(i)%predterms))deallocate(chData(i)%predterms)
-              if(associated(chData(i)%oma))nullify(chData(i)%oma)
-              if(associated(chData(i)%oma_nobc))nullify(chData(i)%oma_nobc)
-              if(associated(chData(i)%imp))nullify(chData(i)%imp)
-              if(associated(chData(i)%dfs))nullify(chData(i)%dfs)
-              if(associated(chData(i)%weigthmax))nullify(chData(i)%weigthmax)
-              if(associated(chData(i)%tb_obs_sdv))nullify(chData(i)%tb_obs_sdv)
-           enddo
-           deallocate(current%chData)
+           if(associated(current%dfs)) then
+              deallocate(current%dfs, stat=istat)
+              iret = iret + istat
+           endif
 
-           deallocate(current)
+           if(associated(current%cls)) then
+              deallocate(current%cls, stat=istat)
+              iret = iret + istat
+           endif
+
+           if(associated(current%cldp)) then
+              deallocate(current%cldp, stat=istat)
+              iret = iret + istat
+           endif
+
+           if(associated(current%clw)) then
+              deallocate(current%clw, stat=istat)
+              iret = iret + istat
+           endif
+
+           if(associated(current%tpwc)) then
+              deallocate(current%tpwc, stat=istat)
+              iret = iret + istat
+           endif 
+          ! if(associated(current%chInfo)) then
+          !    deallocate(current%chInfo, stat=istat)
+          !    iret = iret + istat
+          ! endif
+
+           if(associated(current%ChData))then   
+              chData => current%ChData
+              do i=1, current%nchanl
+                 if(allocated(chData(i)%predterms))then
+                    deallocate(chData(i)%predterms, stat=istat)
+                    iret = iret + istat
+                 endif
+                 if(associated(chData(i)%oma))then
+                    deallocate(chData(i)%oma, stat=istat)
+                    iret = iret + istat
+                 endif
+                 if(associated(chData(i)%oma_nobc))then
+                    deallocate(chData(i)%oma_nobc, stat=istat)
+                    iret = iret + istat
+                 endif
+                 if(associated(chData(i)%imp))then
+                    deallocate(chData(i)%imp, stat=istat)
+                    iret = iret + istat
+                 endif
+                 if(associated(chData(i)%dfs))then
+                    deallocate(chData(i)%dfs, stat=istat)
+                    iret = iret + istat
+                 endif
+                 if(associated(chData(i)%weigthmax))then
+                    deallocate(chData(i)%weigthmax, stat=istat)
+                    iret = iret + istat
+                 endif
+                 if(associated(chData(i)%tb_obs_sdv))then
+                    deallocate(chData(i)%tb_obs_sdv, stat=istat)
+                    iret = iret + istat
+                 endif
+              enddo
+              deallocate(current%chData, stat=istat)
+              iret = iret + istat
+           endif
+
+           deallocate(current, stat=istat)
+           iret = iret + istat
            if (.not. associated(next)) exit
            current => next
            next => current%next
        enddo
+       return
 
     end subroutine
 
-    subroutine DeleteSatId(self)
-       type(SatPlat), intent(inout) :: self
+    subroutine deleteSatId(self, iret)
+       type(SatPlat), pointer, intent(inout) :: self
+       integer,                intent(  out) :: iret
        
        type(SatPlat), pointer :: current => null()
        type(SatPlat), pointer :: next => null()
+       integer :: istat
 
-       if (.not. associated(self%first)) return
+       iret = 0
 
-       current => self%first
+       current => self
        next => current%next
        do
-           call DeleteRadData(Current%oData)
-           deallocate(current)
+           if(allocated(current%imp)) then
+              deallocate(current%imp, stat=istat)
+              iret = iret + istat
+           endif
+           if(allocated(current%dfs)) then
+              deallocate(current%dfs)
+              iret = iret + istat
+           endif
+
+           call deleteRadData(Current%head, istat)
+           iret = iret + istat
+
+           deallocate(current, stat = istat)
+           iret = iret + istat
            if (.not. associated(next)) exit
            current => next
            next => current%next
        enddo
-    end subroutine
+       return
 
-    subroutine DeleteObsInfo(self)
-       type(ObsInfo), pointer, intent(inout) :: self
-       
-       type(ObsInfo), pointer :: current => null()
-       type(ObsInfo), pointer :: next => null()
-
-       if (.not. associated(self%first)) return
-
-       current => self%first
-       next => current%next
-       
-       do
-           if(allocated(current%imp)) deallocate(current%imp)
-           if(allocated(current%dfs)) deallocate(current%dfs)
-           call DeleteSatId(current%oSat)
-           deallocate(current)
-           if (.not. associated(next)) exit
-           current => next
-           next => current%next
-       enddo
-       
     end subroutine
 
     subroutine getSensorInfo_(self,sensor,info, iret)
@@ -1597,7 +1719,7 @@ contains
        type(ObsInfo), pointer, intent(  out) :: info
        integer,                intent(  out) :: iret
 
-       info => self%oInfo%First
+       info => self%head
        do while(associated(info))
           if (trim(sensor).eq.trim(info%sensor))then
              iret = 0
@@ -1618,10 +1740,10 @@ contains
 
        type(ObsInfo), pointer :: info => null()
 
-       info => self%oInfo%First
+       info => self%head
        do while(associated(info))
           if (trim(sensor).eq.trim(info%sensor))then
-             oSat => info%oSat%first
+             oSat => info%head
              do while(associated(oSat))
                 if (trim(idplat) .eq. trim(oSat%idplat))then
                    iret = 0

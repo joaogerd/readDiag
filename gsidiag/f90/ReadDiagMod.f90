@@ -66,7 +66,7 @@ module ReadDiagMod
   
   integer, parameter  :: StrLen   = 512
   integer, parameter  :: i_kind   = selected_int_kind(8)
-  integer, parameter  :: r_kind = selected_real_kind(6)
+  integer, parameter  :: r_kind   = selected_real_kind(6)
 
   !
   ! Some parameters
@@ -959,8 +959,8 @@ contains
 !
 ! !OUTPUT PARAMETERS:
 !
-      type(ObsType), pointer, intent(  out) :: frontRef => null()
-      type(ObsType), pointer, intent(  out) :: backRef => null()
+      type(ObsType), pointer, intent(  out) :: frontRef
+      type(ObsType), pointer, intent(  out) :: backRef
 !
 ! !REVISION HISTORY: 
 !
@@ -1370,8 +1370,9 @@ contains
 
   subroutine GetFirstVar_(self, FirstVar)
      class(diag)            :: self
-     type(ObsInfo), pointer, intent(out) :: FirstVar => null()
-
+     type(ObsInfo), pointer, intent(out) :: FirstVar
+     
+     nullify(FirstVar)
      FirstVar => self%arq%FirstVar
 
   end subroutine

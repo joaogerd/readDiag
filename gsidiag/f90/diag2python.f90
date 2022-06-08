@@ -406,7 +406,7 @@ module Diag2Python
                !now find by ObsType (kx)
                if(v1 .eq. v2) then
       
-                 oSat => SensorNow%oSat%First
+                 oSat => SensorNow%head
                  nKx = SensorNow%nSatID
                  allocate(Array1D(nKx))
                  allocate(CharArray1D(nKx))
@@ -499,10 +499,11 @@ module Diag2Python
             enddo
          type is (rad)
             call ptr%GetFirstSensor(RObsRoot)
-            RtmpObs => RobsRoot
+            RtmpObs => RObsRoot
             do i = 1, nvars
                vNames(i) = trim(RtmpObs%Sensor)
                nTypes(i) = RtmpObs%nSatId
+               RtmpObs => RtmpObs%next
             enddo
          class default
             write(*,*)'File is not conventional nor radiance type'
@@ -566,7 +567,7 @@ module Diag2Python
             call ptr%getFirstSensor(rTmpObs)
             do while(associated(rTmpObs))
                if (trim(vName) .eq. trim(adjustl(rTmpObs%sensor)))then
-                  oSat => rTmpObs%oSat%First
+                  oSat => rTmpObs%head
                   i=1
                   do while(associated(oSat))
                     vTypes(i)  = i
