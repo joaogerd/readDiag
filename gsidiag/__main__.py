@@ -59,9 +59,9 @@ class read_diag(object):
             extraInfo = True
 
         convIndex =['lat','lon', 'elev', 'prs', 'hgt', 'press', 'time', 'idqc', 'iuse', 'iusev', 
-                   'wpbqc', 'inp_err', 'adj_err', 'end_err', 'oer', 'robs', 'omf', 'oma', 'imp', 'dfs']
+                   'wpbqc', 'inp_err', 'adj_err', 'inverr', 'oer', 'obs', 'omf', 'oma', 'imp', 'dfs']
 
-        radIndex  = ['lat','lon','elev','nchan','time','iuse','idqc','errinv','oer','tb_obs',
+        radIndex  = ['lat','lon','elev','nchan','time','iuse','idqc','inverr','oer','obs',
                      'omf','omf_nobc','emiss','oma','oma_nobc','imp','dfs']
                      
         if isisList is None:
