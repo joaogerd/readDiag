@@ -24,11 +24,14 @@
 This module defines the majority of gsidiag functions, including all plot types
 """
 from diag2python import diag2python as d2p
+#import .datasources as ds
+from .datasources import getVarInfo
 #from memory_profiler import profile
 import pandas as pd
 import geopandas as gpd
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from cartopy import crs as ccrs
 import gc
@@ -36,11 +39,6 @@ import gc
 def help():
     print('Esta é uma ajudada')
 
-#def read_diag(diagFile, diagFileAnl=None, isisList=None, zlevs=None):
-#
-#    rdiag = diag(diagFile, diagFileAnl, isisList, zlevs)
-#    
-#    return rdiag.obsInfo
 
 class read_diag(object):
     """
@@ -142,36 +140,216 @@ class read_diag(object):
                 self.obsInfo[obsName] = pd.concat(df.values(),keys=df.keys(), names=['kx','points'])
             elif self._FileType == 2:
                 self.obsInfo[obsName] = pd.concat(df.values(),keys=df.keys(), names=['SatId','points'])
+            
+        self.obs  = pd.concat(self.obsInfo, sort=False).reset_index(level=2, drop=True)
+
+    def plot(self, var, id, param, mask=None, ax=None, **plt_kwargs):
+        '''
+        A função pgeomap faz plotagem da variável selecionada para cada tipo de fonte escolhida para uma determinada data e camada.
+ 
+        Exemplo:
+        gd.plot('ps', 187, 'obs', mask='iuse' == 1)
+        
+        No exemplo acima, será feito o plot do valor observado referente à variável pressão em superfície (ps)
+        para a fonte 187 (ADPSFC) 
+ 
+        lat:   Todas as latitudes das fontes utilizadas
+        lon:   Todas as longitudes das fontes utilizadas
+        prs:   Nível de pressão da observação.
+        lev:   Níveis de pressão da observação.
+        time:  Tempo de observação (minutos relativo ao tempo de análise)
+        idqc:  PreBuffer de entrada qc ou event mark
+        iuse:  Flag utilizado na análise (1=use; -1=monitoring)
+        iusev: Flag utilizado na análise (valor)
+        obs:  Observação
+          
+ 
+        '''
+#        plt.style.use('seaborn')
+        
+        if ax is None:
+            fig = plt.figure(figsize=(12, 12))
+            ax  = fig.add_subplot(1, 1, 1, projection=ccrs.PlateCarree())
+
+        path=gpd.datasets.get_path('naturalearth_lowres')
+
+        world = gpd.read_file(path)
+        gdp_max = world['gdp_md_est'].max()
+        gdp_min = world['gdp_md_est'].min()
+
+        ax = world.plot(ax=ax, facecolor='lightgrey', edgecolor='grey', )
+        
+        if mask is None:
+            ax  = self.obsInfo[var].loc[id].plot(param, ax=ax, **plt_kwargs)
+        else:
+            df = self.obsInfo[var].loc[id]
+            ax = df.query(mask).plot(param, ax=ax, **plt_kwargs)
+
+        if 'title' in plt_kwargs:
+            ax.set_title(plt_kwargs['title'])
+        
+#        if plt_kwargs['legend'] == True:
+#            plt.title( title=var+'_'+sat )
+
+        return ax
+
+    def ptmap(self, var, kxList=None, mask=None, **kwargs):
+        '''
+        A função ptmap faz plotagem da variável selecionada para cada tipo de fonte escolhida para uma determinada data.
+
+        Exemplo:
+        a.ptmap('uv', [290, 224, 223], )
+        
+        No exemplo acima, será feito o plot do vento (uv) para as fontes 290 (ASCATW), 224 (VADWND) e 223 (PROFLR)
+
+        '''
+
+        #
+        # parse options em kwargs
+
+        if kxList is None:
+            kxList = self.obsInfo[var].index.levels[0]
+
+        if 'ax' not in kwargs:
+            fig  = plt.figure(figsize=(12, 12))
+            ax   = fig.add_subplot(1, 1, 1, projection=ccrs.PlateCarree())
+        else:
+            ax = kwargs['ax']
+            del kwargs['ax']
+
+        if 'alpha' not in kwargs:
+            kwargs['alpha'] = 0.5
+
+        if 'marker' not in kwargs:
+            kwargs['marker'] = '*'
+
+        if 'markersize' not in kwargs:
+            kwargs['markersize'] = 5
+
+        if 'linewidth' not in kwargs:
+            kwargs['linewidth'] = 1
+
+        if 'legend' not in kwargs:
+            kwargs['legend'] = False
+            legend = True
+        else:
+            legend = kwargs['legend']
+            kwargs['legend'] = False
+        
+        path = gpd.datasets.get_path('naturalearth_lowres')
+        
+        world = gpd.read_file(path)
+        gdp_max = world['gdp_md_est'].max()
+        gdp_min = world['gdp_md_est'].min()
+        
+        ax = world.plot(ax=ax, facecolor='lightgrey', edgecolor='grey', )
+        #ax = world.plot(ax=ax, edgecolor='grey', )
+
+        cmap = plt.get_cmap('Paired')
+        norm = colors.Normalize(vmin=0, vmax=kxList.size-1)
+
+        legend_labels = []
+        for i, kx in enumerate(kxList):
+            df    = self.obsInfo[var].loc[kx]
+            #color = getVarInfo(kx,var,'color')
+            color = my_cmap(norm(i),bytes=True)
+            color = '#{:02x}{:02x}{:02x}'.format(*color)
+
+            instr = getVarInfo(kx,var,'instrument')
+            legend_labels.append(mpatches.Patch(color=color, 
+                                 label=var + '-' + str(kx) + ' | ' + instr)
+                                )
+
+            if mask is None:
+               ax = df.plot(ax=ax,c=color, **kwargs)
+            else:
+               ax = df.query(mask).plot(ax=ax,c=color, **kwargs)
+        
+        if legend is True:
+            plt.subplots_adjust(left=0.05, bottom=0.05, right=0.70, top=0.90, wspace=0, hspace=0)
+            plt.legend(handles=legend_labels, loc='upper right', bbox_to_anchor=(1.41, 1),
+                       fancybox=False, shadow=False, frameon=False, numpoints=1, prop={"size": 9})
+
+        plt.title('Distribuição Espacial dos Dados na Assimilação')
 
 
-    def plot(self, var, id, diag, mask=None, ax=None, **plt_kwargs):
+        return ax
 
-         if ax is None:
-             fig = plt.figure(figsize=(12, 12))
-             ax  = fig.add_subplot(1, 1, 1, projection=ccrs.PlateCarree())
 
-         path=gpd.datasets.get_path('naturalearth_lowres')
+    def pvmap(self, varList=None, mask=None, **kwargs):
+        '''
+        A função pvmap faz plotagem das variáveis selecionadas sem identificar o tipo de fonte para uma determinada data. 
 
-         world = gpd.read_file(path)
-         gdp_max = world['gdp_md_est'].max()
-         gdp_min = world['gdp_md_est'].min()
+        Exemplo:
+        a.pvmap(['uv','ps','t','q'], mask='iuse==1')
+        
+        No exemplo acima, será feito o plot do vento (uv), da pressão em superfície (ps), da temperatura (t) e da umidade (q)
+        dos dados assimilados (iuse=1).
 
-         ax = world.plot(ax=ax, facecolor='lightgrey', edgecolor='grey', )
-         
-         if mask is None:
-             ax = self.obsInfo[var].loc[sat].plot(diag, ax=ax, **plt_kwargs)
-         else:
-             df = self.obsInfo[var].loc[sat]
-             ax = df.query(mask).plot(diag, ax=ax, **plt_kwargs)
+        '''
 
-         if 'title' in plt_kwargs:
-             ax.set_title(plt_kwargs['title'])
-         
-#         if plt_kwargs['legend'] == True:
-#             plt.title( title=var+'_'+sat )
+        #
+        # parse options em kwargs
 
-         return fig, ax
-    #@profile(precision=8)
+        if varList is None:
+            varList = self.obs.groupby(level=0).size().sort_values(ascending=False).keys()
+            
+        if 'ax' not in kwargs:
+            fig  = plt.figure(figsize=(12, 12))
+            ax   = fig.add_subplot(1, 1, 1, projection=ccrs.PlateCarree())
+        else:
+            ax = kwargs['ax']
+            del kwargs['ax']
+
+        if 'alpha' not in kwargs:
+            kwargs['alpha'] = 0.5
+
+        if 'marker' not in kwargs:
+            kwargs['marker'] = '*'
+
+        if 'markersize' not in kwargs:
+            kwargs['markersize'] = 5
+
+        if 'linewidth' not in kwargs:
+            kwargs['linewidth'] = 1
+
+        if 'legend' not in kwargs:
+            kwargs['legend'] = False
+            legend = True
+        else:
+            legend = kwargs['legend']
+            kwargs['legend'] = False
+        
+        path = gpd.datasets.get_path('naturalearth_lowres')
+        
+        world = gpd.read_file(path)
+        gdp_max = world['gdp_md_est'].max()
+        gdp_min = world['gdp_md_est'].min()
+        
+        ax = world.plot(ax=ax, facecolor='lightgrey', edgecolor='grey', )
+
+        colors_palette = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22']
+        setColor = 0
+        legend_labels = []
+        for var in varList:
+            df    = self.obsInfo[var]
+            legend_labels.append(mpatches.Patch(color=colors_palette[setColor], label=var) )
+
+            if mask is None:
+               ax = df.plot(ax=ax,c=colors_palette[setColor], **kwargs)
+            else:
+               ax = df.query(mask).plot(ax=ax,c=colors_palette[setColor], **kwargs)
+            setColor += 1
+
+        if legend is True:
+            plt.legend(handles=legend_labels, numpoints=1, loc='best', bbox_to_anchor=(1.1, 0.6), 
+                       fancybox=False, shadow=False, frameon=False, ncol=1, prop={"size": 10})
+
+        #plt.title('Distribuição Espacial dos Dados na Assimilação')
+
+        return ax
+
+
     def close(self):
 
         """
@@ -192,7 +370,171 @@ class read_diag(object):
         
         return iret
 
+    def pfileinfo(self):
 
+        """
+        Prints a fancy list of the existing variables and types.
+
+        Usage: pfileinfo()
+        """
+
+        for name in self.varNames:
+            print('Variable Name :',name)
+            print('              └── kx => ', end='', flush=True)
+            for kx in self.obsInfo[name].index.levels[0]:
+               print(kx,' ', end='', flush=True)
+            print()
+
+            print()
+
+    def pcount(self,varName,**kwargs):
+
+        """
+        Plots a histogram of the desired variable and types.
+
+        Usage: pcount(VarName)
+        """
+
+        try:
+           import matplotlib.pyplot as plt
+           import matplotlib.cm as cm
+           from matplotlib.colors import Normalize
+
+        except ImportError:
+           pass # module doesn't exist, deal with it.
+
+        #
+        # parse options em kwargs
+        if 'alpha' not in kwargs:
+            kwargs['alpha'] = 0.5
+
+        if 'rot' not in kwargs:
+            kwargs['rot'] = 45
+
+        if 'legend' not in kwargs:
+            kwargs['legend'] = False
+
+
+        df = self.obsInfo[varName].groupby(level=0).size()
+
+        # Get a color map
+        my_cmap = cm.get_cmap('Paired')
+         
+        # Get normalize function (takes data in range [vmin, vmax] -> [0, 1])
+        my_norm = Normalize(vmin=df.min(), vmax=df.max())
+         
+        plt.style.use('seaborn')
+        df.plot.bar(color=my_cmap(my_norm(df.values)),**kwargs)
+
+        plt.ylabel('Number of Observations')
+        plt.xlabel('KX')
+        plt.title('Variable Name : '+varName)
+ 
+        plt.show()
+
+    def vcount(self,**kwargs):
+
+        """
+        Plots a histogram of the total count of eath variable.
+
+        Usage: pcount(**kwargs)
+        """
+
+        try:
+           import matplotlib.pyplot as plt
+           import matplotlib.cm as cm
+           from matplotlib.colors import Normalize
+
+        except ImportError:
+           pass # module doesn't exist, deal with it.
+
+        #
+        # parse options em kwargs
+        if 'alpha' not in kwargs:
+            kwargs['alpha'] = 0.5
+
+        if 'rot' not in kwargs:
+            kwargs['rot'] = 90
+
+        if 'legend' not in kwargs:
+            kwargs['legend'] = False
+
+        df = pd.DataFrame({key: len(value) for key, value in self.obsInfo.items()},index=['total']).T
+
+        # Get a color map
+        my_cmap = cm.get_cmap('Paired')
+         
+        # Get normalize function (takes data in range [vmin, vmax] -> [0, 1])
+        my_norm = Normalize(vmin=df.min(), vmax=df.max())
+         
+        plt.style.use('seaborn')
+        df.plot.bar(color=my_cmap(my_norm(df.values)), **kwargs)
+
+        plt.ylabel('Number of Observations')
+        plt.xlabel('Variable Names')
+        plt.title('Total Number of Observations')
+ 
+        plt.show()
+
+    def kxcount(self,**kwargs):
+
+        """
+        Plots a histogram of the total count by KX.
+
+        Usage: pcount(**kwargs)
+        """
+
+        try:
+           import matplotlib.pyplot as plt
+           from matplotlib.colors import Normalize
+
+        except ImportError:
+           pass # module doesn't exist, deal with it.
+
+        #
+        # parse options em kwargs
+        if 'alpha' not in kwargs:
+            kwargs['alpha'] = 0.5
+
+        if 'rot' not in kwargs:
+            kwargs['rot'] = 90
+
+        if 'legend' not in kwargs:
+            kwargs['legend'] = False
+
+        d  = pd.concat(self.obsInfo, sort=False).reset_index(level=2, drop=True)
+        df = d.groupby(['kx']).size()
+
+        # Get a color map
+        my_cmap = plt.get_cmap('Paired')
+         
+        # Get normalize function (takes data in range [vmin, vmax] -> [0, 1])
+        my_norm = Normalize(vmin=df.min(), vmax=df.max())
+         
+        plt.style.use('seaborn')
+        df.plot.bar(color=my_cmap(my_norm(df.values)), **kwargs)
+
+        plt.ylabel('Number of Observations by KX')
+        plt.xlabel('KX number')
+        plt.title('Total Number of Observations')
+ 
+        plt.show()
+
+    def overview(self):
+
+        """
+        Creates a dictionary of the existing variables and types. Returns a Python dictionary.
+
+        Usage: overview()
+        """
+
+        variablesList = {}
+        for var in self.varNames:
+            variablesTypes = []
+            for kx in self.obsInfo[var].index.levels[0]:
+                variablesTypes.append(kx)
+            variablesList.update({var:variablesTypes})
+        return variablesList
 #EOC
 #-----------------------------------------------------------------------------#
 

@@ -34,7 +34,7 @@ def getVarInfo(kx,var,feature):
             if feature in dataInfo.tab[kx][var]:
                 return dataInfo.tab[kx][var][feature]
             else:
-                print('Invalid Feature request!')
+                print('Invalid Feature request:',feature)
                 print('try use:')
                 for item in dataInfo.tab[kx][var]:
                     print('\t*',item)
@@ -44,11 +44,10 @@ def getVarInfo(kx,var,feature):
             for item in dataInfo.tab[kx]:
                 print('\t*',item)
     else:
-        print('Invalid kx request')
+        print('Invalid kx request:', kx)
         print('try request:')
         for item in dataInfo.tab:
             print('\t*',item)
-
 
 
 class dataSourcesInfo:

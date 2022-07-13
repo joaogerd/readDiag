@@ -1274,11 +1274,11 @@ end function
         oType%imp(0)  = sum(oType%imp(1:oType%nChanl))
         oType%dfs(0)  = sum(oType%dfs(1:oType%nChanl))
 
-        ! make fractional observation impacts
-!        do k = 1, oType%nChanl
-!           if (oType%imp(0) .ne. 0)oType%imp(k)  = oType%imp(k)  / oType%imp(0)
-!           if (oType%dfs(0) .ne. 0)oType%dfs(k)  = oType%dfs(k)  / oType%dfs(0)
-!        enddo
+        ! make fractional observation impacts by channel
+        do k = 1, oType%nChanl
+           if (oType%imp(0) .ne. 0)oType%imp(k)  = oType%imp(k)  / oType%imp(0)
+           if (oType%dfs(0) .ne. 0)oType%dfs(k)  = oType%dfs(k)  / oType%dfs(0)
+        enddo
 
         oType => oType%Next
      enddo
