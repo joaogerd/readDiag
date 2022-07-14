@@ -21,7 +21,7 @@
 This package defines some functions to read and plot gsi diagnostic files.\
 For help please use help() function.
 """
-from .__main__ import (help,read_diag)
+from .__main__ import (help,read_diag, getColor)
 from .datasources import getVarInfo
 
 __name__    = 'gsiDiag'

@@ -40,6 +40,42 @@ def help():
     print('Esta é uma ajudada')
 
 
+def getColor(minVal, maxVal, value, hex=False, cmapName=None):
+
+    try:
+       import matplotlib.cm as cm
+       from matplotlib.colors import Normalize
+       from matplotlib.colors import rgb2hex
+    except ImportError:
+       pass # module doesn't exist, deal with it.
+
+    if cmapName is None:
+        cmapName='Paired'
+
+    # Get a color map
+    cmap = cm.get_cmap(cmapName)
+
+    # Get normalize function (takes data in range [vmin, vmax] -> [0, 1])
+    norm = Normalize(vmin=minVal, vmax=maxVal)
+    
+    if hasattr(value,'__iter__'):
+
+       color = []
+       for i in range(len(value)):
+          if hex is True:
+              color.append(rgb2hex(cmap(norm(value[i]))))
+          else:
+              color.append(cmap(norm(value[i]),bytes=True))
+
+    else:
+
+        if hex is True:
+            color = rgb2hex(cmap(norm(value)))
+        else:
+            color = cmap(norm(value),bytes=True)
+
+    return color
+
 class read_diag(object):
     """
     read a diagnostic file from gsi. Return an array with
@@ -143,7 +179,7 @@ class read_diag(object):
             
         self.obs  = pd.concat(self.obsInfo, sort=False).reset_index(level=2, drop=True)
 
-    def plot(self, var, id, param, mask=None, ax=None, **plt_kwargs):
+    def plot(self, var, id, param, mask=None, ax=None, **kwargs):
         '''
         A função pgeomap faz plotagem da variável selecionada para cada tipo de fonte escolhida para uma determinada data e camada.
  
@@ -169,7 +205,13 @@ class read_diag(object):
         
         if ax is None:
             fig = plt.figure(figsize=(12, 12))
-            ax  = fig.add_subplot(1, 1, 1, projection=ccrs.PlateCarree())
+            ax  = fig.add_subplot(1, 1, 1)#, projection=ccrs.PlateCarree())
+
+        if kwargs.get('legend') is True:
+            divider = make_axes_locatable(ax)
+            cax     = divider.append_axes("right", size="5%", pad=0.1)
+            kwargs['cax'] = cax
+            #ax.set_axis_off()
 
         path=gpd.datasets.get_path('naturalearth_lowres')
 
@@ -177,20 +219,21 @@ class read_diag(object):
         gdp_max = world['gdp_md_est'].max()
         gdp_min = world['gdp_md_est'].min()
 
-        ax = world.plot(ax=ax, facecolor='lightgrey', edgecolor='grey', )
+        ax = world.plot(ax=ax, facecolor='lightgrey', edgecolor='k',**kwargs)
+
+        # set axis range
+        ax.set_xlim([-180,180])
+        ax.set_ylim([ -90, 90])
         
         if mask is None:
-            ax  = self.obsInfo[var].loc[id].plot(param, ax=ax, **plt_kwargs)
+            ax  = self.obsInfo[var].loc[id].plot(param, ax=ax, **kwargs)
         else:
             df = self.obsInfo[var].loc[id]
-            ax = df.query(mask).plot(param, ax=ax, **plt_kwargs)
+            ax = df.query(mask).plot(param, ax=ax, **kwargs)
 
-        if 'title' in plt_kwargs:
-            ax.set_title(plt_kwargs['title'])
+        if 'title' in kwargs:
+            ax.set_title(kwargs['title'])
         
-#        if plt_kwargs['legend'] == True:
-#            plt.title( title=var+'_'+sat )
-
         return ax
 
     def ptmap(self, var, kxList=None, mask=None, **kwargs):
@@ -245,16 +288,12 @@ class read_diag(object):
         ax = world.plot(ax=ax, facecolor='lightgrey', edgecolor='grey', )
         #ax = world.plot(ax=ax, edgecolor='grey', )
 
-        cmap = plt.get_cmap('Paired')
-        norm = colors.Normalize(vmin=0, vmax=kxList.size-1)
-
         legend_labels = []
         for i, kx in enumerate(kxList):
             df    = self.obsInfo[var].loc[kx]
-            #color = getVarInfo(kx,var,'color')
-            color = my_cmap(norm(i),bytes=True)
-            color = '#{:02x}{:02x}{:02x}'.format(*color)
 
+            color = getColor(minVal=0, maxVal=kxList.size-1,
+                             value=i,hex=True,cmapName='Paired')
             instr = getVarInfo(kx,var,'instrument')
             legend_labels.append(mpatches.Patch(color=color, 
                                  label=var + '-' + str(kx) + ' | ' + instr)
@@ -289,10 +328,18 @@ class read_diag(object):
         '''
 
         #
+        # total by var
+        #
+        
+        total = self.obs.groupby(level=0).size()
+
+        #
         # parse options em kwargs
 
         if varList is None:
-            varList = self.obs.groupby(level=0).size().sort_values(ascending=False).keys()
+            varList = total.sort_values(ascending=False).keys()
+        else:
+            varList = total[varList].sort_values(ascending=False).keys()
             
         if 'ax' not in kwargs:
             fig  = plt.figure(figsize=(12, 12))
@@ -350,43 +397,6 @@ class read_diag(object):
         return ax
 
 
-    def close(self):
-
-        """
-        Closes a previous openned file. Returns an integer status value.
-
-        Usage: close()
-        """
-
-        iret = d2p.close(self._FNumber)
-        self._FileName = None # File name
-        self._FNumber  = None # File unit number to be closed
-        self._nVars    = None # Total of variables
-        self.varNames  = None # Name of variables
-        self.obsInfo   = None 
-        self.nObs      = None # Number of observations for vName
-        del self
-        gc.collect()
-        
-        return iret
-
-    def pfileinfo(self):
-
-        """
-        Prints a fancy list of the existing variables and types.
-
-        Usage: pfileinfo()
-        """
-
-        for name in self.varNames:
-            print('Variable Name :',name)
-            print('              └── kx => ', end='', flush=True)
-            for kx in self.obsInfo[name].index.levels[0]:
-               print(kx,' ', end='', flush=True)
-            print()
-
-            print()
-
     def pcount(self,varName,**kwargs):
 
         """
@@ -418,13 +428,10 @@ class read_diag(object):
         df = self.obsInfo[varName].groupby(level=0).size()
 
         # Get a color map
-        my_cmap = cm.get_cmap('Paired')
-         
-        # Get normalize function (takes data in range [vmin, vmax] -> [0, 1])
-        my_norm = Normalize(vmin=df.min(), vmax=df.max())
-         
+        colors = getColor(minVal=df.min(),maxVal=df.max(),
+                          value=df.values,hex=True,cmapName='Paired')         
         plt.style.use('seaborn')
-        df.plot.bar(color=my_cmap(my_norm(df.values)),**kwargs)
+        df.plot.bar(color=colors,**kwargs)
 
         plt.ylabel('Number of Observations')
         plt.xlabel('KX')
@@ -462,13 +469,11 @@ class read_diag(object):
         df = pd.DataFrame({key: len(value) for key, value in self.obsInfo.items()},index=['total']).T
 
         # Get a color map
-        my_cmap = cm.get_cmap('Paired')
-         
-        # Get normalize function (takes data in range [vmin, vmax] -> [0, 1])
-        my_norm = Normalize(vmin=df.min(), vmax=df.max())
+        colors = getColor(minVal=df.min(),maxVal=df.max(),
+                          value=df['total'].values,hex=True,cmapName='Paired')
          
         plt.style.use('seaborn')
-        df.plot.bar(color=my_cmap(my_norm(df.values)), **kwargs)
+        df.plot.bar(color=colors, **kwargs)
 
         plt.ylabel('Number of Observations')
         plt.xlabel('Variable Names')
@@ -506,13 +511,12 @@ class read_diag(object):
         df = d.groupby(['kx']).size()
 
         # Get a color map
-        my_cmap = plt.get_cmap('Paired')
+        colors = getColor(minVal=df.min(),maxVal=df.max(),
+                          value=df.values,hex=True,cmapName='Paired')
          
-        # Get normalize function (takes data in range [vmin, vmax] -> [0, 1])
-        my_norm = Normalize(vmin=df.min(), vmax=df.max())
          
         plt.style.use('seaborn')
-        df.plot.bar(color=my_cmap(my_norm(df.values)), **kwargs)
+        df.plot.bar(color=colors, **kwargs)
 
         plt.ylabel('Number of Observations by KX')
         plt.xlabel('KX number')
@@ -535,6 +539,46 @@ class read_diag(object):
                 variablesTypes.append(kx)
             variablesList.update({var:variablesTypes})
         return variablesList
+
+    def pfileinfo(self):
+
+        """
+        Prints a fancy list of the existing variables and types.
+
+        Usage: pfileinfo()
+        """
+
+        for name in self.varNames:
+            print('Variable Name :',name)
+            print('              └── kx => ', end='', flush=True)
+            for kx in self.obsInfo[name].index.levels[0]:
+               print(kx,' ', end='', flush=True)
+            print()
+
+            print()
+
+            
+    def close(self):
+
+        """
+        Closes a previous openned file. Returns an integer status value.
+
+        Usage: close()
+        """
+
+        iret = d2p.close(self._FNumber)
+        self._FileName = None # File name
+        self._FNumber  = None # File unit number to be closed
+        self._nVars    = None # Total of variables
+        self.varNames  = None # Name of variables
+        self.obsInfo   = None 
+        self.nObs      = None # Number of observations for vName
+        del self
+        gc.collect()
+        
+        return iret
+
+    
 #EOC
 #-----------------------------------------------------------------------------#
 
