@@ -76,6 +76,32 @@ def getColor(minVal, maxVal, value, hex=False, cmapName=None):
 
     return color
 
+def geoMap(**kwargs):
+    
+    if 'ax' not in kwargs:
+        fig  = plt.figure(figsize=(12, 12))
+        ax   = fig.add_subplot(1, 1, 1)#, projection=ccrs.PlateCarree())
+    else:
+        ax = kwargs['ax']
+        del kwargs['ax']
+
+    
+    path=gpd.datasets.get_path('naturalearth_lowres')
+    
+    world = gpd.read_file(path)
+    gdp_max = world['gdp_md_est'].max()
+    gdp_min = world['gdp_md_est'].min()
+    
+    ax = world.plot(ax=ax, facecolor='lightgrey', edgecolor='k')#,**kwargs)
+    
+    # set axis range
+    ax.set_xlim([-180,180])
+    ax.set_xlabel('Longitude')
+    ax.set_ylim([ -90, 90])
+    ax.set_ylabel('Latitude')
+
+    return ax
+
 class read_diag(object):
     """
     read a diagnostic file from gsi. Return an array with
@@ -179,7 +205,7 @@ class read_diag(object):
             
         self.obs  = pd.concat(self.obsInfo, sort=False).reset_index(level=2, drop=True)
 
-    def plot(self, var, id, param, mask=None, ax=None, **kwargs):
+    def plot(self, var, id, param, mask=None, **kwargs):
         '''
         A função pgeomap faz plotagem da variável selecionada para cada tipo de fonte escolhida para uma determinada data e camada.
  
@@ -201,38 +227,41 @@ class read_diag(object):
           
  
         '''
-#        plt.style.use('seaborn')
+        #
+        # Parse options 
+        #
+        if 'style' in kwargs:
+            plt.style.use(kwargs['style'])
+            del kwargs['style']
+        else:
+            plt.style.use('seaborn')
         
-        if ax is None:
+        if 'ax' not in kwargs:
             fig = plt.figure(figsize=(12, 12))
-            ax  = fig.add_subplot(1, 1, 1)#, projection=ccrs.PlateCarree())
+            ax  = fig.add_subplot(1, 1, 1)
+        else:
+            ax = kwargs['ax']
+            del kwargs['ax']
 
         if kwargs.get('legend') is True:
             divider = make_axes_locatable(ax)
             cax     = divider.append_axes("right", size="5%", pad=0.1)
             kwargs['cax'] = cax
-            #ax.set_axis_off()
 
-        path=gpd.datasets.get_path('naturalearth_lowres')
+        if 'title' in kwargs:
+            ax.set_title(kwargs['title'])
 
-        world = gpd.read_file(path)
-        gdp_max = world['gdp_md_est'].max()
-        gdp_min = world['gdp_md_est'].min()
+        if 'cmap' not in kwargs:
+            kwargs['cmap'] = 'jet'
 
-        ax = world.plot(ax=ax, facecolor='lightgrey', edgecolor='k',**kwargs)
+        ax = geoMap(ax=ax)
 
-        # set axis range
-        ax.set_xlim([-180,180])
-        ax.set_ylim([ -90, 90])
-        
         if mask is None:
             ax  = self.obsInfo[var].loc[id].plot(param, ax=ax, **kwargs)
         else:
             df = self.obsInfo[var].loc[id]
             ax = df.query(mask).plot(param, ax=ax, **kwargs)
 
-        if 'title' in kwargs:
-            ax.set_title(kwargs['title'])
         
         return ax
 
@@ -246,19 +275,25 @@ class read_diag(object):
         No exemplo acima, será feito o plot do vento (uv) para as fontes 290 (ASCATW), 224 (VADWND) e 223 (PROFLR)
 
         '''
-
         #
-        # parse options em kwargs
+        # Parse options 
+        #
 
-        if kxList is None:
-            kxList = self.obsInfo[var].index.levels[0]
+        if 'style' in kwargs:
+            plt.style.use(kwargs['style'])
+            del kwargs['style']
+        else:
+            plt.style.use('seaborn')
 
         if 'ax' not in kwargs:
             fig  = plt.figure(figsize=(12, 12))
-            ax   = fig.add_subplot(1, 1, 1, projection=ccrs.PlateCarree())
+            ax   = fig.add_subplot(1, 1, 1)
         else:
             ax = kwargs['ax']
             del kwargs['ax']
+
+        if kxList is None:
+            kxList = self.obsInfo[var].index.levels[0].tolist()
 
         if 'alpha' not in kwargs:
             kwargs['alpha'] = 0.5
@@ -278,21 +313,24 @@ class read_diag(object):
         else:
             legend = kwargs['legend']
             kwargs['legend'] = False
+                
         
-        path = gpd.datasets.get_path('naturalearth_lowres')
-        
-        world = gpd.read_file(path)
-        gdp_max = world['gdp_md_est'].max()
-        gdp_min = world['gdp_md_est'].min()
-        
-        ax = world.plot(ax=ax, facecolor='lightgrey', edgecolor='grey', )
-        #ax = world.plot(ax=ax, edgecolor='grey', )
+        ax = geoMap(ax=ax)
+
+        # color range
+        if type(kxList) is list:
+            cmin = 0
+            cmax = len(kxList)-1
+        else:
+            kxList = [kxList]
+            cmin = 0
+            cmax = 1
 
         legend_labels = []
         for i, kx in enumerate(kxList):
             df    = self.obsInfo[var].loc[kx]
 
-            color = getColor(minVal=0, maxVal=kxList.size-1,
+            color = getColor(minVal=cmin, maxVal=cmax,
                              value=i,hex=True,cmapName='Paired')
             instr = getVarInfo(kx,var,'instrument')
             legend_labels.append(mpatches.Patch(color=color, 
@@ -326,24 +364,19 @@ class read_diag(object):
         dos dados assimilados (iuse=1).
 
         '''
-
         #
-        # total by var
+        # Parse options 
         #
         
-        total = self.obs.groupby(level=0).size()
-
-        #
-        # parse options em kwargs
-
-        if varList is None:
-            varList = total.sort_values(ascending=False).keys()
+        if 'style' in kwargs:
+            plt.style.use(kwargs['style'])
+            del kwargs['style']
         else:
-            varList = total[varList].sort_values(ascending=False).keys()
-            
+            plt.style.use('seaborn')
+        
         if 'ax' not in kwargs:
-            fig  = plt.figure(figsize=(12, 12))
-            ax   = fig.add_subplot(1, 1, 1, projection=ccrs.PlateCarree())
+            fig = plt.figure(figsize=(12, 12))
+            ax  = fig.add_subplot(1, 1, 1)
         else:
             ax = kwargs['ax']
             del kwargs['ax']
@@ -366,15 +399,27 @@ class read_diag(object):
         else:
             legend = kwargs['legend']
             kwargs['legend'] = False
-        
-        path = gpd.datasets.get_path('naturalearth_lowres')
-        
-        world = gpd.read_file(path)
-        gdp_max = world['gdp_md_est'].max()
-        gdp_min = world['gdp_md_est'].min()
-        
-        ax = world.plot(ax=ax, facecolor='lightgrey', edgecolor='grey', )
 
+        #
+        # total by var
+        #
+        
+        total = self.obs.groupby(level=0).size()
+
+        #
+        # parse options em kwargs
+
+        if varList is None:
+            varList = total.sort_values(ascending=False).keys()
+        else:
+            if type(varList) is list:
+               varList = total[varList].sort_values(ascending=False).keys()
+            else:
+                varList = [varList]
+        
+        ax = geoMap(ax=ax)
+
+        
         colors_palette = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22']
         setColor = 0
         legend_labels = []
@@ -392,7 +437,6 @@ class read_diag(object):
             plt.legend(handles=legend_labels, numpoints=1, loc='best', bbox_to_anchor=(1.1, 0.6), 
                        fancybox=False, shadow=False, frameon=False, ncol=1, prop={"size": 10})
 
-        #plt.title('Distribuição Espacial dos Dados na Assimilação')
 
         return ax
 
@@ -412,9 +456,16 @@ class read_diag(object):
 
         except ImportError:
            pass # module doesn't exist, deal with it.
-
         #
-        # parse options em kwargs
+        # Parse options 
+        #
+
+        if 'style' in kwargs:
+            plt.style.use(kwargs['style'])
+            del kwargs['style']
+        else:
+            plt.style.use('seaborn')
+
         if 'alpha' not in kwargs:
             kwargs['alpha'] = 0.5
 
@@ -429,8 +480,8 @@ class read_diag(object):
 
         # Get a color map
         colors = getColor(minVal=df.min(),maxVal=df.max(),
-                          value=df.values,hex=True,cmapName='Paired')         
-        plt.style.use('seaborn')
+                          value=df.values,hex=True,cmapName='Paired')
+
         df.plot.bar(color=colors,**kwargs)
 
         plt.ylabel('Number of Observations')
@@ -454,9 +505,16 @@ class read_diag(object):
 
         except ImportError:
            pass # module doesn't exist, deal with it.
-
         #
-        # parse options em kwargs
+        # Parse options 
+        #
+
+        if 'style' in kwargs:
+            plt.style.use(kwargs['style'])
+            del kwargs['style']
+        else:
+            plt.style.use('seaborn')
+
         if 'alpha' not in kwargs:
             kwargs['alpha'] = 0.5
 
@@ -472,7 +530,6 @@ class read_diag(object):
         colors = getColor(minVal=df.min(),maxVal=df.max(),
                           value=df['total'].values,hex=True,cmapName='Paired')
          
-        plt.style.use('seaborn')
         df.plot.bar(color=colors, **kwargs)
 
         plt.ylabel('Number of Observations')
@@ -495,9 +552,16 @@ class read_diag(object):
 
         except ImportError:
            pass # module doesn't exist, deal with it.
-
         #
-        # parse options em kwargs
+        # Parse options 
+        #
+
+        if 'style' in kwargs:
+            plt.style.use(kwargs['style'])
+            del kwargs['style']
+        else:
+            plt.style.use('seaborn')
+
         if 'alpha' not in kwargs:
             kwargs['alpha'] = 0.5
 
