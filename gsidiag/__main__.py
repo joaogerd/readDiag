@@ -207,24 +207,24 @@ class read_diag(object):
 
     def plot(self, var, id, param, mask=None, **kwargs):
         '''
-        A função pgeomap faz plotagem da variável selecionada para cada tipo de fonte escolhida para uma determinada data e camada.
+        The plot function makes a plot for the selected observation by using information of the following columns available within the dataframe.
  
-        Exemplo:
-        gd.plot('ps', 187, 'obs', mask='iuse' == 1)
+        Available columns to be used with the plot function:
+
+        lat  : All latitudes from the selected kinds 
+        lon  : All longitudes from the selected kinds
+        prs  : Pressure level of the observation
+        lev  : Pressure levels of the observation 
+        time : Time of the observation (in minutes, relative to the analysis time)
+        idqc : Quality control mark or event mark 
+        iuse : Use flag (use = 1; monitoring = -1)
+        iusev: Value of the flag used in the analysis
+        obs  : Observation value
+
+        Example:
+        gd.plot('ps', 187, 'obs', mask='iuse == 1')
         
-        No exemplo acima, será feito o plot do valor observado referente à variável pressão em superfície (ps)
-        para a fonte 187 (ADPSFC) 
- 
-        lat:   Todas as latitudes das fontes utilizadas
-        lon:   Todas as longitudes das fontes utilizadas
-        prs:   Nível de pressão da observação.
-        lev:   Níveis de pressão da observação.
-        time:  Tempo de observação (minutos relativo ao tempo de análise)
-        idqc:  PreBuffer de entrada qc ou event mark
-        iuse:  Flag utilizado na análise (1=use; -1=monitoring)
-        iusev: Flag utilizado na análise (valor)
-        obs:  Observação
-          
+        In the above example, a plot will be made displaying by using the values of the used surface pressure observations of the kind 187 (ADPSFC).
  
         '''
         #
@@ -267,13 +267,15 @@ class read_diag(object):
 
     def ptmap(self, var, kxList=None, mask=None, **kwargs):
         '''
-        A função ptmap faz plotagem da variável selecionada para cada tipo de fonte escolhida para uma determinada data.
+        The ptmap function plots the selected observation for the selected kinds.
 
-        Exemplo:
-        a.ptmap('uv', [290, 224, 223], )
+        Example:
+        a.ptmap('uv', [290, 224, 223])
         
-        No exemplo acima, será feito o plot do vento (uv) para as fontes 290 (ASCATW), 224 (VADWND) e 223 (PROFLR)
+        In the above example, a plot for the wind (uv) for the kinds 290 (ASCATW), 224 (VADWND) and 223 (PROFLR) will be made.
 
+        Note: If no kind is explicity informed, all kinds for that particular observation will be considered, which may clutter
+        the plot.
         '''
         #
         # Parse options 
@@ -347,7 +349,7 @@ class read_diag(object):
             plt.legend(handles=legend_labels, loc='upper right', bbox_to_anchor=(1.41, 1),
                        fancybox=False, shadow=False, frameon=False, numpoints=1, prop={"size": 9})
 
-        plt.title('Distribuição Espacial dos Dados na Assimilação')
+#        plt.title('Distribuição Espacial dos Dados na Assimilação')
 
 
         return ax
@@ -355,14 +357,12 @@ class read_diag(object):
 
     def pvmap(self, varList=None, mask=None, **kwargs):
         '''
-        A função pvmap faz plotagem das variáveis selecionadas sem identificar o tipo de fonte para uma determinada data. 
+        The pvmap function plots the selected observations without specifying its kinds. It used the flag iuse instead. 
 
-        Exemplo:
+        Example:
         a.pvmap(['uv','ps','t','q'], mask='iuse==1')
         
-        No exemplo acima, será feito o plot do vento (uv), da pressão em superfície (ps), da temperatura (t) e da umidade (q)
-        dos dados assimilados (iuse=1).
-
+        In the above example, a plot for the used (iuse=1) observations of wind (uv), surface pressure (ps), temperature (t) and moisture (q) will be made. 
         '''
         #
         # Parse options 

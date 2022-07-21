@@ -32,6 +32,8 @@ Maiores detalhes sobre a instalação podem ser vistas no arquivo `INSTALL.md`, 
 python setup.py install
 ```
 
+**Nota:** para desisntalar o readDiag, dentro do ambiente conda onde o pacote está instalado, utilize o comando `pip uninstall gsidiag`.
+
 ## Uso
 
 Veja o notebook Jupyter `gsidiag_test.ipynb` com vários exemplos de uso.
