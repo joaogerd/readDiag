@@ -35,6 +35,7 @@ import matplotlib.patches as mpatches
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from cartopy import crs as ccrs
 import gc
+from textwrap import wrap
 
 def help():
     print('Esta é uma ajudada')
@@ -335,8 +336,10 @@ class read_diag(object):
             color = getColor(minVal=cmin, maxVal=cmax,
                              value=i,hex=True,cmapName='Paired')
             instr = getVarInfo(kx,var,'instrument')
+
+            label = '\n'.join(wrap(var + '-' + str(kx) + ' | ' + instr,30))
             legend_labels.append(mpatches.Patch(color=color, 
-                                 label=var + '-' + str(kx) + ' | ' + instr)
+                                 label=label)
                                 )
 
             if mask is None:
@@ -345,11 +348,10 @@ class read_diag(object):
                ax = df.query(mask).plot(ax=ax,c=color, **kwargs)
         
         if legend is True:
-            plt.subplots_adjust(left=0.05, bottom=0.05, right=0.70, top=0.90, wspace=0, hspace=0)
-            plt.legend(handles=legend_labels, loc='upper right', bbox_to_anchor=(1.41, 1),
-                       fancybox=False, shadow=False, frameon=False, numpoints=1, prop={"size": 9})
-
-#        plt.title('Distribuição Espacial dos Dados na Assimilação')
+#            plt.subplots_adjust(left=0.05, bottom=0.05, right=0.80, top=0.90, wspace=0, hspace=0)
+            plt.subplots_adjust(bottom=0.30)
+            plt.legend(handles=legend_labels, loc='upper center', bbox_to_anchor=(0.5, -0.08),
+                       fancybox=False, shadow=False, frameon=False, numpoints=1, prop={"size": 9}, labelspacing=1.0, ncol=4)
 
 
         return ax
