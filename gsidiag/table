@@ -4,6 +4,7 @@
  120;       t;         ADPUPA;                                                            Radiossonde; #ff7f0e;      *;    1
  130;       t;         AIRCFT;                                          AIREP PIREP Air Plane Sensors; #ffbb78;      *;    1
  130;       q;         AIRCFT;                                          AIREP PIREP Air Plane Sensors; #2ca02c;      *;   -1
+ 132;       q;         AIRCFT;                                          AIREP PIREP Air Plane Sensors; #2ca02c;      *;   -1
  230;      uv;         AIRCFT;                                          AIREP PIREP Air Plane Sensors; #98df8a;      *;    1
  153;      pw;         GPSIPW;                                                           GPS receptor; #d62728;      s;   -1
  180;      ps;         SFCSHP;                                                  Boias e sensor navios; #ff9896;      s;    1
