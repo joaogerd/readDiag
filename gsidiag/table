@@ -1,23 +1,24 @@
   kx;     var;   abbreviation;                                                             instrument;   color; symbol; iuse
- 120;      ps;         ADPUPA;                                                            Radiossonde; #1f77b4;      s;    1
- 120;       q;         ADPUPA;                                                            Radiossonde; #aec7e8;      *;    1
- 120;       t;         ADPUPA;                                                            Radiossonde; #ff7f0e;      *;    1
- 130;       t;         AIRCFT;                                          AIREP PIREP Air Plane Sensors; #ffbb78;      *;    1
- 130;       q;         AIRCFT;                                          AIREP PIREP Air Plane Sensors; #2ca02c;      *;   -1
- 132;       q;         AIRCFT;                                          AIREP PIREP Air Plane Sensors; #2ca02c;      *;   -1
- 230;      uv;         AIRCFT;                                          AIREP PIREP Air Plane Sensors; #98df8a;      *;    1
+ 120;      ps;         ADPUPA;                                                            Radiossonda; #1f77b4;      s;    1
+ 120;       q;         ADPUPA;                                                            Radiossonda; #aec7e8;      *;    1
+ 120;       t;         ADPUPA;                                                            Radiossonda; #ff7f0e;      *;    1
+ 130;       t;         AIRCFT;                                             AIREP PIREP Avião Sensores; #ffbb78;      *;    1
+ 130;       q;         AIRCFT;                                             AIREP PIREP Avião Sensores; #2ca02c;      *;   -1
+ 230;      uv;         AIRCFT;                                             AIREP PIREP Avião Sensores; #98df8a;      *;    1
+ 132;       t;         ADPUPA;                   Reconhecimento a nivel de voo e perfil de Dropssonda; #ff7f0e;      *;    1
+ 132;       q;         ADPUPA;                   Reconhecimento a nivel de voo e perfil de Dropssonda; #ff7f0e;      *;    1
  153;      pw;         GPSIPW;                                                           GPS receptor; #d62728;      s;   -1
  180;      ps;         SFCSHP;                                                  Boias e sensor navios; #ff9896;      s;    1
  180;       t;         SFCSHP;                                                  Boias e sensor navios; #9467bd;      *;    1
  180;       q;         SFCSHP;                                                  Boias e sensor navios; #c5b0d5;      *;    1
- 182;      ps;         SFCSHP;                                                  Boias e sensor navios; #8c564b;      s;    1
- 182;       t;         SFCSHP;                                                  Boias e sensor navios; #c49c94;      *;    1
- 182;       q;         SFCSHP;                                                  Boias e sensor navios; #e377c2;      *;    1
+ 182;      ps;         SFCSHP;                                                  Boias e sensor navios; #8c564b;      s;   -1
+ 182;       t;         SFCSHP;                                                  Boias e sensor navios; #c49c94;      *;   -1
+ 182;       q;         SFCSHP;                                                  Boias e sensor navios; #e377c2;      *;   -1
  280;      uv;         SFCSHP;                                                  Boias e sensor navios; #f7b6d2;      *;    1
  282;      uv;         SFCSHP;                                                  Boias e sensor navios; #7f7f7f;      *;    1
  181;      ps;         ADPSFC;                                       Estação a superfície com pressão; #c7c7c7;      s;    1
- 181;     sst;         ADPSFC;                                       Estação a superfície com pressão; #bcbd22;      *;    1
- 181;       t;         ADPSFC;                                       Estação a superfície com pressão; #dbdb8d;      *;    1
+ 181;     sst;         ADPSFC;                                       Estação a superfície com pressão; #bcbd22;      *;   -1
+ 181;       t;         ADPSFC;                                       Estação a superfície com pressão; #dbdb8d;      *;   -1
  181;       q;         ADPSFC;                                       Estação a superfície com pressão; #17becf;      *;   -1
  187;      ps;         ADPSFC;                                       Estação a superfície com pressão; #9edae5;      s;    1
  187;       t;         ADPSFC;                                       Estação a superfície com pressão; #393b79;      *;   -1
@@ -27,33 +28,38 @@
  183;     sst;         ADPSFC;                                           Boias a estações sem pressão; #6b6ecf;      *;   -1
  183;       t;         ADPSFC;                                           Boias a estações sem pressão; #843c39;      *;   -1
  183;       q;         ADPSFC;                                           Boias a estações sem pressão; #9c9ede;      *;   -1
- 284;      uv;  ADPSFC ADPSHP;                                    Boias number a estações sem pressão; #ad494a;      *;   -1
+ 284;      uv;  ADPSFC SFCSHP;                                    Boias number a estações sem pressão; #ad494a;      *;   -1
  287;      uv;         ADPSFC;                                           Boias a estações sem pressão; #637939;      *;   -1
- 223;      uv;         PROFLR;                                                  NOAA Profiler Network; #d6616b;      s;    1
+ 126;       t;         RASSDA;                      RASS Perfil rede NOAA (NPN) ou multiagencia (MAP); #e7969c;      s;   -1
+ 210;      uv;         SYNDAT;                              Sintéticos (BOGUS) vento ciclone tropical; #637939;      *;    1
+ 220;      uv;         ADPUPA;                                                             Dropssonda; #cedb9c;      *;    1
+ 220;      ps;         ADPUPA;                                                             Dropssonda; #a55194;      s;   -1
+ 221;      uv;         ADPUPA;                                                   Balão Piloto (PIBAL); #a55194;      s;    1
+ 223;      uv;         PROFLR;                                                  NOAA Profiler Network; #d6616b;      s;   -1
  224;      uv;         VADWND;                                                           NEXRAD (VAD); #8ca252;      x;    1
- 126;       t;         RASSDA;                                                        RASSDA Profiler; #e7969c;      s;   -1
  228;      uv;         PROFLR;                                                      JMA Wind Profiler; #378ef4;      *;   -1
- 229;      uv;         PROFLR;                                          Profiler from Pilot Bulletins; #7b4173;      s;    1
- 220;      uv;         ADPUPA;                                                              Dropsonde; #cedb9c;      *;    1
- 220;      ps;         ADPUPA;                                                              Dropsonde; #a55194;      s;   -1
- 250;      uv;         SATWND;                             JMA Vapor Todos Niveis Top e Deep HIMAWARI; #e49d12;      o;    1
- 250;       q;         ADPUPA;                                                              Dropsonde; #8c6d31;      x;    1
- 280;       t;         ADPUPA;                                                              Dropsonde; #ce6dbd;      p;    1
- 232;      uv;         ADPUPA;                                                              Dropsonde; #bd9e39;      P;    1
- 253;      uv;         SATWND;                                        EUMETSAT IR e VIS abaixo de 850; #d6616b;      8;   -1
- 254;      uv;         SATWND;                                        EUMETSAT IR e VIS abaixo de 850; #bcbd22;      s;   -1
- 257;      uv;         SATWND;                                     MODIS IR Todos Niveis (AQUA/TERRA); #dbdb8d;      *;   -1
- 259;      uv;         SATWND;                             MODIS VAPOR Todos Niveis DEEP (AQUA/TERRA); #17becf;      o;   -1
- 258;      uv;         SATWND;                              MODIS VAPOR Todos Niveis TOP (AQUA/TERRA); #9edae5;      p;   -1
- 243;      uv;         SATWND;                                        EUMETSAT IR e VIS abaixo de 850; #393b79;      P;   -1
+ 229;      uv;         PROFLR;                                Perfis do Bolelim Piloto (Perfiladores); #7b4173;      s;    1
+ 232;      uv;         ADPUPA;                   Reconhecimento a nivel de voo e perfil de Dropssonda; #bd9e39;      P;    1
+ 240;      uv;         SATWND;                           NESDIS IR (onda curta) e Todos Níveis (GOES); #bd9e39;      P;   -1
+ 242;      uv;         SATWND;                     JMA IR e VIS Drift abaixo 850 (GMS,MTSAT,HIMAWARI); #843c39;      s;    1
+ 243;      uv;         SATWND;                EUMETSAT IR e VIS Drift abaixo 850 (GMS,MTSAT,HIMAWARI); #843c39;      s;    1
+ 244;      uv;         SATWND;         AVHRR  IR (onda longa) der. nuvem (todos níveis) (NOAA, METOP); #843c39;      s;    1
+ 245;      uv;         SATWND;                NESDIS IR (onda longa) der. nuvem (todos niveis) (GOES); #9c9ede;      *;    1
+ 246;      uv;         SATWND;                              NESDIS WV (todos niveis) top nuvem (GOES); #ad494a;      o;    1
+ 247;      uv;         SATWND;                              NESDIS WV (todos niveis) DEEP Layer(GOES); #637939;      p;    1
+ 250;      uv;         SATWND;                  JMA WV (todos niveis) Top e Deep (GMS,MTSAT,HIMAWARI); #e49d12;      o;    1
+ 250;       q;         ADPUPA;                                                             Dropssonda; #8c6d31;      x;   -1
+ 280;       t;         ADPUPA;                                                             Dropssonda; #ce6dbd;      p;   -1
+ 251;      uv;         SATWND;                                           NESDID VIS todos niveis GOES; #d6616b;      x;   -1
+ 252;      uv;         SATWND;                                     JMA IR e VIS acima de 850 Himawari; #6b6ecf;      8;    1
+ 253;      uv;         SATWND;                                         EUMETSAT IR e VIS acima de 850; #d6616b;      8;    1
+ 254;      uv;         SATWND;                          EUMETSAT WV todo níveis top e deep (METEOSAT); #bcbd22;      s;    1
+ 257;      uv;         SATWND;                        MODIS IR (onda longa) todos niveis (AQUA/TERRA); #dbdb8d;      *;    1
+ 258;      uv;         SATWND;                               MODIS WV (todos niveis) TOP (AQUA/TERRA); #9edae5;      p;    1
+ 259;      uv;         SATWND;                              MODIS WV (todos niveis) DEEP (AQUA/TERRA); #17becf;      o;    1
+ 260;      uv;         SATWND;                                 VIIRS IR (longa onda) der. nuvem (NPP); #17becf;      o;   -1
  290;      uv;         ASCATW;                   Non-superobed Scatterometer Winds Over Ocean (ASCAT); #e7ba52;      x;   -1
  221;      uv;         ADPUPA;                                                                  PIBAL; #e7cb94;      X;   -1
- 252;      uv;         SATWND;                                    JMA IR e VIS abaixo de 850 Himawari; #6b6ecf;      8;   -1
- 242;      uv;         SATWND;                     JMA IR e VIS Drift abaixo 850 (GMS,MTSAT,HIMAWARI); #843c39;      s;   -1
- 245;      uv;         SATWND;                                          NESDID IR Todos Niveis (GOES); #9c9ede;      *;   -1
- 246;      uv;         SATWND;                       NESDID Canal vapor todos niveis top nuvem (GOES); #ad494a;      o;   -1
- 247;      uv;         SATWND;                       NESDID Canal vapor todos niveis DEEP Layer(GOES); #637939;      p;   -1
- 251;      uv;         SATWND;                                           NESDID VIS todos niveis GOES; #d6616b;      x;   -1
    3;     gps;            GPS;                                                               GPS-INFO; #297df1;      8;   -1
    4;     gps;            GPS;                                                               GPS-INFO; #fe6f22;      s;   -1
  740;     gps;            GPS;                                                               GPS-INFO; #42b7a3;      *;   -1
@@ -61,6 +67,4 @@
  744;     gps;            GPS;                                                               GPS-INFO; #f1d34d;      p;   -1
  741;     gps;            GPS;                                                               GPS-INFO; #d61d14;      P;   -1
  722;     gps;            GPS;                                                               GPS-INFO; #2e8e24;      x;   -1
- 210;      uv;         SYNDAT;                                Synthetic (BOGUS) Tropical Cyclone Wind; #2ca02c;      *;    1
- 244;      uv;         SATWND;       AVHRR/POES IR (LONG-WAVE) CLOUD DRIFT (ALL LEVELS) (NOAA, METOP); #bd9e39;      P;    1
- 240;      uv;         SATWND;                 NESDIS IR (SHORT-WAVE) CLOUD DRIFT (ALL LEVELS) (GOES); #c5b0d5;      *;   -1
+                                                                                                                                 
