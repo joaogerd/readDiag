@@ -6,14 +6,21 @@ O pacote ReadDiag foi concebido para ser uma ferramenta que possibilita o fácil
 
 ## Requerimentos
 
-Para instalação no ambiente python alguns pacotes extras são necessários, assim será possível fazer algumas plotagens simples a partir do uso da classe readDiag. Os pré-requisitos são:
+Para instalação no ambiente python alguns pacotes extras são necessários, assim será possível fazer algumas plotagens simples a partir do uso da classe readDiag. Os pré-requisitos principais são:
 
-* matplotlib;
 * basemap;
 * cartopy;
+* gcc;
+* geopandas;
+* geos;
+* gfortran;
+* matplotlib;
+* numpy;
+* pandas;
 * proj4;
 * pyproj;
-* geopandas.
+* python (3.7.6);
+* xarray.
 
 Para facilitar a configuração de um ambiente Python para uso com o readDiag, utilize o arquivo `environment.yml` com o conda:
 
