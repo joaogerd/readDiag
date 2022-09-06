@@ -13,7 +13,6 @@ Para instalação no ambiente python alguns pacotes extras são necessários, as
 * cartopy;
 * proj4;
 * pyproj;
-* libgeos;
 * geopandas.
 
 Para facilitar a configuração de um ambiente Python para uso com o readDiag, utilize o arquivo `environment.yml` com o conda:
@@ -36,4 +35,4 @@ python setup.py install
 
 ## Uso
 
-Veja o notebook Jupyter `gsidiag_test.ipynb` com vários exemplos de uso.
+Veja o notebook Jupyter `readdiag_examples.ipynb` com vários exemplos de uso.
