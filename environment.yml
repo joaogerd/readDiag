@@ -47,6 +47,7 @@ dependencies:
   - libgcc-ng=11.2.0=h1234567_0
   #- libgcc-ng=12.1.0
   #- libgcc-ng
+  - gfortran=12.1.0
   - libgfortran-ng=12.1.0=h69a702a_16
   #- libgfortran5=12.1.0=hdcd56e2_16
   #- libglib=2.66.3=hbe7bbb4_0
