@@ -1,0 +1,15 @@
+cff-version: 1.2.0
+title: readDiag
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: João Gerd
+    family-names: de Mattos
+identifiers:
+  - type: url
+    value: >-
+      https://github.com/GAD-DIMNT-CPTEC/readDiag
+version: 1.1.0
+date-released: '2022-09-13'

@@ -45,3 +45,5 @@ python setup.py install
 ## Uso
 
 Veja o notebook Jupyter `readdiag_examples.ipynb` com vários exemplos de uso.
+
+<a href="https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode" target="_blank"><img src="https://mirrors.creativecommons.org/presskit/buttons/88x31/png/by-nc-sa.png" alt="CC-BY-NC-SA" width="100"/></a>
