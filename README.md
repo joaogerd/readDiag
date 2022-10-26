@@ -1,20 +1,28 @@
 # readDiag
 
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/GAD-DIMNT-CPTEC/readDiag/HEAD)
+
 **English:** the readDiag documentation is available [here](https://gad-dimnt-cptec.github.io/readDiag/).
 
 O pacote ReadDiag foi concebido para ser uma ferramenta que possibilita o fácil acesso aos arquivos diagnósticos gerados pelo [Gridpoint Statistical Interpolation (GSI) system](https://github.com/NOAA-EMC/GSI). Existem duas formas distintas de acessar (ler) os arquivos diagnósticos do GSI por meio do ReadDiag. A primeira é por meio da classe `readDiag.py` diretamente no python e a segunda é diretamente no fortran usando como base o modulo `ReadDiagMod.f90`.
 
 ## Requerimentos
 
-Para instalação no ambiente python alguns pacotes extras são necessários, assim será possível fazer algumas plotagens simples a partir do uso da classe readDiag. Os pré-requisitos são:
+Para instalação no ambiente python alguns pacotes extras são necessários, assim será possível fazer algumas plotagens simples a partir do uso da classe readDiag. Os pré-requisitos principais são:
 
-* matplotlib;
 * basemap;
 * cartopy;
+* gcc;
+* geopandas;
+* geos;
+* gfortran;
+* matplotlib;
+* numpy;
+* pandas;
 * proj4;
 * pyproj;
-* libgeos;
-* geopandas.
+* python (3.7.6);
+* xarray.
 
 Para facilitar a configuração de um ambiente Python para uso com o readDiag, utilize o arquivo `environment.yml` com o conda:
 
@@ -36,4 +44,6 @@ python setup.py install
 
 ## Uso
 
-Veja o notebook Jupyter `gsidiag_test.ipynb` com vários exemplos de uso.
+Veja o notebook Jupyter `readdiag_examples.ipynb` com vários exemplos de uso.
+
+<a href="https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode" target="_blank"><img src="https://mirrors.creativecommons.org/presskit/buttons/88x31/png/by-nc-sa.png" alt="CC-BY-NC-SA" width="100"/></a>
