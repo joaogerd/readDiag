@@ -174,11 +174,16 @@ class read_diag(object):
                    nObs = d2p.getobs(self._FNumber, obsName, vType, 'None', self.zlevs, len(self.zlevs))
                    if extraInfo is True:
                        d = pd.DataFrame(d2p.array2d.copy().T,index=convIndex).T
-                       d.loc[d.oer == self._undef,["oer","imp","dfs"]] = np.nan
                        d2p.array2d = None
                    else:
                        d = pd.DataFrame(d2p.array2d.copy().T,index=convIndex[:17]).T
                        d2p.array2d = None
+
+                   # convert all undef to NaN
+                   d.replace(to_replace = self._undef,
+                             value      = np.nan,
+                             inplace    = True)
+
                    lon = (d.lon + 180) % 360 - 180
                    lat = d.lat
                    df[vType] = gpd.GeoDataFrame(d, geometry=gpd.points_from_xy(lon,lat))
@@ -189,11 +194,16 @@ class read_diag(object):
                    nObs = d2p.getobs(self._FNumber, obsName, 0, sType, self.zlevs, len(self.zlevs))
                    if extraInfo is True:
                        d   = pd.DataFrame(d2p.array2d.copy().T,index=radIndex).T
-                       d.loc[d.oer == self._undef,["oer","imp","dfs"]] = np.nan
                        d2p.array2d = None
                    else:
                        d = pd.DataFrame(d2p.array2d.copy().T,index=radIndex[:13]).T
                        d2p.array2d = None
+
+                   # convert all undef to NaN
+                   d.replace(to_replace = self._undef,
+                             value      = np.nan,
+                             inplace    = True)
+
                    lon = (d.lon + 180) % 360 - 180
                    lat = d.lat
                    df[sType] = gpd.GeoDataFrame(d, geometry=gpd.points_from_xy(lon,lat))
