@@ -286,25 +286,8 @@ class read_diag(object):
     def tocsv(self, varName=None, varType=None, dateIni=None, dateFin=None, nHour="06", Level=None, Lay = None, SingleL=None):
         
         '''
-        A função tocsv gera um arquivo CSV com o resultado do processamento dos dados provenientes do ReadDiag.
-        Dentre as informações contidas no arquivo CSV estão:
-
-            Data, media, desvio padrão, total de dados
-
-        Estas informações são apresentadas para cada nível ou para um nível em particular. A seguir se encontra um exemplo de 
-        como usar a função tocsv.
-
-        Exemplo:
-
-        dini     = 2017010100 # Data inicial
-        dfin     = 2017010106 # Data final
-        varName  = "ps"
-        varType  = 180
-        Level    = None
-        path     = '/stornext/online6/das/Avalia/SMR/EXP02/gsi/dataout/'
-
-        gsiTools = gs.gsiFunctions()
-        gsiTools.tocsv(varName=varName, varType=varType, dateIni=dini, dateFin=dfin, path=path, Level=None)
+        The function tocsv is similar to the time_series funcion, however, it outputs a CSV file instead of figures. 
+        Refers to the time_series description below for more information.
 
         '''
 
@@ -928,29 +911,25 @@ class plot_diag(object):
     def time_series(self, varName=None, varType=None, dateIni=None, dateFin=None, nHour="06", vminOMA=None, vmaxOMA=None, vminSTD=0.0, vmaxSTD=14.0, Level=None, Lay = None, SingleL=None, Clean=None):
         
         '''
-        A função time_series realiza a plotagem da série temporal de diferentes variáveis, considerando diferentes intervalos de tempo. É possivel escolher entre fazer a série
-        para um único nível ou para diversos níveis.
+        The time_series function plots a time series for different levels/layers or for a single level/layer considering
+        OmF and OmA. 
 
-        Exemplo:
+        Example:
 
-        dini = 2013010100 # Data inicial
-        dfin = 2013010900 # Data final
-        nHour = "06"      # Intervalo de tempo
-        vName = 'uv'      # Variável
-        vType = 224       # Fonte da variável
-        vminOMA = -4.0    # Valor mínimo da escala Y para OmF ou OmA
-        vmaxOMA = 4.0     # Valor máximo da escala Y para OmF ou OmA
-        vminSTD = 0.0     # Valor mínimo da escala Y para o desvio-padrão
-        vmaxSTD = 14.0    # Valor máximo da escala Y para o desvio-padrão
-        Level = 1000      # Valor do nível a ser feita a série temporal, se não informar, será¡ feita para todos os níveis padrões
-        Lay = 15          # Metade do tamanho da camada em hPa se ptar por amostragem em camadas.
-        SingleL = "OneL"  # Quando Level tiver um valor fixo, ex: 1000 hPa, o plot pode ser exatamente nesse nível (SingleL = None),
-                          # em todos os níveis como uma única camada (SingleL = "All") ou em uma camada definida em torno do Level
-                          # variando entre Level-Lay e Level+Lay (SingleL="OneL"). Se Lay não for informado, será usado um valor padrão de 50 hPa. 
-
-
-        gsiTools = gs.gsiFunctions()
-        gsiTools.time_series(varName=vName, varType=vType, dateIni=dini, dateFin=dfin, vminOMA=None, vmaxOMA=None, vminSTD=None, vmaxSTD=None, Level=None)
+        dini = 2013010100 # Inicial Date
+        dfin = 2013010900 # Final Date
+        nHour = "06"      # Time Interval
+        vName = 'uv'      # Variable
+        vType = 224       # Source Type
+        vminOMA = -4.0    # Y-axis Minimum Value for OmF or OmA
+        vmaxOMA = 4.0     # Y-axis Maximum Value for OmF or OmA
+        vminSTD = 0.0     # Y-axis Minimum Value for Standard Deviation
+        vmaxSTD = 14.0    # Y-axis Maximum Value for Standard Deviation
+        Level = 1000      # Time Series Level, if any (None), all standard levels are plotted
+        Lay = 15          # The size of half layer in hPa, if the plot type is sampled by layers.
+        SingleL = "OneL"  # When level is fixed, ex: 1000 hPa, the plot can be exactly in this level (SingleL = None),
+                          # on all levels as a single layer (SingleL = "All") or on a layer centered in Level and bounded by
+                          # Level-Lay and Level+Lay (SingleL="OneL"). If Lay is not defined, it will be used a standard value of 50 hPa. 
 
         '''
         if Clean == None:
@@ -1196,7 +1175,7 @@ class plot_diag(object):
             plt.title(instrument_title, loc='left', fontsize=10)
             plt.title(date_title, loc='right', fontsize=10)
             plt.ylabel('Vertical Levels (hPa)')
-            plt.xlabel('Mean ('+omflag+')')
+            plt.xlabel('Mean ('+omflag+')', labelpad=60)
             plt.yticks(y_axis, zlevs[::-1])
             plt.xticks(x_axis, DayHour)
 
@@ -1209,7 +1188,7 @@ class plot_diag(object):
             plt.title(instrument_title, loc='left', fontsize=10)
             plt.title(date_title, loc='right', fontsize=10)
             plt.ylabel('Vertical Levels (hPa)')
-            plt.xlabel('Standard Deviation ('+omflag+')')
+            plt.xlabel('Standard Deviation ('+omflag+')', labelpad=60)
             plt.yticks(y_axis, zlevs[::-1])
             plt.xticks(x_axis, DayHour)
 
@@ -1221,7 +1200,7 @@ class plot_diag(object):
             plt.title(instrument_title, loc='left', fontsize=10)
             plt.title(date_title, loc='right', fontsize=10)
             plt.ylabel('Vertical Levels (hPa)')
-            plt.xlabel('Total Observations')
+            plt.xlabel('Total Observations', labelpad=60)
             plt.yticks(y_axis, zlevs[::-1])
             plt.xticks(x_axis, DayHour)
             plt.tight_layout()
@@ -1244,7 +1223,7 @@ class plot_diag(object):
             plt.title(instrument_title, loc='left', fontsize=10)
             plt.title(date_title, loc='right', fontsize=10)
             plt.ylabel('Vertical Levels (hPa)')
-            plt.xlabel('Mean ('+omflaga+')')
+            plt.xlabel('Mean ('+omflaga+')', labelpad=60)
             plt.yticks(y_axis, zlevs[::-1])
             plt.xticks(x_axis, DayHour)
 
@@ -1257,7 +1236,7 @@ class plot_diag(object):
             plt.title(instrument_title, loc='left', fontsize=10)
             plt.title(date_title, loc='right', fontsize=10)
             plt.ylabel('Vertical Levels (hPa)')
-            plt.xlabel('Standard Deviation ('+omflaga+')')
+            plt.xlabel('Standard Deviation ('+omflaga+')', labelpad=60)
             plt.yticks(y_axis, zlevs[::-1])
             plt.xticks(x_axis, DayHour)
 
@@ -1269,7 +1248,7 @@ class plot_diag(object):
             plt.title(instrument_title, loc='left', fontsize=10)
             plt.title(date_title, loc='right', fontsize=10)
             plt.ylabel('Vertical Levels (hPa)')
-            plt.xlabel('Total Observations')
+            plt.xlabel('Total Observations', labelpad=60)
             plt.yticks(y_axis, zlevs[::-1])
             plt.xticks(x_axis, DayHour)
             plt.tight_layout()
