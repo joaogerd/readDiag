@@ -42,7 +42,6 @@ from matplotlib.offsetbox import AnchoredOffsetbox, TextArea, HPacker, VPacker
 def help():
     print('Esta é uma ajudada')
 
-
 def getColor(minVal, maxVal, value, hex=False, cmapName=None):
 
     try:
@@ -79,7 +78,7 @@ def getColor(minVal, maxVal, value, hex=False, cmapName=None):
 
     return color
 
-def geoMap(**kwargs):
+def geoMap(area=None,**kwargs):
     
     if 'ax' not in kwargs:
         fig  = plt.figure(figsize=(12, 6))
@@ -97,11 +96,16 @@ def geoMap(**kwargs):
     
     ax = world.plot(ax=ax, facecolor='lightgrey', edgecolor='k')#,**kwargs)
     
-    # set axis range
-    ax.set_xlim([-180,180])
     ax.set_xlabel('Longitude')
-    ax.set_ylim([ -90, 90])
     ax.set_ylabel('Latitude')
+    
+    # set axis range
+    if area:
+        ax.set_xlim([area[0],area[2]])
+        ax.set_ylim([area[1],area[3]])
+    else:
+        ax.set_xlim([-180,180])
+        ax.set_ylim([ -90, 90])
 
     return ax
     
@@ -124,6 +128,10 @@ class read_diag(object):
     #@profile(precision=8)
 
     def __init__(self, diagFile, diagFileAnl=None, isisList=None, zlevs=None):
+
+        print(' ')
+        print('>>> GSI DIAG <<<')
+        print(' ')
 
         self._diagFile     = diagFile
         self._diagFileAnl  = diagFileAnl
@@ -529,12 +537,13 @@ class read_diag(object):
 
         return
 
+
 class plot_diag(object):
     """
     plot diagnostic file from gsi. 
     """
 
-    def plot(self, varName, varType, param, mask=None, **kwargs):
+    def plot(self, varName, varType, param, mask=None, area=None, **kwargs):
         '''
         The plot function makes a plot for the selected observation by using information of the following columns available within the dataframe.
  
@@ -554,7 +563,9 @@ class plot_diag(object):
         gd.plot('ps', 187, 'obs', mask='iuse == 1')
         
         In the above example, a plot will be made displaying by using the values of the used surface pressure observations of the kind 187 (ADPSFC).
- 
+
+        area = [Loni, Lati, Lonf, Latf]
+
         '''
         #
         # Parse options 
@@ -583,7 +594,7 @@ class plot_diag(object):
         if 'cmap' not in kwargs:
             kwargs['cmap'] = 'jet'
 
-        ax = geoMap(ax=ax)
+        ax = geoMap(area=area,ax=ax)
 
         if mask is None:
             ax  = self.obsInfo[varName].loc[varType].plot(param, ax=ax, **kwargs, legend_kwds={'shrink': 0.5})
@@ -594,7 +605,7 @@ class plot_diag(object):
         
         return ax
 
-    def ptmap(self, varName, varType=None, mask=None, **kwargs):
+    def ptmap(self, varName, varType=None, mask=None, area=None, **kwargs):
         '''
         The ptmap function plots the selected observation for the selected kinds.
 
@@ -605,6 +616,9 @@ class plot_diag(object):
 
         Note: If no kind is explicity informed, all kinds for that particular observation will be considered, which may clutter
         the plot.
+
+        area = [Loni, Lati, Lonf, Latf]
+
         '''
         #
         # Parse options 
@@ -646,7 +660,7 @@ class plot_diag(object):
             kwargs['legend'] = False
                 
         
-        ax = geoMap(ax=ax)
+        ax = geoMap(area=area,ax=ax)
 
         # color range
         if type(varType) is list:
@@ -683,7 +697,7 @@ class plot_diag(object):
 
         return ax
 
-    def pvmap(self, varName=None, mask=None, **kwargs):
+    def pvmap(self, varName=None, mask=None, area=None, **kwargs):
         '''
         The pvmap function plots the selected observations without specifying its kinds. It used the flag iuse instead. 
 
@@ -691,6 +705,9 @@ class plot_diag(object):
         a.pvmap(['uv','ps','t','q'], mask='iuse==1')
         
         In the above example, a plot for the used (iuse=1) observations of wind (uv), surface pressure (ps), temperature (t) and moisture (q) will be made. 
+
+        area = [Loni, Lati, Lonf, Latf]
+
         '''
         #
         # Parse options 
@@ -745,7 +762,7 @@ class plot_diag(object):
             else:
                 varName = [varName]
         
-        ax = geoMap(ax=ax)
+        ax = geoMap(area=area,ax=ax)
 
         
         colors_palette = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22']
@@ -908,7 +925,7 @@ class plot_diag(object):
         plt.xlabel('KX number')
         plt.title('Total Number of Observations')
  
-    def time_series(self, varName=None, varType=None, dateIni=None, dateFin=None, nHour="06", vminOMA=None, vmaxOMA=None, vminSTD=0.0, vmaxSTD=14.0, Level=None, Lay = None, SingleL=None, Clean=None):
+    def time_series(self, varName=None, varType=None, mask=None, dateIni=None, dateFin=None, nHour="06", vminOMA=None, vmaxOMA=None, vminSTD=0.0, vmaxSTD=14.0, Level=None, Lay = None, SingleL=None, Clean=None):
         
         '''
         The time_series function plots a time series for different levels/layers or for a single level/layer considering
@@ -916,20 +933,21 @@ class plot_diag(object):
 
         Example:
 
-        dini = 2013010100 # Inicial Date
-        dfin = 2013010900 # Final Date
-        nHour = "06"      # Time Interval
-        vName = 'uv'      # Variable
-        vType = 224       # Source Type
-        vminOMA = -4.0    # Y-axis Minimum Value for OmF or OmA
-        vmaxOMA = 4.0     # Y-axis Maximum Value for OmF or OmA
-        vminSTD = 0.0     # Y-axis Minimum Value for Standard Deviation
-        vmaxSTD = 14.0    # Y-axis Maximum Value for Standard Deviation
-        Level = 1000      # Time Series Level, if any (None), all standard levels are plotted
-        Lay = 15          # The size of half layer in hPa, if the plot type is sampled by layers.
-        SingleL = "OneL"  # When level is fixed, ex: 1000 hPa, the plot can be exactly in this level (SingleL = None),
-                          # on all levels as a single layer (SingleL = "All") or on a layer centered in Level and bounded by
-                          # Level-Lay and Level+Lay (SingleL="OneL"). If Lay is not defined, it will be used a standard value of 50 hPa. 
+        vName = 'uv'          # Variable
+        vType = 224           # Source Type
+        mask  = None          # Mask the data by chosen used/not used data, ex: mask='iuse==1'
+        dateIni = 2013010100  # Inicial Date
+        dateFin = 2013010900  # Final Date
+        nHour = "06"          # Time Interval
+        vminOMA = -4.0        # Y-axis Minimum Value for OmF or OmA
+        vmaxOMA = 4.0         # Y-axis Maximum Value for OmF or OmA
+        vminSTD = 0.0         # Y-axis Minimum Value for Standard Deviation
+        vmaxSTD = 14.0        # Y-axis Maximum Value for Standard Deviation
+        Level = 1000          # Time Series Level, if any (None), all standard levels are plotted
+        Lay = 15              # The size of half layer in hPa, if the plot type is sampled by layers.
+        SingleL = "OneL"      # When level is fixed, ex: 1000 hPa, the plot can be exactly in this level (SingleL = None),
+                              # on all levels as a single layer (SingleL = "All") or on a layer centered in Level and bounded by
+                              # Level-Lay and Level+Lay (SingleL="OneL"). If Lay is not defined, it will be used a standard value of 50 hPa. 
 
         '''
         if Clean == None:
@@ -950,7 +968,20 @@ class plot_diag(object):
         print(separator)
         print()
 
-        zlevs_def = list(map(int,self[0].zlevs))
+        if mask == None:
+            maski  = "iuse>-99999.9"
+            cmaski = "iuse = All"
+        else:
+            maski  = mask
+            cmaski = mask
+
+        if type(Level) == list:
+            zlevs_def = Level
+            Level = "Zlevs"
+        else:
+            zlevs_def = list(map(int,self[0].zlevs))
+
+        print(zlevs_def)
 
         datei = datetime.strptime(str(dateIni), "%Y%m%d%H")
         datef = datetime.strptime(str(dateFin), "%Y%m%d%H")
@@ -964,7 +995,7 @@ class plot_diag(object):
             datefmt = date.strftime("%Y%m%d%H")
             DayHour_tmp.append(date.strftime("%d%H"))
             
-            dataDict = self[f].obsInfo[varName].loc[varType]
+            dataDict = self[f].obsInfo[varName].query(maski).loc[varType]
             info_check.update({date.strftime("%d%H"):True})
 
             if 'prs' in dataDict and (Level == None or Level == "Zlevs"):
@@ -1016,21 +1047,21 @@ class plot_diag(object):
 
             try: 
                 if info_check[date.strftime("%d%H")] == True:
-                    dataDict = self[f].obsInfo[varName].loc[varType]
+                    dataDict = self[f].obsInfo[varName].query(maski).loc[varType]
                     dataByLevs, mean_dataByLevs, std_dataByLevs, count_dataByLevs = {}, {}, {}, {}
                     dataByLevsa, mean_dataByLevsa, std_dataByLevsa, count_dataByLevsa = {}, {}, {}, {}
                     [dataByLevs.update({int(lvl): []}) for lvl in levs]
                     [dataByLevsa.update({int(lvl): []}) for lvl in levs]
                     if Level != None and Level != "Zlevs":
                         if SingleL == None:
-                            [ dataByLevs[int(p)].append(v) for p,v in zip(self[f].obsInfo[varName].loc[varType].prs,self[f].obsInfo[varName].loc[varType].omf) if int(p) == Level ]
-                            [ dataByLevsa[int(p)].append(v) for p,v in zip(self[f].obsInfo[varName].loc[varType].prs,self[f].obsInfo[varName].loc[varType].oma) if int(p) == Level ]
+                            [ dataByLevs[int(p)].append(v) for p,v in zip(self[f].obsInfo[varName].query(maski).loc[varType].prs,self[f].obsInfo[varName].query(maski).loc[varType].omf) if int(p) == Level ]
+                            [ dataByLevsa[int(p)].append(v) for p,v in zip(self[f].obsInfo[varName].query(maski).loc[varType].prs,self[f].obsInfo[varName].query(maski).loc[varType].oma) if int(p) == Level ]
                             forplot = ' Level='+str(Level) +'hPa'
                             forplotname = 'level_'+str(Level) +'hPa'
                         else:
                             if SingleL == "All":
-                                [ dataByLevs[Level].append(v) for v in self[f].obsInfo[varName].loc[varType].omf ]
-                                [ dataByLevsa[Level].append(v) for v in self[f].obsInfo[varName].loc[varType].oma ]
+                                [ dataByLevs[Level].append(v) for v in self[f].obsInfo[varName].query(maski).loc[varType].omf ]
+                                [ dataByLevsa[Level].append(v) for v in self[f].obsInfo[varName].query(maski).loc[varType].oma ]
                                 forplot = ' Layer=Entire Atmosphere'
                                 forplotname = 'layer_allAtm'
                             else:
@@ -1040,16 +1071,16 @@ class plot_diag(object):
                                         print(" Variable Lay is None, resetting it to its default value: "+str(Laydef)+" hPa.")
                                         print("")
                                         Lay = Laydef
-                                    [ dataByLevs[int(Level)].append(v) for p,v in zip(self[f].obsInfo[varName].loc[varType].prs,self[f].obsInfo[varName].loc[varType].omf) if int(p) >=Level-Lay and int(p) <Level+Lay ]
-                                    [ dataByLevsa[int(Level)].append(v) for p,v in zip(self[f].obsInfo[varName].loc[varType].prs,self[f].obsInfo[varName].loc[varType].oma) if int(p) >=Level-Lay and int(p) <Level+Lay ]
+                                    [ dataByLevs[int(Level)].append(v) for p,v in zip(self[f].obsInfo[varName].query(maski).loc[varType].prs,self[f].obsInfo[varName].query(maski).loc[varType].omf) if int(p) >=Level-Lay and int(p) <Level+Lay ]
+                                    [ dataByLevsa[int(Level)].append(v) for p,v in zip(self[f].obsInfo[varName].query(maski).loc[varType].prs,self[f].obsInfo[varName].query(maski).loc[varType].oma) if int(p) >=Level-Lay and int(p) <Level+Lay ]
                                     forplot = ' Layer='+str(Level+Lay)+'-'+str(Level-Lay)+'hPa'
                                     forplotname = 'layer_'+str(Level+Lay)+'-'+str(Level-Lay)+'hPa'
                                 else:
                                     print(" Wrong value for variable SingleL. Please, check it and rerun the script.")    
                     else:
                         if Level == None:
-                            [ dataByLevs[int(p)].append(v) for p,v in zip(self[f].obsInfo[varName].loc[varType].prs,self[f].obsInfo[varName].loc[varType].omf) ]
-                            [ dataByLevsa[int(p)].append(v) for p,v in zip(self[f].obsInfo[varName].loc[varType].prs,self[f].obsInfo[varName].loc[varType].oma) ]
+                            [ dataByLevs[int(p)].append(v) for p,v in zip(self[f].obsInfo[varName].query(maski).loc[varType].prs,self[f].obsInfo[varName].query(maski).loc[varType].omf) ]
+                            [ dataByLevsa[int(p)].append(v) for p,v in zip(self[f].obsInfo[varName].query(maski).loc[varType].prs,self[f].obsInfo[varName].query(maski).loc[varType].oma) ]
                             forplotname = 'all_levels_byLevels'
                         else:
                             for ll in range(len(levs)):
@@ -1063,12 +1094,12 @@ class plot_diag(object):
                                         Llayf = Llayi
                                     else:
                                         Llayf = (levs[ll+1] - levs[ll]) / 2.0
-                                    cutlevs = [ v for p,v in zip(self[f].obsInfo[varName].loc[varType].prs,self[f].obsInfo[varName].loc[varType].omf) if int(p) >=lv-Llayi and int(p) <lv+Llayf ]
-                                    cutlevsa = [ v for p,v in zip(self[f].obsInfo[varName].loc[varType].prs,self[f].obsInfo[varName].loc[varType].oma) if int(p) >=lv-Llayi and int(p) <lv+Llayf ]
+                                    cutlevs = [ v for p,v in zip(self[f].obsInfo[varName].query(maski).loc[varType].prs,self[f].obsInfo[varName].query(maski).loc[varType].omf) if int(p) >=lv-Llayi and int(p) <lv+Llayf ]
+                                    cutlevsa = [ v for p,v in zip(self[f].obsInfo[varName].query(maski).loc[varType].prs,self[f].obsInfo[varName].query(maski).loc[varType].oma) if int(p) >=lv-Llayi and int(p) <lv+Llayf ]
                                     forplotname = 'all_levels_filledLayers'
                                 else:
-                                    cutlevs = [ v for p,v in zip(self[f].obsInfo[varName].loc[varType].prs,self[f].obsInfo[varName].loc[varType].omf) if int(p) >=lv-Lay and int(p) <lv+Lay ]
-                                    cutlevsa = [ v for p,v in zip(self[f].obsInfo[varName].loc[varType].prs,self[f].obsInfo[varName].loc[varType].oma) if int(p) >=lv-Lay and int(p) <lv+Lay ]
+                                    cutlevs = [ v for p,v in zip(self[f].obsInfo[varName].query(maski).loc[varType].prs,self[f].obsInfo[varName].query(maski).loc[varType].omf) if int(p) >=lv-Lay and int(p) <lv+Lay ]
+                                    cutlevsa = [ v for p,v in zip(self[f].obsInfo[varName].query(maski).loc[varType].prs,self[f].obsInfo[varName].query(maski).loc[varType].oma) if int(p) >=lv-Lay and int(p) <lv+Lay ]
                                     forplotname = 'all_levels_bylayers_'+str(Lay)+"hPa"
                                 [ dataByLevs[lv].append(il) for il in cutlevs ]
                                 [ dataByLevsa[lv].append(il) for il in cutlevsa ]
@@ -1146,14 +1177,33 @@ class plot_diag(object):
         std_finala   = np.ma.masked_array(np.array(list_stdByLevsa), np.array(list_stdByLevsa) == -99)
         count_finala = np.ma.masked_array(np.array(list_countByLevsa), np.array(list_countByLevsa) == -99)
 
-        mean_limit = np.max(np.array([np.abs(np.min(mean_final)), np.abs(np.min(mean_final))]))
-
         OMF_inf = np.array(list_meanByLevs)-np.array(list_stdByLevs)
         OMF_sup = np.array(list_meanByLevs)+np.array(list_stdByLevs)
         OMA_inf = np.array(list_meanByLevsa)-np.array(list_stdByLevsa)
         OMA_sup = np.array(list_meanByLevsa)+np.array(list_stdByLevsa)
 
-        if (vminOMA == None) and (vmaxOMA == None): vminOMA, vmaxOMA = -1*mean_limit, mean_limit
+        mean_limit_inf = np.min(np.array([np.min(mean_final), np.min(mean_finala)]))
+        mean_limit_sup = np.max(np.array([np.max(mean_final), np.max(mean_finala)]))
+
+        std_limit_inf = np.min(np.array([np.min(std_final), np.min(std_finala)]))
+        std_limit_sup = np.max(np.array([np.max(std_final), np.max(std_finala)]))
+
+        omfoma_limit_inf =     (np.min(np.array([np.min(OMF_inf), np.min(OMA_inf)])))
+        if omfoma_limit_inf > 0:
+            omfoma_limit_inf = 0.9*omfoma_limit_inf
+        else:
+            omfoma_limit_inf = 1.1*omfoma_limit_inf  
+        omfoma_limit_sup = 1.1*(np.max(np.array([np.max(OMF_sup), np.max(OMA_sup)])))
+
+        if (vminOMA == None) and (vmaxOMA == None): vminOMA, vmaxOMA = mean_limit_inf, 1.1*mean_limit_sup
+        if vminOMA > 0:
+            vminOMA = 0.9*vminOMA
+        else:
+            vminOMA = 1.1*vminOMA 
+
+        vmaxOMAabs = np.max([np.abs(vminOMA),np.abs(vminOMA)])
+
+        if (vminSTD == None) and (vmaxSTD == None): vminSTD, vmaxSTD = std_limit_inf - 0.1*std_limit_inf,  1.1*std_limit_sup
 
         date_title = str(datei.strftime("%d%b")) + '-' + str(date_finale.strftime("%d%b")) + ' ' + str(date_finale.strftime("%Y"))
         instrument_title = str(varName) + '-' + str(varType) + '  |  ' + getVarInfo(varType, varName, 'instrument')
@@ -1169,15 +1219,17 @@ class plot_diag(object):
             plt.subplot(3, 1, 1)
             ax = plt.gca()
             ax.add_patch(mpl.patches.Rectangle((-1,-1),(len(DayHour)+1),(len(levs)+3), hatch='xxxxx', color='black', fill=False, snap=False, zorder=0))
-            plt.imshow(np.flipud(mean_final.T), origin='lower', vmin=vminOMA, vmax=vmaxOMA, cmap='seismic', aspect='auto', zorder=1,interpolation='none')
+            plt.imshow(np.flipud(mean_final.T), origin='lower', vmin=-vmaxOMAabs, vmax=vmaxOMAabs, cmap='seismic', aspect='auto', zorder=1,interpolation='none')
             plt.colorbar(orientation='horizontal', pad=0.18, shrink=1.0)
             plt.tight_layout()
             plt.title(instrument_title, loc='left', fontsize=10)
             plt.title(date_title, loc='right', fontsize=10)
             plt.ylabel('Vertical Levels (hPa)')
-            plt.xlabel('Mean ('+omflag+')', labelpad=60)
+            plt.xlabel('Mean ('+omflag+')', labelpad=50)
             plt.yticks(y_axis, zlevs[::-1])
             plt.xticks(x_axis, DayHour)
+            major_ticks = [ DayHour.index(dh) for dh in filter(None,DayHour) ]
+            ax.set_xticks(major_ticks)
 
             plt.subplot(3, 1, 2)
             ax = plt.gca()
@@ -1188,9 +1240,11 @@ class plot_diag(object):
             plt.title(instrument_title, loc='left', fontsize=10)
             plt.title(date_title, loc='right', fontsize=10)
             plt.ylabel('Vertical Levels (hPa)')
-            plt.xlabel('Standard Deviation ('+omflag+')', labelpad=60)
+            plt.xlabel('Standard Deviation ('+omflag+')', labelpad=50)
             plt.yticks(y_axis, zlevs[::-1])
             plt.xticks(x_axis, DayHour)
+            major_ticks = [ DayHour.index(dh) for dh in filter(None,DayHour) ]
+            ax.set_xticks(major_ticks)
 
             plt.subplot(3, 1, 3)
             ax = plt.gca()
@@ -1200,9 +1254,12 @@ class plot_diag(object):
             plt.title(instrument_title, loc='left', fontsize=10)
             plt.title(date_title, loc='right', fontsize=10)
             plt.ylabel('Vertical Levels (hPa)')
-            plt.xlabel('Total Observations', labelpad=60)
+            plt.xlabel('Total Observations'+" ("+cmaski+")", labelpad=50)
             plt.yticks(y_axis, zlevs[::-1])
             plt.xticks(x_axis, DayHour)
+            major_ticks = [ DayHour.index(dh) for dh in filter(None,DayHour) ]
+            ax.set_xticks(major_ticks)
+
             plt.tight_layout()
             plt.savefig('time_series_'+str(varName) + '-' + str(varType)+'_'+omflag+'_'+forplotname+'.png', bbox_inches='tight', dpi=100)
             if Clean:
@@ -1217,15 +1274,17 @@ class plot_diag(object):
             plt.subplot(3, 1, 1)
             ax = plt.gca()
             ax.add_patch(mpl.patches.Rectangle((-1,-1),(len(DayHour)+1),(len(levs)+3), hatch='xxxxx', color='black', fill=False, snap=False, zorder=0))
-            plt.imshow(np.flipud(mean_finala.T), origin='lower', vmin=vminOMA, vmax=vmaxOMA, cmap='seismic', aspect='auto', zorder=1,interpolation='none')
+            plt.imshow(np.flipud(mean_finala.T), origin='lower', vmin=-vmaxOMAabs, vmax=vmaxOMAabs, cmap='seismic', aspect='auto', zorder=1,interpolation='none')
             plt.colorbar(orientation='horizontal', pad=0.18, shrink=1.0)
             plt.tight_layout()
             plt.title(instrument_title, loc='left', fontsize=10)
             plt.title(date_title, loc='right', fontsize=10)
             plt.ylabel('Vertical Levels (hPa)')
-            plt.xlabel('Mean ('+omflaga+')', labelpad=60)
+            plt.xlabel('Mean ('+omflaga+')', labelpad=50)
             plt.yticks(y_axis, zlevs[::-1])
             plt.xticks(x_axis, DayHour)
+            major_ticks = [ DayHour.index(dh) for dh in filter(None,DayHour) ]
+            ax.set_xticks(major_ticks)
 
             plt.subplot(3, 1, 2)
             ax = plt.gca()
@@ -1236,9 +1295,11 @@ class plot_diag(object):
             plt.title(instrument_title, loc='left', fontsize=10)
             plt.title(date_title, loc='right', fontsize=10)
             plt.ylabel('Vertical Levels (hPa)')
-            plt.xlabel('Standard Deviation ('+omflaga+')', labelpad=60)
+            plt.xlabel('Standard Deviation ('+omflaga+')', labelpad=50)
             plt.yticks(y_axis, zlevs[::-1])
             plt.xticks(x_axis, DayHour)
+            major_ticks = [ DayHour.index(dh) for dh in filter(None,DayHour) ]
+            ax.set_xticks(major_ticks)
 
             plt.subplot(3, 1, 3)
             ax = plt.gca()
@@ -1248,9 +1309,12 @@ class plot_diag(object):
             plt.title(instrument_title, loc='left', fontsize=10)
             plt.title(date_title, loc='right', fontsize=10)
             plt.ylabel('Vertical Levels (hPa)')
-            plt.xlabel('Total Observations', labelpad=60)
+            plt.xlabel('Total Observations'+" ("+cmaski+")", labelpad=50)
             plt.yticks(y_axis, zlevs[::-1])
             plt.xticks(x_axis, DayHour)
+            major_ticks = [ DayHour.index(dh) for dh in filter(None,DayHour) ]
+            ax.set_xticks(major_ticks)
+
             plt.tight_layout()
             plt.savefig('time_series_'+str(varName) + '-' + str(varType)+'_'+omflaga+'_'+forplotname+'.png', bbox_inches='tight', dpi=100)
             if Clean:
@@ -1277,6 +1341,8 @@ class plot_diag(object):
             ax1.set_ylabel('Mean ('+omflag+')', color='b', fontsize=10)
             ax1.tick_params('y', colors='b')
             plt.xticks(x_axis, DayHour)
+            major_ticks = [ DayHour.index(dh) for dh in filter(None,DayHour) ]
+            ax1.set_xticks(major_ticks)
             plt.axhline(y=np.mean(list_meanByLevs),ls='dotted',c='blue')
             
             ax2 = ax1.twinx()
@@ -1285,13 +1351,15 @@ class plot_diag(object):
             ax2.set_ylim(vminSTD, vmaxSTD)
             ax2.set_ylabel('Std. Deviation ('+omflag+')', color='r', fontsize=10)
             ax2.tick_params('y', colors='r')
+            major_ticks = np.arange(0, max(x_axis), len(DayHour)/len(list(filter(None, DayHour))))
+            ax2.set_xticks(major_ticks)
             plt.axhline(y=np.mean(std_final),ls='dotted',c='red')
 
             ax3 = ax1.twinx()
-            ax3.plot(x_axis, count_final, "g-", label="Total Observations")
-            ax3.plot(x_axis, count_final, "g^", label="Total Observations")
+            ax3.plot(x_axis, count_final, "g-", label="Total Observations"+" ("+cmaski+")")
+            ax3.plot(x_axis, count_final, "g^", label="Total Observations"+" ("+cmaski+")")
             ax3.set_ylim(0, np.max(count_final) + (np.max(count_final)/8))
-            ax3.set_ylabel('Total Observations', color='g', fontsize=10)
+            ax3.set_ylabel('Total Observations'+" ("+cmaski+")", color='g', fontsize=10)
             ax3.tick_params('y', colors='g')
             ax3.spines["right"].set_position(("axes", 1.15))
             plt.yticks(rotation=90)
@@ -1301,6 +1369,8 @@ class plot_diag(object):
             ax3.set_title(date_title, loc='right', fontsize=10)
 
             plt.xticks(x_axis, DayHour)
+            major_ticks = [ DayHour.index(dh) for dh in filter(None,DayHour) ]
+            ax3.set_xticks(major_ticks)
             plt.title(instrument_title, loc='left', fontsize=9)
             plt.title(date_title, loc='right', fontsize=9)
             plt.subplots_adjust(left=None, bottom=None, right=0.80, top=None)
@@ -1327,6 +1397,8 @@ class plot_diag(object):
             ax1.set_ylabel('Mean ('+omflaga+')', color='b', fontsize=10)
             ax1.tick_params('y', colors='b')
             plt.xticks(x_axis, DayHour)
+            major_ticks = [ DayHour.index(dh) for dh in filter(None,DayHour) ]
+            ax1.set_xticks(major_ticks)
             plt.axhline(y=np.mean(list_meanByLevsa),ls='dotted',c='blue')
             
             ax2 = ax1.twinx()
@@ -1338,10 +1410,10 @@ class plot_diag(object):
             plt.axhline(y=np.mean(std_finala),ls='dotted',c='red')
 
             ax3 = ax1.twinx()
-            ax3.plot(x_axis, count_finala, "g-", label="Total Observations")
-            ax3.plot(x_axis, count_finala, "g^", label="Total Observations")
-            ax3.set_ylim(0, np.max(count_finala) + (np.max(count_finala)/8))
-            ax3.set_ylabel('Total Observations', color='g', fontsize=10)
+            ax3.plot(x_axis, count_finala, "g-", label="Total Observations"+" ("+cmaski+")")
+            ax3.plot(x_axis, count_finala, "g^", label="Total Observations"+" ("+cmaski+")")
+            ax3.set_ylim(0, 1.2*np.max(count_finala))
+            ax3.set_ylabel('Total Observations'+" ("+cmaski+")", color='g', fontsize=10)
             ax3.tick_params('y', colors='g')
             ax3.spines["right"].set_position(("axes", 1.15))
             plt.yticks(rotation=90)
@@ -1351,6 +1423,8 @@ class plot_diag(object):
             ax3.set_title(date_title, loc='right', fontsize=10)
 
             plt.xticks(x_axis, DayHour)
+            major_ticks = [ DayHour.index(dh) for dh in filter(None,DayHour) ]
+            ax3.set_xticks(major_ticks)
             plt.title(instrument_title, loc='left', fontsize=9)
             plt.title(date_title, loc='right', fontsize=9)
             plt.subplots_adjust(left=None, bottom=None, right=0.80, top=None)
@@ -1376,6 +1450,8 @@ class plot_diag(object):
             ax1.set_ylim(vminOMA, vmaxOMA)
             ax1.tick_params('y', colors='b')
             plt.xticks(x_axis, DayHour)
+            major_ticks = [ DayHour.index(dh) for dh in filter(None,DayHour) ]
+            ax1.set_xticks(major_ticks)
             plt.axhline(y=np.mean(list_meanByLevs),ls='dotted',c='blue')
             
             ax1.plot(x_axis, list_meanByLevsa, "r-", label="Mean ("+omflaga+")")
@@ -1385,6 +1461,8 @@ class plot_diag(object):
             plt.axhline(y=np.mean(list_meanByLevsa),ls='dotted',c='red')
 
             plt.xticks(x_axis, DayHour)
+            major_ticks = [ DayHour.index(dh) for dh in filter(None,DayHour) ]
+            ax1.set_xticks(major_ticks)
             plt.title(instrument_title, loc='left', fontsize=9)
             plt.title(date_title, loc='right', fontsize=9)
             plt.subplots_adjust(left=None, bottom=None, right=0.80, top=None)
@@ -1410,10 +1488,10 @@ class plot_diag(object):
             fig, ax1 = plt.subplots(1, 1)
             plt.style.use('seaborn-ticks')
             
-            ax1.plot(x_axis, list_meanByLevs, lw=2, label='OmF Mean', color='blue', zorder=2)
-            ax1.fill_between(x_axis, OMF_inf, OMF_sup, label='OmF Std Dev',  facecolor='blue', alpha=0.3, zorder=2)
-            ax1.plot(x_axis, list_meanByLevsa, lw=2, label='OmA Mean', color='red', zorder=1)
-            ax1.fill_between(x_axis, OMA_inf, OMA_sup, label='OmA Std Dev',  facecolor='red', alpha=0.3, zorder=1)
+            ax1.plot(x_axis, list_meanByLevs, lw=2, label='OmF Mean', color='blue', zorder=1)
+            ax1.fill_between(x_axis, OMF_inf, OMF_sup, label='OmF Std Dev',  facecolor='blue', alpha=0.3, zorder=1)
+            ax1.plot(x_axis, list_meanByLevsa, lw=2, label='OmA Mean', color='red', zorder=2)
+            ax1.fill_between(x_axis, OMA_inf, OMA_sup, label='OmA Std Dev',  facecolor='red', alpha=0.3, zorder=2)
             ybox1 = TextArea(' OmF ' , textprops=dict(color="b", size=12,rotation=90,ha='left',va='bottom'))
             ybox2 = TextArea(' | '             , textprops=dict(color="k", size=12,rotation=90,ha='left',va='bottom'))
             ybox3 = TextArea(' OmA ', textprops=dict(color="r", size=12,rotation=90,ha='left',va='bottom'))
@@ -1425,20 +1503,22 @@ class plot_diag(object):
 
             ax1.add_artist(anchored_ybox)
             ax1.set_xlabel('Date (DayHour)', fontsize=12)
-            ax1.set_ylim(-20,20)
+            ax1.set_ylim(omfoma_limit_inf,omfoma_limit_sup)
             ax1.legend(bbox_to_anchor=(-0.11, -0.25),ncol=4,loc='lower left', fancybox=True, shadow=False, frameon=True, framealpha=1.0, fontsize='11', facecolor='white', edgecolor='lightgray')
             plt.grid(axis='y', color='lightgray', linestyle='-.', linewidth=0.5, zorder=0)
 
             ax2 = ax1.twinx()
-            ax2.plot(x_axis, list_countByLevsa, lw=2, label='OmA', linestyle='--', color='darkgray', zorder=3)
-            ax2.plot(x_axis, list_countByLevs, lw=2, label='OmF', linestyle=':', color='lightgray', zorder=3)
-            ax2.set_ylabel('Total Observations (OmF | OmA)', fontsize=12)
+            ax2.plot(x_axis, list_countByLevsa, lw=2, label='OmA', linestyle='--', color='green', zorder=3)
+            ax2.plot(x_axis, list_countByLevs, lw=2, label='OmF', linestyle=':', color='purple', zorder=3)
+            ax2.set_ylabel('Total Observations (OmF | OmA)'+"\n ("+cmaski+")", fontsize=12)
             ax2.set_ylim(0, (np.max(list_countByLevsa) + np.max(list_countByLevsa)/5))
             ax2.legend(loc='upper left', ncol=2, fancybox=True, shadow=False, frameon=True, framealpha=1.0, fontsize='11', facecolor='white', edgecolor='lightgray')
             
             plt.xticks(x_axis, DayHour)
-            plt.title(instrument_title, loc='left', fontsize=12)
-            plt.title(date_title, loc='right', fontsize=12)
+            major_ticks = [ DayHour.index(dh) for dh in filter(None,DayHour) ]
+            ax2.set_xticks(major_ticks)
+            plt.title(instrument_title, loc='left', fontsize=10)
+            plt.title(date_title, loc='right', fontsize=10)
         
             t = plt.annotate(forplot, xy=(0.78, 0.995), xytext=(-9, -9), xycoords='axes fraction', textcoords='offset points', color='darkgray', fontweight='bold', fontsize='10',
                                 horizontalalignment='center', verticalalignment='center')
@@ -1458,7 +1538,151 @@ class plot_diag(object):
 
         return
 
+    def statcount(self, varName=None, varType=None, noiqc=False, dateIni=None, dateFin=None, nHour="06", figTS=False, figMap=False):
+
+        '''
+        The StatCount function plots a time series of assimilated, monitored and rejected data. 
+
+        Example:
+
+        varName = 'uv'           # Variable
+        varType = 224            # Source Type
+        noiqc = False            # noiqc GSI namelist parameter (OI QC - True or False)
+        dateIni = 2013010100     # Inicial Date
+        dateFin = 2013010900     # Final Date
+        nHour = "06"             # Time Interval
+        figTS = True             # Creates the time series plot
+        figMap = False           # Creates the spatial plot for each time
+
+        ! The QC process creates a number indicating the data quality for each observation.
+        ! These numbers are called QC markers in PrepBUFR files and are important as parts of
+        ! the observation information. GSI uses QC markers to decide how to use the data. A 
+        ! brief summary of the meaning of the QC markers is as follows:
+        ! 
+        !    +-----------------+-----------------------------------------------------------+
+        !    | QC markes range | Data Process in GSI                                       |
+        !    +-----------------+-----------------------------------------------------------+
+        !    |  > 15 or        |GSI skips these observations during reading procedure. That|
+        !    |  <= 0           |means these observations are tossed                        | 
+        !    +-----------------+-----------------------------------------------------------+
+        !    |  >= lim_qm      |These observations will be in monitoring status. That means|
+        !    |  and            |these observations will be read in and be processed through|
+        !    |  < = 15         |GSI QC process (gross check) and innovation calculation    | 
+        !    |                 |stage but will not be used in inner iteration.             |
+        !    +-----------------+-----------------------------------------------------------+
+        !    |  > 0            |Observations will be used in further gross check (failure  |
+        !    |  and            |observation will be list in rejection), innovation         |
+        !    |  < lim_qm       |caalculation, and the analysis (inner iteration).          |
+        !    +-----------------+-----------------------------------------------------------+
+
+        !    +----------------------+---------------+---------------+
+        !    |The value of namelist | lim_qm for Ps | lim_qm others |
+        !    |option noiqc          |               |               |
+        !    +----------------------+---------------+---------------+
+        !    |True (without OI QC)  |       7       |       8       |
+        !    +----------------------+---------------+---------------+
+        !    |False (with OI QC)    |       4       |       4       |
+        !    +----------------------+---------------+---------------+
+        '''
+
+
+        if(noiqc):
+            lim_qm = 8
+            if(varName == 'ps'):
+                lim_qm = 7
+        else:
+            lim_qm = 4
+        
+        instrument_title = str(varName) + '-' + str(varType) + '  |  ' + getVarInfo(varType, varName, 'instrument')
+
+        datei = datetime.strptime(str(dateIni), "%Y%m%d%H")
+        datef = datetime.strptime(str(dateFin), "%Y%m%d%H")
+        date  = datei
+
+        assi, reje, moni, DayHour_tmp = [], [], [], []
+        f = 0
+        while (date <= datef):
+
+            datefmt = date.strftime("%Y%m%d%H")
+            DayHour_tmp.append(date.strftime("%d%H"))
+        
+            exp = "(iuse==1)"
+            assim = self[f].obsInfo[varName].loc[varType].query(exp)
+            exp = "(iuse==-1) & (idqc >= "+str(lim_qm)+" and idqc <= 15)"
+            monit = self[f].obsInfo[varName].loc[varType].query(exp)
+            exp = "(iuse==-1) & ((idqc > 15 or idqc <= 0) or (idqc > 0 and idqc < "+str(lim_qm)+"))"
+            rejei = self[f].obsInfo[varName].loc[varType].query(exp)
+
+            assi.append(len(assim))
+            moni.append(len(monit))
+            reje.append(len(rejei))
+
+            if (figMap):
+                df_list = [assim, monit, rejei]
+                name_list = ["Assimilated ["+str(len(assim))+"]","Monitored ["+str(len(monit))+"]","Rejected ["+str(len(rejei))+"]"]
+                marker_list = [".","x","*"]
+                color_list = ["green","blue","red"]
+
+                setColor = 0 
+                legend_labels = []
+
+                fig = plt.figure(figsize=(12, 6))
+                ax  = fig.add_subplot(1, 1, 1)
+                ax = geoMap(area=None,ax=ax)
+                for dfi,namedf,mk,cl in zip(df_list,name_list,marker_list,color_list):
+                    df    = dfi
+                    legend_labels.append(mpatches.Patch(color=cl, label=namedf) )
+                    ax = df.plot(ax=ax,legend=True, marker=mk, color=cl)
+                    setColor += 1
+                    plt.legend(handles=legend_labels, numpoints=1, loc='lower center', bbox_to_anchor=(0.5, -0.02), 
+                            fancybox=True, shadow=False, frameon=False, ncol=3, prop={"size": 10})
+                date_title = str(date.strftime("%d%b%Y - %H%M")) + ' GMT'
+                plt.title(date_title, loc='right', fontsize=10)
+                plt.title(instrument_title, loc='left', fontsize=9)
+
+                plt.tight_layout()
+                plt.savefig('TotalObs_'+str(varName) + '-' + str(varType)+'_'+datefmt+'.png', bbox_inches='tight', dpi=100)
     
+            f = f + 1
+            date = date + timedelta(hours=int(nHour))
+            date_finale = date
+
+
+        if (figTS):
+            if(len(DayHour_tmp) > 4):
+                DayHour = [hr if (ix % int(len(DayHour_tmp) / 4)) == 0 else '' for ix, hr in enumerate(DayHour_tmp)]
+            else:
+                DayHour = DayHour_tmp
+            
+            x_axis      = np.arange(0, len(DayHour), 1)
+            date_title = str(datei.strftime("%d%b")) + '-' + str(date_finale.strftime("%d%b")) + ' ' + str(date_finale.strftime("%Y"))
+            
+            fig = plt.figure(figsize=(6, 4))
+            fig, ax1 = plt.subplots(1, 1)
+            plt.style.use('seaborn-ticks')
+
+            plt.axhline(y=0.0,ls='solid',c='#d3d3d3')
+
+            ax1.plot(x_axis, assi, "o", label="Assimilated \n["+str(sum(assi))+"]", color='green')
+            ax1.plot(x_axis, moni, "o", label="Monitored \n["+str(sum(moni))+"]", color='blue')
+            ax1.plot(x_axis, reje, "o", label="Rejected \n["+str(sum(reje))+"]", color='red')
+            ax1.legend(fancybox=True, frameon=True, shadow=True, loc="upper center",ncol=3)
+            ax1.set_xlabel('Date (DayHour)', fontsize=10)
+            plt.title(date_title, loc='right', fontsize=10)
+            plt.title(instrument_title, loc='left', fontsize=9)
+                
+            ax1.set_ylim(np.round(-0.05*np.max([assi,moni,reje])), np.round(1.25*np.max([assi,moni,reje])))
+            ax1.set_ylabel('Total Observations', color='black', fontsize=10)
+            ax1.tick_params('y', colors='black')
+            plt.xticks(x_axis, DayHour)
+            major_ticks = [ DayHour.index(dh) for dh in filter(None,DayHour) ]
+            ax1.set_xticks(major_ticks)
+            plt.axhline(y=np.mean(assi),ls='dotted',c='lightgray')
+            plt.axhline(y=np.mean(moni),ls='dotted',c='lightgray')
+            plt.axhline(y=np.mean(reje),ls='dotted',c='lightgray')
+            plt.tight_layout()
+            plt.savefig('time_series_'+str(varName) + '-' + str(varType)+'_TotalObs.png', bbox_inches='tight', dpi=100)
+
 #EOC
 #-----------------------------------------------------------------------------#
 
