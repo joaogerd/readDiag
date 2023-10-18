@@ -24,22 +24,23 @@
 This module defines the majority of gsidiag functions, including all plot types
 """
 from diag2python import diag2python as d2p
-#import .datasources as ds
 from .datasources import getVarInfo
-#from memory_profiler import profile
 import pandas as pd
 import geopandas as gpd
 import numpy as np
+from datetime import datetime, timedelta
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from cartopy import crs as ccrs
 import gc
 from textwrap import wrap
+import matplotlib as mpl
+import matplotlib.ticker as mticker
+from matplotlib.offsetbox import AnchoredOffsetbox, TextArea, HPacker, VPacker
 
 def help():
     print('Esta é uma ajudada')
-
 
 def getColor(minVal, maxVal, value, hex=False, cmapName=None):
 
@@ -77,10 +78,10 @@ def getColor(minVal, maxVal, value, hex=False, cmapName=None):
 
     return color
 
-def geoMap(**kwargs):
+def geoMap(area=None,**kwargs):
     
     if 'ax' not in kwargs:
-        fig  = plt.figure(figsize=(12, 12))
+        fig  = plt.figure(figsize=(12, 6))
         ax   = fig.add_subplot(1, 1, 1)#, projection=ccrs.PlateCarree())
     else:
         ax = kwargs['ax']
@@ -95,21 +96,42 @@ def geoMap(**kwargs):
     
     ax = world.plot(ax=ax, facecolor='lightgrey', edgecolor='k')#,**kwargs)
     
-    # set axis range
-    ax.set_xlim([-180,180])
     ax.set_xlabel('Longitude')
-    ax.set_ylim([ -90, 90])
     ax.set_ylabel('Latitude')
+    
+    # set axis range
+    if area:
+        ax.set_xlim([area[0],area[2]])
+        ax.set_ylim([area[1],area[3]])
+    else:
+        ax.set_xlim([-180,180])
+        ax.set_ylim([ -90, 90])
 
     return ax
+    
+class setcolor:
+    HEADER    = '\033[95m'
+    OKBLUE    = '\033[94m'
+    OKGREEN   = '\033[92m'
+    WARNING   = '\033[93m'
+    FAIL      = '\033[91m'
+    ENDC      = '\033[0m'
+    BOLD      = '\033[1m'
+    UNDERLINE = '\033[4m'
 
 class read_diag(object):
+
     """
     read a diagnostic file from gsi. Return an array with
     some information.
     """
     #@profile(precision=8)
+
     def __init__(self, diagFile, diagFileAnl=None, isisList=None, zlevs=None):
+
+        print(' ')
+        print('>>> GSI DIAG <<<')
+        print(' ')
 
         self._diagFile     = diagFile
         self._diagFileAnl  = diagFileAnl
@@ -216,7 +238,312 @@ class read_diag(object):
             
         self.obs  = pd.concat(self.obsInfo, sort=False).reset_index(level=2, drop=True)
 
-    def plot(self, var, id, param, mask=None, **kwargs):
+    def overview(self):
+
+        """
+        Creates a dictionary of the existing variables and types. Returns a Python dictionary.
+
+        Usage: overview()
+        """
+
+        variablesList = {}
+        for var in self.varNames:
+            variablesTypes = []
+            for kx in self.obsInfo[var].index.levels[0]:
+                variablesTypes.append(kx)
+            variablesList.update({var:variablesTypes})
+        return variablesList
+
+    def pfileinfo(self):
+
+        """
+        Prints a fancy list of the existing variables and types.
+
+        Usage: pfileinfo()
+        """
+
+        for name in self.varNames:
+            print('Variable Name :',name)
+            print('              └── kx => ', end='', flush=True)
+            for kx in self.obsInfo[name].index.levels[0]:
+               print(kx,' ', end='', flush=True)
+            print()
+
+            print()
+       
+    def close(self):
+
+        """
+        Closes a previous openned file. Returns an integer status value.
+
+        Usage: close()
+        """
+
+        iret = d2p.close(self._FNumber)
+        self._FileName = None # File name
+        self._FNumber  = None # File unit number to be closed
+        self._nVars    = None # Total of variables
+        self.varNames  = None # Name of variables
+        self.obsInfo   = None 
+        self.nObs      = None # Number of observations for vName
+        del self
+        gc.collect()
+        
+        return iret
+
+    def tocsv(self, varName=None, varType=None, dateIni=None, dateFin=None, nHour="06", Level=None, Lay = None, SingleL=None):
+        
+        '''
+        The function tocsv is similar to the time_series funcion, however, it outputs a CSV file instead of figures. 
+        Refers to the time_series description below for more information.
+
+        '''
+
+        delta = nHour
+        omflag = "OmF"
+        omflaga = "OmA"
+
+        Laydef = 50
+
+        separator = " ====================================================================================================="
+
+        print()
+        print(separator)
+        #print(" Reading dataset in " + data_path)
+        print(" Analyzing data of variable: " + varName + "  ||  type: " + str(varType) + "  ||  " + getVarInfo(varType, varName, 'instrument') + "  ||  check: " + omflag)
+        print(separator)
+        print()
+
+        zlevs_def = list(map(int,self[0].zlevs))
+
+        datei = datetime.strptime(str(dateIni), "%Y%m%d%H")
+        datef = datetime.strptime(str(dateFin), "%Y%m%d%H")
+        date  = datei
+
+        levs_tmp, DayHour_tmp = [], []
+        info_check = {}
+        f = 0
+        while (date <= datef):
+            
+            datefmt = date.strftime("%Y%m%d%H")
+            DayHour_tmp.append(date.strftime("%d%H"))
+            
+            dataDict = self[f].obsInfo[varName].loc[varType]
+            info_check.update({date.strftime("%d%H"):True})
+
+            if 'prs' in dataDict and (Level == None or Level == "Zlevs"):
+                if(Level == None):
+                    levs_tmp.extend(list(set(map(int,dataDict['prs']))))
+                else:
+                    levs_tmp = zlevs_def[::-1]
+                info_check.update({date.strftime("%d%H"):True})
+                print(date.strftime(' Preparing data for: ' + "%Y-%m-%d:%H"))
+                print(' Levels: ', sorted(levs_tmp), end='\n')
+                print("")
+                f = f + 1
+            else:
+                if (Level != None and Level != "Zlevs") and info_check[date.strftime("%d%H")] == True:
+                    levs_tmp.extend([Level])
+                    print(date.strftime(' Preparing data for: ' + "%Y-%m-%d:%H"), ' - Level: ', Level , end='\n')
+                    f = f + 1
+                else:
+                    info_check.update({date.strftime("%d%H"):False})
+                    print(date.strftime(setcolor.WARNING + ' Preparing data for: ' + "%Y-%m-%d:%H"), ' - No information on this date ' + setcolor.ENDC, end='\n')
+
+            del(dataDict)
+            
+            date = date + timedelta(hours=int(delta))
+            
+        if(len(DayHour_tmp) > 4):
+            DayHour = [hr if (ix % int(len(DayHour_tmp) / 4)) == 0 else '' for ix, hr in enumerate(DayHour_tmp)]
+        else:
+            DayHour = DayHour_tmp
+
+        zlevs = [z if z in zlevs_def else "" for z in sorted(set(levs_tmp+zlevs_def))]
+
+        print()
+        print(separator)
+        print()
+
+        list_meanByLevs, list_stdByLevs, list_countByLevs = [], [], []
+        list_meanByLevsa, list_stdByLevsa, list_countByLevsa = [], [], []
+        date = datei
+        levs = sorted(list(set(levs_tmp)))
+        levs_tmp.clear()
+        del(levs_tmp[:])
+
+        head_levs = ['datetime']
+        for lev in levs:
+            head_levs.append('mean'+str(lev))
+            head_levs.append('std'+str(lev))
+            head_levs.append('count'+str(lev))
+
+        dset = []
+        dseta = []
+        f = 0
+        while (date <= datef):
+
+            print(date.strftime(' Calculating for ' + "%Y-%m-%d:%H"))
+            datefmt = date.strftime("%Y%m%d%H")
+
+            try: 
+                if info_check[date.strftime("%d%H")] == True:
+                    dataDict = self[f].obsInfo[varName].loc[varType]
+                    dataByLevs, mean_dataByLevs, std_dataByLevs, count_dataByLevs = {}, {}, {}, {}
+                    dataByLevsa, mean_dataByLevsa, std_dataByLevsa, count_dataByLevsa = {}, {}, {}, {}
+                    [dataByLevs.update({int(lvl): []}) for lvl in levs]
+                    [dataByLevsa.update({int(lvl): []}) for lvl in levs]
+                    if Level != None and Level != "Zlevs":
+                        if SingleL == None:
+                            [ dataByLevs[int(p)].append(v) for p,v in zip(self[f].obsInfo[varName].loc[varType].prs,self[f].obsInfo[varName].loc[varType].omf) if int(p) == Level ]
+                            [ dataByLevsa[int(p)].append(v) for p,v in zip(self[f].obsInfo[varName].loc[varType].prs,self[f].obsInfo[varName].loc[varType].oma) if int(p) == Level ]
+                            forplot = ' Level='+str(Level) +'hPa'
+                            forplotname = 'level_'+str(Level) +'hPa'
+                        else:
+                            if SingleL == "All":
+                                [ dataByLevs[Level].append(v) for v in self[f].obsInfo[varName].loc[varType].omf ]
+                                [ dataByLevsa[Level].append(v) for v in self[f].obsInfo[varName].loc[varType].oma ]
+                                forplot = ' Layer=Entire Atmosphere'
+                                forplotname = 'layer_allAtm'
+                            else:
+                                if SingleL == "OneL":
+                                    if Lay == None:
+                                        print("")
+                                        print(" Variable Lay is None, resetting it to its default value: "+str(Laydef)+" hPa.")
+                                        print("")
+                                        Lay = Laydef
+                                    [ dataByLevs[int(Level)].append(v) for p,v in zip(self[f].obsInfo[varName].loc[varType].prs,self[f].obsInfo[varName].loc[varType].omf) if int(p) >=Level-Lay and int(p) <Level+Lay ]
+                                    [ dataByLevsa[int(Level)].append(v) for p,v in zip(self[f].obsInfo[varName].loc[varType].prs,self[f].obsInfo[varName].loc[varType].oma) if int(p) >=Level-Lay and int(p) <Level+Lay ]
+                                    forplot = ' Layer='+str(Level+Lay)+'-'+str(Level-Lay)+'hPa'
+                                    forplotname = 'layer_'+str(Level+Lay)+'-'+str(Level-Lay)+'hPa'
+                                else:
+                                    print(" Wrong value for variable SingleL. Please, check it and rerun the script.")    
+                    else:
+                        if Level == None:
+                            [ dataByLevs[int(p)].append(v) for p,v in zip(self[f].obsInfo[varName].loc[varType].prs,self[f].obsInfo[varName].loc[varType].omf) ]
+                            [ dataByLevsa[int(p)].append(v) for p,v in zip(self[f].obsInfo[varName].loc[varType].prs,self[f].obsInfo[varName].loc[varType].oma) ]
+                            forplotname = 'all_levels_byLevels'
+                        else:
+                            for ll in range(len(levs)):
+                                if Lay == None:
+                                    lv = levs[ll]
+                                    if ll == 0:
+                                        Llayi = 0
+                                    else:
+                                        Llayi = (levs[ll] - levs[ll-1]) / 2.0
+                                    if ll == len(levs)-1:
+                                        Llayf = Llayi
+                                    else:
+                                        Llayf = (levs[ll+1] - levs[ll]) / 2.0
+                                    cutlevs = [ v for p,v in zip(self[f].obsInfo[varName].loc[varType].prs,self[f].obsInfo[varName].loc[varType].omf) if int(p) >=lv-Llayi and int(p) <lv+Llayf ]
+                                    cutlevsa = [ v for p,v in zip(self[f].obsInfo[varName].loc[varType].prs,self[f].obsInfo[varName].loc[varType].oma) if int(p) >=lv-Llayi and int(p) <lv+Llayf ]
+                                    forplotname = 'all_levels_filledLayers'
+                                else:
+                                    cutlevs = [ v for p,v in zip(self[f].obsInfo[varName].loc[varType].prs,self[f].obsInfo[varName].loc[varType].omf) if int(p) >=lv-Lay and int(p) <lv+Lay ]
+                                    cutlevsa = [ v for p,v in zip(self[f].obsInfo[varName].loc[varType].prs,self[f].obsInfo[varName].loc[varType].oma) if int(p) >=lv-Lay and int(p) <lv+Lay ]
+                                    forplotname = 'all_levels_bylayers'
+                                [ dataByLevs[lv].append(il) for il in cutlevs ]
+                                [ dataByLevsa[lv].append(il) for il in cutlevsa ]
+                    f = f + 1
+                for lv in levs:
+                    if len(dataByLevs[lv]) != 0 and info_check[date.strftime("%d%H")] == True:
+                        mean_dataByLevs.update({int(lv): np.mean(np.array(dataByLevs[lv]))})
+                        std_dataByLevs.update({int(lv): np.std(np.array(dataByLevs[lv]))})
+                        count_dataByLevs.update({int(lv): len(np.array(dataByLevs[lv]))})
+                        mean_dataByLevsa.update({int(lv): np.mean(np.array(dataByLevsa[lv]))})
+                        std_dataByLevsa.update({int(lv): np.std(np.array(dataByLevsa[lv]))})
+                        count_dataByLevsa.update({int(lv): len(np.array(dataByLevsa[lv]))})
+                    else:
+                        mean_dataByLevs.update({int(lv): -99})
+                        std_dataByLevs.update({int(lv): -99})
+                        count_dataByLevs.update({int(lv): -99})
+                        mean_dataByLevsa.update({int(lv): -99})
+                        std_dataByLevsa.update({int(lv): -99})
+                        count_dataByLevsa.update({int(lv): -99})
+            
+            except:
+                if info_check[date.strftime("%d%H")] == True:
+                    print("ERROR in time_series function.")
+                else:
+                    print(setcolor.WARNING + "    >>> No information on this date (" + str(date.strftime("%Y-%m-%d:%H")) +") <<< " + setcolor.ENDC)
+
+                for lv in levs:
+                    mean_dataByLevs.update({int(lv): -99})
+                    std_dataByLevs.update({int(lv): -99})
+                    count_dataByLevs.update({int(lv): -99})
+                    mean_dataByLevsa.update({int(lv): -99})
+                    std_dataByLevsa.update({int(lv): -99})
+                    count_dataByLevsa.update({int(lv): -99})
+
+            if Level == None or Level == "Zlevs":
+                list_meanByLevs.append(list(mean_dataByLevs.values()))
+                list_stdByLevs.append(list(std_dataByLevs.values()))
+                list_countByLevs.append(list(count_dataByLevs.values()))
+                list_meanByLevsa.append(list(mean_dataByLevsa.values()))
+                list_stdByLevsa.append(list(std_dataByLevsa.values()))
+                list_countByLevsa.append(list(count_dataByLevsa.values()))
+            else:
+                list_meanByLevs.append(mean_dataByLevs[int(Level)])
+                list_stdByLevs.append(std_dataByLevs[int(Level)])
+                list_countByLevs.append(count_dataByLevs[int(Level)])
+                list_meanByLevsa.append(mean_dataByLevsa[int(Level)])
+                list_stdByLevsa.append(std_dataByLevsa[int(Level)])
+                list_countByLevsa.append(count_dataByLevsa[int(Level)])
+                
+            dataByLevs.clear()
+            mean_dataByLevs.clear()
+            std_dataByLevs.clear()
+            count_dataByLevs.clear()
+            dataByLevsa.clear()
+            mean_dataByLevsa.clear()
+            std_dataByLevsa.clear()
+            count_dataByLevsa.clear()
+
+            date_finale = date
+            date = date + timedelta(hours=int(delta))
+
+            values_levs = [datefmt]
+            values_levsa = [datefmt]
+            for me,sd,nd in zip(list_meanByLevs[-1][:],list_stdByLevs[-1][:],list_countByLevs[-1][:]):
+                values_levs.append(me)
+                values_levs.append(sd)
+                values_levs.append(nd)
+            for me,sd,nd in zip(list_meanByLevsa[-1][:],list_stdByLevsa[-1][:],list_countByLevsa[-1][:]):
+                values_levsa.append(me)
+                values_levsa.append(sd)
+                values_levsa.append(nd)
+            dset.append(values_levs)
+            dseta.append(values_levsa)
+
+        print()
+        print(separator)
+        print()
+
+
+        # ==============================================================================================================
+        # Save dataset into CSV File ===================================================================================
+
+        print("\n Saving Dataset in CSV File...  ")
+
+        dataout_file  = 'dataout_' + str(varName) + '_' + str(varType) + '_' + omflag  + '.csv'
+        dataout_filea = 'dataout_' + str(varName) + '_' + str(varType) + '_' + omflaga + '.csv'
+        df = pd.DataFrame.from_records(dset, columns=head_levs)
+        df.to_csv(dataout_file, index=False)
+        del(df)
+        df = pd.DataFrame.from_records(dseta, columns=head_levs)
+        df.to_csv(dataout_filea, index=False)
+        del(df)
+        print(" Done \n")
+
+        return
+
+
+class plot_diag(object):
+    """
+    plot diagnostic file from gsi. 
+    """
+
+    def plot(self, varName, varType, param, mask=None, area=None, **kwargs):
         '''
         The plot function makes a plot for the selected observation by using information of the following columns available within the dataframe.
  
@@ -236,7 +563,9 @@ class read_diag(object):
         gd.plot('ps', 187, 'obs', mask='iuse == 1')
         
         In the above example, a plot will be made displaying by using the values of the used surface pressure observations of the kind 187 (ADPSFC).
- 
+
+        area = [Loni, Lati, Lonf, Latf]
+
         '''
         #
         # Parse options 
@@ -248,7 +577,7 @@ class read_diag(object):
             plt.style.use('seaborn')
         
         if 'ax' not in kwargs:
-            fig = plt.figure(figsize=(12, 12))
+            fig = plt.figure(figsize=(12, 6))
             ax  = fig.add_subplot(1, 1, 1)
         else:
             ax = kwargs['ax']
@@ -265,18 +594,18 @@ class read_diag(object):
         if 'cmap' not in kwargs:
             kwargs['cmap'] = 'jet'
 
-        ax = geoMap(ax=ax)
+        ax = geoMap(area=area,ax=ax)
 
         if mask is None:
-            ax  = self.obsInfo[var].loc[id].plot(param, ax=ax, **kwargs)
+            ax  = self.obsInfo[varName].loc[varType].plot(param, ax=ax, **kwargs, legend_kwds={'shrink': 0.5})
         else:
-            df = self.obsInfo[var].loc[id]
-            ax = df.query(mask).plot(param, ax=ax, **kwargs)
+            df = self.obsInfo[varName].loc[varType]
+            ax = df.query(mask).plot(param, ax=ax, **kwargs, legend_kwds={'shrink': 0.5})
 
         
         return ax
 
-    def ptmap(self, var, kxList=None, mask=None, **kwargs):
+    def ptmap(self, varName, varType=None, mask=None, area=None, **kwargs):
         '''
         The ptmap function plots the selected observation for the selected kinds.
 
@@ -287,6 +616,9 @@ class read_diag(object):
 
         Note: If no kind is explicity informed, all kinds for that particular observation will be considered, which may clutter
         the plot.
+
+        area = [Loni, Lati, Lonf, Latf]
+
         '''
         #
         # Parse options 
@@ -299,14 +631,14 @@ class read_diag(object):
             plt.style.use('seaborn')
 
         if 'ax' not in kwargs:
-            fig  = plt.figure(figsize=(12, 12))
+            fig  = plt.figure(figsize=(12, 6))
             ax   = fig.add_subplot(1, 1, 1)
         else:
             ax = kwargs['ax']
             del kwargs['ax']
 
-        if kxList is None:
-            kxList = self.obsInfo[var].index.levels[0].tolist()
+        if varType is None:
+            varType = self.obsInfo[varName].index.levels[0].tolist()
 
         if 'alpha' not in kwargs:
             kwargs['alpha'] = 0.5
@@ -328,26 +660,26 @@ class read_diag(object):
             kwargs['legend'] = False
                 
         
-        ax = geoMap(ax=ax)
+        ax = geoMap(area=area,ax=ax)
 
         # color range
-        if type(kxList) is list:
+        if type(varType) is list:
             cmin = 0
-            cmax = len(kxList)-1
+            cmax = len(varType)-1
         else:
-            kxList = [kxList]
+            varType = [varType]
             cmin = 0
             cmax = 1
 
         legend_labels = []
-        for i, kx in enumerate(kxList):
-            df    = self.obsInfo[var].loc[kx]
+        for i, kx in enumerate(varType):
+            df    = self.obsInfo[varName].loc[kx]
 
             color = getColor(minVal=cmin, maxVal=cmax,
                              value=i,hex=True,cmapName='Paired')
-            instr = getVarInfo(kx,var,'instrument')
+            instr = getVarInfo(kx,varName,'instrument')
 
-            label = '\n'.join(wrap(var + '-' + str(kx) + ' | ' + instr,30))
+            label = '\n'.join(wrap(varName + '-' + str(kx) + ' | ' + instr,30))
             legend_labels.append(mpatches.Patch(color=color, 
                                  label=label)
                                 )
@@ -358,7 +690,6 @@ class read_diag(object):
                ax = df.query(mask).plot(ax=ax,c=color, **kwargs)
         
         if legend is True:
-#            plt.subplots_adjust(left=0.05, bottom=0.05, right=0.80, top=0.90, wspace=0, hspace=0)
             plt.subplots_adjust(bottom=0.30)
             plt.legend(handles=legend_labels, loc='upper center', bbox_to_anchor=(0.5, -0.08),
                        fancybox=False, shadow=False, frameon=False, numpoints=1, prop={"size": 9}, labelspacing=1.0, ncol=4)
@@ -366,8 +697,7 @@ class read_diag(object):
 
         return ax
 
-
-    def pvmap(self, varList=None, mask=None, **kwargs):
+    def pvmap(self, varName=None, mask=None, area=None, **kwargs):
         '''
         The pvmap function plots the selected observations without specifying its kinds. It used the flag iuse instead. 
 
@@ -375,6 +705,9 @@ class read_diag(object):
         a.pvmap(['uv','ps','t','q'], mask='iuse==1')
         
         In the above example, a plot for the used (iuse=1) observations of wind (uv), surface pressure (ps), temperature (t) and moisture (q) will be made. 
+
+        area = [Loni, Lati, Lonf, Latf]
+
         '''
         #
         # Parse options 
@@ -387,7 +720,7 @@ class read_diag(object):
             plt.style.use('seaborn')
         
         if 'ax' not in kwargs:
-            fig = plt.figure(figsize=(12, 12))
+            fig = plt.figure(figsize=(12, 6))
             ax  = fig.add_subplot(1, 1, 1)
         else:
             ax = kwargs['ax']
@@ -421,21 +754,21 @@ class read_diag(object):
         #
         # parse options em kwargs
 
-        if varList is None:
-            varList = total.sort_values(ascending=False).keys()
+        if varName is None:
+            varName = total.sort_values(ascending=False).keys()
         else:
-            if type(varList) is list:
-               varList = total[varList].sort_values(ascending=False).keys()
+            if type(varName) is list:
+               varName = total[varName].sort_values(ascending=False).keys()
             else:
-                varList = [varList]
+                varName = [varName]
         
-        ax = geoMap(ax=ax)
+        ax = geoMap(area=area,ax=ax)
 
         
         colors_palette = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22']
         setColor = 0
         legend_labels = []
-        for var in varList:
+        for var in varName:
             df    = self.obsInfo[var]
             legend_labels.append(mpatches.Patch(color=colors_palette[setColor], label=var) )
 
@@ -451,7 +784,6 @@ class read_diag(object):
 
 
         return ax
-
 
     def pcount(self,varName,**kwargs):
 
@@ -500,8 +832,6 @@ class read_diag(object):
         plt.xlabel('KX')
         plt.title('Variable Name : '+varName)
  
-        plt.show()
-
     def vcount(self,**kwargs):
 
         """
@@ -531,7 +861,7 @@ class read_diag(object):
             kwargs['alpha'] = 0.5
 
         if 'rot' not in kwargs:
-            kwargs['rot'] = 90
+            kwargs['rot'] = 0
 
         if 'legend' not in kwargs:
             kwargs['legend'] = False
@@ -548,8 +878,6 @@ class read_diag(object):
         plt.xlabel('Variable Names')
         plt.title('Total Number of Observations')
  
-        plt.show()
-
     def kxcount(self,**kwargs):
 
         """
@@ -589,8 +917,7 @@ class read_diag(object):
         # Get a color map
         colors = getColor(minVal=df.min(),maxVal=df.max(),
                           value=df.values,hex=True,cmapName='Paired')
-         
-         
+          
         plt.style.use('seaborn')
         df.plot.bar(color=colors, **kwargs)
 
@@ -598,63 +925,764 @@ class read_diag(object):
         plt.xlabel('KX number')
         plt.title('Total Number of Observations')
  
-        plt.show()
-
-    def overview(self):
-
-        """
-        Creates a dictionary of the existing variables and types. Returns a Python dictionary.
-
-        Usage: overview()
-        """
-
-        variablesList = {}
-        for var in self.varNames:
-            variablesTypes = []
-            for kx in self.obsInfo[var].index.levels[0]:
-                variablesTypes.append(kx)
-            variablesList.update({var:variablesTypes})
-        return variablesList
-
-    def pfileinfo(self):
-
-        """
-        Prints a fancy list of the existing variables and types.
-
-        Usage: pfileinfo()
-        """
-
-        for name in self.varNames:
-            print('Variable Name :',name)
-            print('              └── kx => ', end='', flush=True)
-            for kx in self.obsInfo[name].index.levels[0]:
-               print(kx,' ', end='', flush=True)
-            print()
-
-            print()
-
-            
-    def close(self):
-
-        """
-        Closes a previous openned file. Returns an integer status value.
-
-        Usage: close()
-        """
-
-        iret = d2p.close(self._FNumber)
-        self._FileName = None # File name
-        self._FNumber  = None # File unit number to be closed
-        self._nVars    = None # Total of variables
-        self.varNames  = None # Name of variables
-        self.obsInfo   = None 
-        self.nObs      = None # Number of observations for vName
-        del self
-        gc.collect()
+    def time_series(self, varName=None, varType=None, mask=None, dateIni=None, dateFin=None, nHour="06", vminOMA=None, vmaxOMA=None, vminSTD=0.0, vmaxSTD=14.0, Level=None, Lay = None, SingleL=None, Clean=None):
         
-        return iret
+        '''
+        The time_series function plots a time series for different levels/layers or for a single level/layer considering
+        OmF and OmA. 
 
+        Example:
+
+        vName = 'uv'          # Variable
+        vType = 224           # Source Type
+        mask  = None          # Mask the data by chosen used/not used data, ex: mask='iuse==1'
+        dateIni = 2013010100  # Inicial Date
+        dateFin = 2013010900  # Final Date
+        nHour = "06"          # Time Interval
+        vminOMA = -4.0        # Y-axis Minimum Value for OmF or OmA
+        vmaxOMA = 4.0         # Y-axis Maximum Value for OmF or OmA
+        vminSTD = 0.0         # Y-axis Minimum Value for Standard Deviation
+        vmaxSTD = 14.0        # Y-axis Maximum Value for Standard Deviation
+        Level = 1000          # Time Series Level, if any (None), all standard levels are plotted
+        Lay = 15              # The size of half layer in hPa, if the plot type is sampled by layers.
+        SingleL = "OneL"      # When level is fixed, ex: 1000 hPa, the plot can be exactly in this level (SingleL = None),
+                              # on all levels as a single layer (SingleL = "All") or on a layer centered in Level and bounded by
+                              # Level-Lay and Level+Lay (SingleL="OneL"). If Lay is not defined, it will be used a standard value of 50 hPa. 
+
+        '''
+        if Clean == None:
+            Clean = True
+
+        delta = nHour
+        omflag = "OmF"
+        omflaga = "OmA"
+
+        Laydef = 50
+
+        separator = " ====================================================================================================="
+
+        print()
+        print(separator)
+        #print(" Reading dataset in " + data_path)
+        print(" Analyzing data of variable: " + varName + "  ||  type: " + str(varType) + "  ||  " + getVarInfo(varType, varName, 'instrument') + "  ||  check: " + omflag)
+        print(separator)
+        print()
+
+        if mask == None:
+            maski  = "iuse>-99999.9"
+            cmaski = "iuse = All"
+        else:
+            maski  = mask
+            cmaski = mask
+
+        if type(Level) == list:
+            zlevs_def = Level
+            Level = "Zlevs"
+        else:
+            zlevs_def = list(map(int,self[0].zlevs))
+
+        print(zlevs_def)
+
+        datei = datetime.strptime(str(dateIni), "%Y%m%d%H")
+        datef = datetime.strptime(str(dateFin), "%Y%m%d%H")
+        date  = datei
+
+        levs_tmp, DayHour_tmp = [], []
+        info_check = {}
+        f = 0
+        while (date <= datef):
+            
+            datefmt = date.strftime("%Y%m%d%H")
+            DayHour_tmp.append(date.strftime("%d%H"))
+            
+            dataDict = self[f].obsInfo[varName].query(maski).loc[varType]
+            info_check.update({date.strftime("%d%H"):True})
+
+            if 'prs' in dataDict and (Level == None or Level == "Zlevs"):
+                if(Level == None):
+                    levs_tmp.extend(list(set(map(int,dataDict['prs']))))
+                else:
+                    levs_tmp = zlevs_def[::-1]
+                info_check.update({date.strftime("%d%H"):True})
+                print(date.strftime(' Preparing data for: ' + "%Y-%m-%d:%H"))
+                print(' Levels: ', sorted(levs_tmp), end='\n')
+                print("")
+                f = f + 1
+            else:
+                if (Level != None and Level != "Zlevs") and info_check[date.strftime("%d%H")] == True:
+                    levs_tmp.extend([Level])
+                    print(date.strftime(' Preparing data for: ' + "%Y-%m-%d:%H"), ' - Level: ', Level , end='\n')
+                    f = f + 1
+                else:
+                    info_check.update({date.strftime("%d%H"):False})
+                    print(date.strftime(setcolor.WARNING + ' Preparing data for: ' + "%Y-%m-%d:%H"), ' - No information on this date ' + setcolor.ENDC, end='\n')
+
+            del(dataDict)
+            
+            date = date + timedelta(hours=int(delta))
+            
+        if(len(DayHour_tmp) > 4):
+            DayHour = [hr if (ix % int(len(DayHour_tmp) / 4)) == 0 else '' for ix, hr in enumerate(DayHour_tmp)]
+        else:
+            DayHour = DayHour_tmp
+
+        zlevs = [z if z in zlevs_def else "" for z in sorted(set(levs_tmp+zlevs_def))]
+
+        print()
+        print(separator)
+        print()
+
+        list_meanByLevs, list_stdByLevs, list_countByLevs = [], [], []
+        list_meanByLevsa, list_stdByLevsa, list_countByLevsa = [], [], []
+        date = datei
+        levs = sorted(list(set(levs_tmp)))
+        levs_tmp.clear()
+        del(levs_tmp[:])
+
+        f = 0
+        while (date <= datef):
+
+            print(date.strftime(' Calculating for ' + "%Y-%m-%d:%H"))
+            datefmt = date.strftime("%Y%m%d%H")
+
+            try: 
+                if info_check[date.strftime("%d%H")] == True:
+                    dataDict = self[f].obsInfo[varName].query(maski).loc[varType]
+                    dataByLevs, mean_dataByLevs, std_dataByLevs, count_dataByLevs = {}, {}, {}, {}
+                    dataByLevsa, mean_dataByLevsa, std_dataByLevsa, count_dataByLevsa = {}, {}, {}, {}
+                    [dataByLevs.update({int(lvl): []}) for lvl in levs]
+                    [dataByLevsa.update({int(lvl): []}) for lvl in levs]
+                    if Level != None and Level != "Zlevs":
+                        if SingleL == None:
+                            [ dataByLevs[int(p)].append(v) for p,v in zip(self[f].obsInfo[varName].query(maski).loc[varType].prs,self[f].obsInfo[varName].query(maski).loc[varType].omf) if int(p) == Level ]
+                            [ dataByLevsa[int(p)].append(v) for p,v in zip(self[f].obsInfo[varName].query(maski).loc[varType].prs,self[f].obsInfo[varName].query(maski).loc[varType].oma) if int(p) == Level ]
+                            forplot = ' Level='+str(Level) +'hPa'
+                            forplotname = 'level_'+str(Level) +'hPa'
+                        else:
+                            if SingleL == "All":
+                                [ dataByLevs[Level].append(v) for v in self[f].obsInfo[varName].query(maski).loc[varType].omf ]
+                                [ dataByLevsa[Level].append(v) for v in self[f].obsInfo[varName].query(maski).loc[varType].oma ]
+                                forplot = ' Layer=Entire Atmosphere'
+                                forplotname = 'layer_allAtm'
+                            else:
+                                if SingleL == "OneL":
+                                    if Lay == None:
+                                        print("")
+                                        print(" Variable Lay is None, resetting it to its default value: "+str(Laydef)+" hPa.")
+                                        print("")
+                                        Lay = Laydef
+                                    [ dataByLevs[int(Level)].append(v) for p,v in zip(self[f].obsInfo[varName].query(maski).loc[varType].prs,self[f].obsInfo[varName].query(maski).loc[varType].omf) if int(p) >=Level-Lay and int(p) <Level+Lay ]
+                                    [ dataByLevsa[int(Level)].append(v) for p,v in zip(self[f].obsInfo[varName].query(maski).loc[varType].prs,self[f].obsInfo[varName].query(maski).loc[varType].oma) if int(p) >=Level-Lay and int(p) <Level+Lay ]
+                                    forplot = ' Layer='+str(Level+Lay)+'-'+str(Level-Lay)+'hPa'
+                                    forplotname = 'layer_'+str(Level+Lay)+'-'+str(Level-Lay)+'hPa'
+                                else:
+                                    print(" Wrong value for variable SingleL. Please, check it and rerun the script.")    
+                    else:
+                        if Level == None:
+                            [ dataByLevs[int(p)].append(v) for p,v in zip(self[f].obsInfo[varName].query(maski).loc[varType].prs,self[f].obsInfo[varName].query(maski).loc[varType].omf) ]
+                            [ dataByLevsa[int(p)].append(v) for p,v in zip(self[f].obsInfo[varName].query(maski).loc[varType].prs,self[f].obsInfo[varName].query(maski).loc[varType].oma) ]
+                            forplotname = 'all_levels_byLevels'
+                        else:
+                            for ll in range(len(levs)):
+                                lv = levs[ll]
+                                if Lay == None:
+                                    if ll == 0:
+                                        Llayi = 0
+                                    else:
+                                        Llayi = (levs[ll] - levs[ll-1]) / 2.0
+                                    if ll == len(levs)-1:
+                                        Llayf = Llayi
+                                    else:
+                                        Llayf = (levs[ll+1] - levs[ll]) / 2.0
+                                    cutlevs = [ v for p,v in zip(self[f].obsInfo[varName].query(maski).loc[varType].prs,self[f].obsInfo[varName].query(maski).loc[varType].omf) if int(p) >=lv-Llayi and int(p) <lv+Llayf ]
+                                    cutlevsa = [ v for p,v in zip(self[f].obsInfo[varName].query(maski).loc[varType].prs,self[f].obsInfo[varName].query(maski).loc[varType].oma) if int(p) >=lv-Llayi and int(p) <lv+Llayf ]
+                                    forplotname = 'all_levels_filledLayers'
+                                else:
+                                    cutlevs = [ v for p,v in zip(self[f].obsInfo[varName].query(maski).loc[varType].prs,self[f].obsInfo[varName].query(maski).loc[varType].omf) if int(p) >=lv-Lay and int(p) <lv+Lay ]
+                                    cutlevsa = [ v for p,v in zip(self[f].obsInfo[varName].query(maski).loc[varType].prs,self[f].obsInfo[varName].query(maski).loc[varType].oma) if int(p) >=lv-Lay and int(p) <lv+Lay ]
+                                    forplotname = 'all_levels_bylayers_'+str(Lay)+"hPa"
+                                [ dataByLevs[lv].append(il) for il in cutlevs ]
+                                [ dataByLevsa[lv].append(il) for il in cutlevsa ]
+                    f = f + 1
+                for lv in levs:
+                    if len(dataByLevs[lv]) != 0 and info_check[date.strftime("%d%H")] == True:
+                        mean_dataByLevs.update({int(lv): np.mean(np.array(dataByLevs[lv]))})
+                        std_dataByLevs.update({int(lv): np.std(np.array(dataByLevs[lv]))})
+                        count_dataByLevs.update({int(lv): len(np.array(dataByLevs[lv]))})
+                        mean_dataByLevsa.update({int(lv): np.mean(np.array(dataByLevsa[lv]))})
+                        std_dataByLevsa.update({int(lv): np.std(np.array(dataByLevsa[lv]))})
+                        count_dataByLevsa.update({int(lv): len(np.array(dataByLevsa[lv]))})
+                    else:
+                        mean_dataByLevs.update({int(lv): -99})
+                        std_dataByLevs.update({int(lv): -99})
+                        count_dataByLevs.update({int(lv): -99})
+                        mean_dataByLevsa.update({int(lv): -99})
+                        std_dataByLevsa.update({int(lv): -99})
+                        count_dataByLevsa.update({int(lv): -99})
+            
+            except:
+                if info_check[date.strftime("%d%H")] == True:
+                    print("ERROR in time_series function.")
+                else:
+                    print(setcolor.WARNING + "    >>> No information on this date (" + str(date.strftime("%Y-%m-%d:%H")) +") <<< " + setcolor.ENDC)
+
+                for lv in levs:
+                    mean_dataByLevs.update({int(lv): -99})
+                    std_dataByLevs.update({int(lv): -99})
+                    count_dataByLevs.update({int(lv): -99})
+                    mean_dataByLevsa.update({int(lv): -99})
+                    std_dataByLevsa.update({int(lv): -99})
+                    count_dataByLevsa.update({int(lv): -99})
+
+            if Level == None or Level == "Zlevs":
+                list_meanByLevs.append(list(mean_dataByLevs.values()))
+                list_stdByLevs.append(list(std_dataByLevs.values()))
+                list_countByLevs.append(list(count_dataByLevs.values()))
+                list_meanByLevsa.append(list(mean_dataByLevsa.values()))
+                list_stdByLevsa.append(list(std_dataByLevsa.values()))
+                list_countByLevsa.append(list(count_dataByLevsa.values()))
+            else:
+                list_meanByLevs.append(mean_dataByLevs[int(Level)])
+                list_stdByLevs.append(std_dataByLevs[int(Level)])
+                list_countByLevs.append(count_dataByLevs[int(Level)])
+                list_meanByLevsa.append(mean_dataByLevsa[int(Level)])
+                list_stdByLevsa.append(std_dataByLevsa[int(Level)])
+                list_countByLevsa.append(count_dataByLevsa[int(Level)])
+
+            dataByLevs.clear()
+            mean_dataByLevs.clear()
+            std_dataByLevs.clear()
+            count_dataByLevs.clear()
+            dataByLevsa.clear()
+            mean_dataByLevsa.clear()
+            std_dataByLevsa.clear()
+            count_dataByLevsa.clear()
+
+            date_finale = date
+            date = date + timedelta(hours=int(delta))
+
+        print()
+        print(separator)
+        print()
+
+        print(' Making Graphics...')
+
+        y_axis      = np.arange(0, len(zlevs), 1)
+        x_axis      = np.arange(0, len(DayHour), 1)
+
+        mean_final  = np.ma.masked_array(np.array(list_meanByLevs), np.array(list_meanByLevs) == -99)
+        std_final   = np.ma.masked_array(np.array(list_stdByLevs), np.array(list_stdByLevs) == -99)
+        count_final = np.ma.masked_array(np.array(list_countByLevs), np.array(list_countByLevs) == -99)
+        mean_finala  = np.ma.masked_array(np.array(list_meanByLevsa), np.array(list_meanByLevsa) == -99)
+        std_finala   = np.ma.masked_array(np.array(list_stdByLevsa), np.array(list_stdByLevsa) == -99)
+        count_finala = np.ma.masked_array(np.array(list_countByLevsa), np.array(list_countByLevsa) == -99)
+
+        OMF_inf = np.array(list_meanByLevs)-np.array(list_stdByLevs)
+        OMF_sup = np.array(list_meanByLevs)+np.array(list_stdByLevs)
+        OMA_inf = np.array(list_meanByLevsa)-np.array(list_stdByLevsa)
+        OMA_sup = np.array(list_meanByLevsa)+np.array(list_stdByLevsa)
+
+        mean_limit_inf = np.min(np.array([np.min(mean_final), np.min(mean_finala)]))
+        mean_limit_sup = np.max(np.array([np.max(mean_final), np.max(mean_finala)]))
+
+        std_limit_inf = np.min(np.array([np.min(std_final), np.min(std_finala)]))
+        std_limit_sup = np.max(np.array([np.max(std_final), np.max(std_finala)]))
+
+        omfoma_limit_inf =     (np.min(np.array([np.min(OMF_inf), np.min(OMA_inf)])))
+        if omfoma_limit_inf > 0:
+            omfoma_limit_inf = 0.9*omfoma_limit_inf
+        else:
+            omfoma_limit_inf = 1.1*omfoma_limit_inf  
+        omfoma_limit_sup = 1.1*(np.max(np.array([np.max(OMF_sup), np.max(OMA_sup)])))
+
+        if (vminOMA == None) and (vmaxOMA == None): vminOMA, vmaxOMA = mean_limit_inf, 1.1*mean_limit_sup
+        if vminOMA > 0:
+            vminOMA = 0.9*vminOMA
+        else:
+            vminOMA = 1.1*vminOMA 
+
+        vmaxOMAabs = np.max([np.abs(vminOMA),np.abs(vminOMA)])
+
+        if (vminSTD == None) and (vmaxSTD == None): vminSTD, vmaxSTD = std_limit_inf - 0.1*std_limit_inf,  1.1*std_limit_sup
+
+        date_title = str(datei.strftime("%d%b")) + '-' + str(date_finale.strftime("%d%b")) + ' ' + str(date_finale.strftime("%Y"))
+        instrument_title = str(varName) + '-' + str(varType) + '  |  ' + getVarInfo(varType, varName, 'instrument')
+
+        # Figure with more than one level - default levels: [600, 700, 800, 900, 1000]
+        if Level == None or Level == "Zlevs":
+            fig = plt.figure(figsize=(6, 9))
+            plt.rcParams['axes.facecolor'] = 'None'
+            plt.rcParams['hatch.linewidth'] = 0.3
+
+            ##### OMF
+
+            plt.subplot(3, 1, 1)
+            ax = plt.gca()
+            ax.add_patch(mpl.patches.Rectangle((-1,-1),(len(DayHour)+1),(len(levs)+3), hatch='xxxxx', color='black', fill=False, snap=False, zorder=0))
+            plt.imshow(np.flipud(mean_final.T), origin='lower', vmin=-vmaxOMAabs, vmax=vmaxOMAabs, cmap='seismic', aspect='auto', zorder=1,interpolation='none')
+            plt.colorbar(orientation='horizontal', pad=0.18, shrink=1.0)
+            plt.tight_layout()
+            plt.title(instrument_title, loc='left', fontsize=10)
+            plt.title(date_title, loc='right', fontsize=10)
+            plt.ylabel('Vertical Levels (hPa)')
+            plt.xlabel('Mean ('+omflag+')', labelpad=50)
+            plt.yticks(y_axis, zlevs[::-1])
+            plt.xticks(x_axis, DayHour)
+            major_ticks = [ DayHour.index(dh) for dh in filter(None,DayHour) ]
+            ax.set_xticks(major_ticks)
+
+            plt.subplot(3, 1, 2)
+            ax = plt.gca()
+            ax.add_patch(mpl.patches.Rectangle((-1,-1),(len(DayHour)+1),(len(levs)+3), hatch='xxxxx', color='black', fill=False, snap=False, zorder=0))
+            plt.imshow(np.flipud(std_final.T), origin='lower', vmin=vminSTD, vmax=vmaxSTD, cmap='Blues', aspect='auto', zorder=1,interpolation='none')
+            plt.colorbar(orientation='horizontal', pad=0.18, shrink=1.0)
+            plt.tight_layout()
+            plt.title(instrument_title, loc='left', fontsize=10)
+            plt.title(date_title, loc='right', fontsize=10)
+            plt.ylabel('Vertical Levels (hPa)')
+            plt.xlabel('Standard Deviation ('+omflag+')', labelpad=50)
+            plt.yticks(y_axis, zlevs[::-1])
+            plt.xticks(x_axis, DayHour)
+            major_ticks = [ DayHour.index(dh) for dh in filter(None,DayHour) ]
+            ax.set_xticks(major_ticks)
+
+            plt.subplot(3, 1, 3)
+            ax = plt.gca()
+            ax.add_patch(mpl.patches.Rectangle((-1,-1),(len(DayHour)+1),(len(levs)+3), hatch='xxxxx', color='black', fill=False, snap=False, zorder=0))
+            plt.imshow(np.flipud(count_final.T), origin='lower', vmin=0.0, vmax=np.max(count_final), cmap='gist_heat_r', aspect='auto', zorder=1,interpolation='none')
+            plt.colorbar(orientation='horizontal', pad=0.18, shrink=1.0)
+            plt.title(instrument_title, loc='left', fontsize=10)
+            plt.title(date_title, loc='right', fontsize=10)
+            plt.ylabel('Vertical Levels (hPa)')
+            plt.xlabel('Total Observations'+" ("+cmaski+")", labelpad=50)
+            plt.yticks(y_axis, zlevs[::-1])
+            plt.xticks(x_axis, DayHour)
+            major_ticks = [ DayHour.index(dh) for dh in filter(None,DayHour) ]
+            ax.set_xticks(major_ticks)
+
+            plt.tight_layout()
+            plt.savefig('time_series_'+str(varName) + '-' + str(varType)+'_'+omflag+'_'+forplotname+'.png', bbox_inches='tight', dpi=100)
+            if Clean:
+                plt.clf()
+
+            ##### OMA
+
+            fig = plt.figure(figsize=(6, 9))
+            plt.rcParams['axes.facecolor'] = 'None'
+            plt.rcParams['hatch.linewidth'] = 0.3
+
+            plt.subplot(3, 1, 1)
+            ax = plt.gca()
+            ax.add_patch(mpl.patches.Rectangle((-1,-1),(len(DayHour)+1),(len(levs)+3), hatch='xxxxx', color='black', fill=False, snap=False, zorder=0))
+            plt.imshow(np.flipud(mean_finala.T), origin='lower', vmin=-vmaxOMAabs, vmax=vmaxOMAabs, cmap='seismic', aspect='auto', zorder=1,interpolation='none')
+            plt.colorbar(orientation='horizontal', pad=0.18, shrink=1.0)
+            plt.tight_layout()
+            plt.title(instrument_title, loc='left', fontsize=10)
+            plt.title(date_title, loc='right', fontsize=10)
+            plt.ylabel('Vertical Levels (hPa)')
+            plt.xlabel('Mean ('+omflaga+')', labelpad=50)
+            plt.yticks(y_axis, zlevs[::-1])
+            plt.xticks(x_axis, DayHour)
+            major_ticks = [ DayHour.index(dh) for dh in filter(None,DayHour) ]
+            ax.set_xticks(major_ticks)
+
+            plt.subplot(3, 1, 2)
+            ax = plt.gca()
+            ax.add_patch(mpl.patches.Rectangle((-1,-1),(len(DayHour)+1),(len(levs)+3), hatch='xxxxx', color='black', fill=False, snap=False, zorder=0))
+            plt.imshow(np.flipud(std_finala.T), origin='lower', vmin=vminSTD, vmax=vmaxSTD, cmap='Blues', aspect='auto', zorder=1,interpolation='none')
+            plt.colorbar(orientation='horizontal', pad=0.18, shrink=1.0)
+            plt.tight_layout()
+            plt.title(instrument_title, loc='left', fontsize=10)
+            plt.title(date_title, loc='right', fontsize=10)
+            plt.ylabel('Vertical Levels (hPa)')
+            plt.xlabel('Standard Deviation ('+omflaga+')', labelpad=50)
+            plt.yticks(y_axis, zlevs[::-1])
+            plt.xticks(x_axis, DayHour)
+            major_ticks = [ DayHour.index(dh) for dh in filter(None,DayHour) ]
+            ax.set_xticks(major_ticks)
+
+            plt.subplot(3, 1, 3)
+            ax = plt.gca()
+            ax.add_patch(mpl.patches.Rectangle((-1,-1),(len(DayHour)+1),(len(levs)+3), hatch='xxxxx', color='black', fill=False, snap=False, zorder=0))
+            plt.imshow(np.flipud(count_finala.T), origin='lower', vmin=0.0, vmax=np.max(count_finala), cmap='gist_heat_r', aspect='auto', zorder=1,interpolation='none')
+            plt.colorbar(orientation='horizontal', pad=0.18, shrink=1.0)
+            plt.title(instrument_title, loc='left', fontsize=10)
+            plt.title(date_title, loc='right', fontsize=10)
+            plt.ylabel('Vertical Levels (hPa)')
+            plt.xlabel('Total Observations'+" ("+cmaski+")", labelpad=50)
+            plt.yticks(y_axis, zlevs[::-1])
+            plt.xticks(x_axis, DayHour)
+            major_ticks = [ DayHour.index(dh) for dh in filter(None,DayHour) ]
+            ax.set_xticks(major_ticks)
+
+            plt.tight_layout()
+            plt.savefig('time_series_'+str(varName) + '-' + str(varType)+'_'+omflaga+'_'+forplotname+'.png', bbox_inches='tight', dpi=100)
+            if Clean:
+                plt.clf()
+
+        # Figure with only one level
+        else:
+        
+            ##### OMF
+
+            fig = plt.figure(figsize=(6, 4))
+            fig, ax1 = plt.subplots(1, 1)
+            plt.style.use('seaborn-ticks')
+
+            plt.axhline(y=0.0,ls='solid',c='#d3d3d3')
+            plt.annotate(forplot, xy=(0.0, 0.965), xytext=(0,0), xycoords='axes fraction', textcoords='offset points', color='lightgray', fontweight='bold', fontsize='12',
+            horizontalalignment='left', verticalalignment='center')
+
+            ax1.plot(x_axis, list_meanByLevs, "b-", label="Mean ("+omflag+")")
+            ax1.plot(x_axis, list_meanByLevs, "bo", label="Mean ("+omflag+")")
+            ax1.set_xlabel('Date (DayHour)', fontsize=10)
+            # Make the y-axis label, ticks and tick labels match the line color.
+            ax1.set_ylim(vminOMA, vmaxOMA)
+            ax1.set_ylabel('Mean ('+omflag+')', color='b', fontsize=10)
+            ax1.tick_params('y', colors='b')
+            plt.xticks(x_axis, DayHour)
+            major_ticks = [ DayHour.index(dh) for dh in filter(None,DayHour) ]
+            ax1.set_xticks(major_ticks)
+            plt.axhline(y=np.mean(list_meanByLevs),ls='dotted',c='blue')
+            
+            ax2 = ax1.twinx()
+            ax2.plot(x_axis, std_final, "r-", label="Std. Deviation ("+omflag+")")
+            ax2.plot(x_axis, std_final, "rs", label="Std. Deviation ("+omflag+")")
+            ax2.set_ylim(vminSTD, vmaxSTD)
+            ax2.set_ylabel('Std. Deviation ('+omflag+')', color='r', fontsize=10)
+            ax2.tick_params('y', colors='r')
+            major_ticks = np.arange(0, max(x_axis), len(DayHour)/len(list(filter(None, DayHour))))
+            ax2.set_xticks(major_ticks)
+            plt.axhline(y=np.mean(std_final),ls='dotted',c='red')
+
+            ax3 = ax1.twinx()
+            ax3.plot(x_axis, count_final, "g-", label="Total Observations"+" ("+cmaski+")")
+            ax3.plot(x_axis, count_final, "g^", label="Total Observations"+" ("+cmaski+")")
+            ax3.set_ylim(0, np.max(count_final) + (np.max(count_final)/8))
+            ax3.set_ylabel('Total Observations'+" ("+cmaski+")", color='g', fontsize=10)
+            ax3.tick_params('y', colors='g')
+            ax3.spines["right"].set_position(("axes", 1.15))
+            plt.yticks(rotation=90)
+            plt.axhline(y=np.mean(count_final),ls='dotted',c='green')
+
+            ax3.set_title(instrument_title, loc='left', fontsize=10)
+            ax3.set_title(date_title, loc='right', fontsize=10)
+
+            plt.xticks(x_axis, DayHour)
+            major_ticks = [ DayHour.index(dh) for dh in filter(None,DayHour) ]
+            ax3.set_xticks(major_ticks)
+            plt.title(instrument_title, loc='left', fontsize=9)
+            plt.title(date_title, loc='right', fontsize=9)
+            plt.subplots_adjust(left=None, bottom=None, right=0.80, top=None)
+            plt.tight_layout()
+            plt.savefig('time_series_'+str(varName) + '-' + str(varType)+'_'+omflag+'_'+forplotname+'.png', bbox_inches='tight', dpi=100)
+            if Clean:
+                plt.clf()
+
+            ##### OMA
+
+            fig = plt.figure(figsize=(6, 4))
+            fig, ax1 = plt.subplots(1, 1)
+            plt.style.use('seaborn-ticks')
+
+            plt.axhline(y=0.0,ls='solid',c='#d3d3d3')
+            plt.annotate(forplot, xy=(0.0, 0.965), xytext=(0, 0), xycoords='axes fraction', textcoords='offset points', color='lightgray', fontweight='bold', fontsize='12',
+            horizontalalignment='left', verticalalignment='center')
+
+            ax1.plot(x_axis, list_meanByLevsa, "b-", label="Mean ("+omflaga+")")
+            ax1.plot(x_axis, list_meanByLevsa, "bo", label="Mean ("+omflaga+")")
+            ax1.set_xlabel('Date (DayHour)', fontsize=10)
+            # Make the y-axis label, ticks and tick labels match the line color.
+            ax1.set_ylim(vminOMA, vmaxOMA)
+            ax1.set_ylabel('Mean ('+omflaga+')', color='b', fontsize=10)
+            ax1.tick_params('y', colors='b')
+            plt.xticks(x_axis, DayHour)
+            major_ticks = [ DayHour.index(dh) for dh in filter(None,DayHour) ]
+            ax1.set_xticks(major_ticks)
+            plt.axhline(y=np.mean(list_meanByLevsa),ls='dotted',c='blue')
+            
+            ax2 = ax1.twinx()
+            ax2.plot(x_axis, std_finala, "r-", label="Std. Deviation ("+omflaga+")")
+            ax2.plot(x_axis, std_finala, "rs", label="Std. Deviation ("+omflaga+")")
+            ax2.set_ylim(vminSTD, vmaxSTD)
+            ax2.set_ylabel('Std. Deviation ('+omflaga+')', color='r', fontsize=10)
+            ax2.tick_params('y', colors='r')
+            plt.axhline(y=np.mean(std_finala),ls='dotted',c='red')
+
+            ax3 = ax1.twinx()
+            ax3.plot(x_axis, count_finala, "g-", label="Total Observations"+" ("+cmaski+")")
+            ax3.plot(x_axis, count_finala, "g^", label="Total Observations"+" ("+cmaski+")")
+            ax3.set_ylim(0, 1.2*np.max(count_finala))
+            ax3.set_ylabel('Total Observations'+" ("+cmaski+")", color='g', fontsize=10)
+            ax3.tick_params('y', colors='g')
+            ax3.spines["right"].set_position(("axes", 1.15))
+            plt.yticks(rotation=90)
+            plt.axhline(y=np.mean(count_finala),ls='dotted',c='green')
+
+            ax3.set_title(instrument_title, loc='left', fontsize=10)
+            ax3.set_title(date_title, loc='right', fontsize=10)
+
+            plt.xticks(x_axis, DayHour)
+            major_ticks = [ DayHour.index(dh) for dh in filter(None,DayHour) ]
+            ax3.set_xticks(major_ticks)
+            plt.title(instrument_title, loc='left', fontsize=9)
+            plt.title(date_title, loc='right', fontsize=9)
+            plt.subplots_adjust(left=None, bottom=None, right=0.80, top=None)
+            plt.tight_layout()
+            plt.savefig('time_series_'+str(varName) + '-' + str(varType)+'_'+omflaga+'_'+forplotname+'.png', bbox_inches='tight', dpi=100)
+            if Clean:
+                plt.clf()
+
+            ##### OMF and OMA
+
+            fig = plt.figure(figsize=(6, 4))
+            fig, ax1 = plt.subplots(1, 1)
+            plt.style.use('seaborn-ticks')
+
+            plt.annotate(forplot, xy=(0.0, 0.965), xytext=(0, 0), xycoords='axes fraction', textcoords='offset points', color='lightgray', fontweight='bold', fontsize='12',
+            horizontalalignment='left', verticalalignment='center')
+
+            plt.axhline(y=0.0,ls='solid',c='#d3d3d3')
+            ax1.plot(x_axis, list_meanByLevs, "b-", label="Mean ("+omflag+")")
+            ax1.plot(x_axis, list_meanByLevs, "bo", label="")
+            ax1.set_xlabel('Date (DayHour)', fontsize=10)
+            # Make the y-axis label, ticks and tick labels match the line color.
+            ax1.set_ylim(vminOMA, vmaxOMA)
+            ax1.tick_params('y', colors='b')
+            plt.xticks(x_axis, DayHour)
+            major_ticks = [ DayHour.index(dh) for dh in filter(None,DayHour) ]
+            ax1.set_xticks(major_ticks)
+            plt.axhline(y=np.mean(list_meanByLevs),ls='dotted',c='blue')
+            
+            ax1.plot(x_axis, list_meanByLevsa, "r-", label="Mean ("+omflaga+")")
+            ax1.plot(x_axis, list_meanByLevsa, "rs", label="")
+            ax1.set_ylim(vminOMA, vmaxOMA)
+            ax1.tick_params('y', colors='black')
+            plt.axhline(y=np.mean(list_meanByLevsa),ls='dotted',c='red')
+
+            plt.xticks(x_axis, DayHour)
+            major_ticks = [ DayHour.index(dh) for dh in filter(None,DayHour) ]
+            ax1.set_xticks(major_ticks)
+            plt.title(instrument_title, loc='left', fontsize=9)
+            plt.title(date_title, loc='right', fontsize=9)
+            plt.subplots_adjust(left=None, bottom=None, right=0.80, top=None)
+
+            ybox1 = TextArea('Mean ('+omflag+')' , textprops=dict(color="b", size=12,rotation=90,ha='left',va='bottom'))
+            ybox2 = TextArea(' and '             , textprops=dict(color="k", size=12,rotation=90,ha='left',va='bottom'))
+            ybox3 = TextArea('Mean ('+omflaga+')', textprops=dict(color="r", size=12,rotation=90,ha='left',va='bottom'))
+
+            ybox = VPacker(children=[ybox3, ybox2, ybox1],align="bottom", pad=0, sep=5)
+
+            anchored_ybox = AnchoredOffsetbox(loc=3, child=ybox, pad=0., frameon=False, bbox_to_anchor=(-0.12, 0.16), 
+                                                bbox_transform=ax1.transAxes, borderpad=0.)
+
+            ax1.add_artist(anchored_ybox)
+            plt.legend()
+
+            plt.tight_layout()
+            plt.savefig('time_series_'+str(varName) + '-' + str(varType)+'_OmFOmA_'+ forplotname +'.png', bbox_inches='tight', dpi=100)
+
+            # OMF and OMA and StdDev
+
+            fig = plt.figure(figsize=(6, 4))
+            fig, ax1 = plt.subplots(1, 1)
+            plt.style.use('seaborn-ticks')
+            
+            ax1.plot(x_axis, list_meanByLevs, lw=2, label='OmF Mean', color='blue', zorder=1)
+            ax1.fill_between(x_axis, OMF_inf, OMF_sup, label='OmF Std Dev',  facecolor='blue', alpha=0.3, zorder=1)
+            ax1.plot(x_axis, list_meanByLevsa, lw=2, label='OmA Mean', color='red', zorder=2)
+            ax1.fill_between(x_axis, OMA_inf, OMA_sup, label='OmA Std Dev',  facecolor='red', alpha=0.3, zorder=2)
+            ybox1 = TextArea(' OmF ' , textprops=dict(color="b", size=12,rotation=90,ha='left',va='bottom'))
+            ybox2 = TextArea(' | '             , textprops=dict(color="k", size=12,rotation=90,ha='left',va='bottom'))
+            ybox3 = TextArea(' OmA ', textprops=dict(color="r", size=12,rotation=90,ha='left',va='bottom'))
+
+            ybox = VPacker(children=[ybox3, ybox2, ybox1],align="bottom", pad=0, sep=5)
+
+            anchored_ybox = AnchoredOffsetbox(loc=3, child=ybox, pad=0., frameon=False, bbox_to_anchor=(-0.125, 0.42), 
+                                                bbox_transform=ax1.transAxes, borderpad=0.)
+
+            ax1.add_artist(anchored_ybox)
+            ax1.set_xlabel('Date (DayHour)', fontsize=12)
+            ax1.set_ylim(omfoma_limit_inf,omfoma_limit_sup)
+            ax1.legend(bbox_to_anchor=(-0.11, -0.25),ncol=4,loc='lower left', fancybox=True, shadow=False, frameon=True, framealpha=1.0, fontsize='11', facecolor='white', edgecolor='lightgray')
+            plt.grid(axis='y', color='lightgray', linestyle='-.', linewidth=0.5, zorder=0)
+
+            ax2 = ax1.twinx()
+            ax2.plot(x_axis, list_countByLevsa, lw=2, label='OmA', linestyle='--', color='green', zorder=3)
+            ax2.plot(x_axis, list_countByLevs, lw=2, label='OmF', linestyle=':', color='purple', zorder=3)
+            ax2.set_ylabel('Total Observations (OmF | OmA)'+"\n ("+cmaski+")", fontsize=12)
+            ax2.set_ylim(0, (np.max(list_countByLevsa) + np.max(list_countByLevsa)/5))
+            ax2.legend(loc='upper left', ncol=2, fancybox=True, shadow=False, frameon=True, framealpha=1.0, fontsize='11', facecolor='white', edgecolor='lightgray')
+            
+            plt.xticks(x_axis, DayHour)
+            major_ticks = [ DayHour.index(dh) for dh in filter(None,DayHour) ]
+            ax2.set_xticks(major_ticks)
+            plt.title(instrument_title, loc='left', fontsize=10)
+            plt.title(date_title, loc='right', fontsize=10)
+        
+            t = plt.annotate(forplot, xy=(0.78, 0.995), xytext=(-9, -9), xycoords='axes fraction', textcoords='offset points', color='darkgray', fontweight='bold', fontsize='10',
+                                horizontalalignment='center', verticalalignment='center')
+            t.set_bbox(dict(facecolor='whitesmoke', alpha=1.0, edgecolor='whitesmoke', boxstyle="square,pad=0.3"))
+
+            plt.tight_layout()
+            plt.savefig('time_series_'+str(varName) + '-' + str(varType)+'_OmFOmA_StdDev_'+ forplotname +'.png', bbox_inches='tight', dpi=100)
+
+        # Cleaning up
+        if Clean:
+            plt.close('all')
+
+        print(' Done!')
+        print()
+        
+               
+
+        return
+
+    def statcount(self, varName=None, varType=None, noiqc=False, dateIni=None, dateFin=None, nHour="06", figTS=False, figMap=False):
+
+        '''
+        The StatCount function plots a time series of assimilated, monitored and rejected data. 
+
+        Example:
+
+        varName = 'uv'           # Variable
+        varType = 224            # Source Type
+        noiqc = False            # noiqc GSI namelist parameter (OI QC - True or False)
+        dateIni = 2013010100     # Inicial Date
+        dateFin = 2013010900     # Final Date
+        nHour = "06"             # Time Interval
+        figTS = True             # Creates the time series plot
+        figMap = False           # Creates the spatial plot for each time
+
+        ! The QC process creates a number indicating the data quality for each observation.
+        ! These numbers are called QC markers in PrepBUFR files and are important as parts of
+        ! the observation information. GSI uses QC markers to decide how to use the data. A 
+        ! brief summary of the meaning of the QC markers is as follows:
+        ! 
+        !    +-----------------+-----------------------------------------------------------+
+        !    | QC markes range | Data Process in GSI                                       |
+        !    +-----------------+-----------------------------------------------------------+
+        !    |  > 15 or        |GSI skips these observations during reading procedure. That|
+        !    |  <= 0           |means these observations are tossed                        | 
+        !    +-----------------+-----------------------------------------------------------+
+        !    |  >= lim_qm      |These observations will be in monitoring status. That means|
+        !    |  and            |these observations will be read in and be processed through|
+        !    |  < = 15         |GSI QC process (gross check) and innovation calculation    | 
+        !    |                 |stage but will not be used in inner iteration.             |
+        !    +-----------------+-----------------------------------------------------------+
+        !    |  > 0            |Observations will be used in further gross check (failure  |
+        !    |  and            |observation will be list in rejection), innovation         |
+        !    |  < lim_qm       |caalculation, and the analysis (inner iteration).          |
+        !    +-----------------+-----------------------------------------------------------+
+
+        !    +----------------------+---------------+---------------+
+        !    |The value of namelist | lim_qm for Ps | lim_qm others |
+        !    |option noiqc          |               |               |
+        !    +----------------------+---------------+---------------+
+        !    |True (without OI QC)  |       7       |       8       |
+        !    +----------------------+---------------+---------------+
+        !    |False (with OI QC)    |       4       |       4       |
+        !    +----------------------+---------------+---------------+
+        '''
+
+
+        if(noiqc):
+            lim_qm = 8
+            if(varName == 'ps'):
+                lim_qm = 7
+        else:
+            lim_qm = 4
+        
+        instrument_title = str(varName) + '-' + str(varType) + '  |  ' + getVarInfo(varType, varName, 'instrument')
+
+        datei = datetime.strptime(str(dateIni), "%Y%m%d%H")
+        datef = datetime.strptime(str(dateFin), "%Y%m%d%H")
+        date  = datei
+
+        assi, reje, moni, DayHour_tmp = [], [], [], []
+        f = 0
+        while (date <= datef):
+
+            datefmt = date.strftime("%Y%m%d%H")
+            DayHour_tmp.append(date.strftime("%d%H"))
+        
+            exp = "(iuse==1)"
+            assim = self[f].obsInfo[varName].loc[varType].query(exp)
+            exp = "(iuse==-1) & (idqc >= "+str(lim_qm)+" and idqc <= 15)"
+            monit = self[f].obsInfo[varName].loc[varType].query(exp)
+            exp = "(iuse==-1) & ((idqc > 15 or idqc <= 0) or (idqc > 0 and idqc < "+str(lim_qm)+"))"
+            rejei = self[f].obsInfo[varName].loc[varType].query(exp)
+
+            assi.append(len(assim))
+            moni.append(len(monit))
+            reje.append(len(rejei))
+
+            if (figMap):
+                df_list = [assim, monit, rejei]
+                name_list = ["Assimilated ["+str(len(assim))+"]","Monitored ["+str(len(monit))+"]","Rejected ["+str(len(rejei))+"]"]
+                marker_list = [".","x","*"]
+                color_list = ["green","blue","red"]
+
+                setColor = 0 
+                legend_labels = []
+
+                fig = plt.figure(figsize=(12, 6))
+                ax  = fig.add_subplot(1, 1, 1)
+                ax = geoMap(area=None,ax=ax)
+                for dfi,namedf,mk,cl in zip(df_list,name_list,marker_list,color_list):
+                    df    = dfi
+                    legend_labels.append(mpatches.Patch(color=cl, label=namedf) )
+                    ax = df.plot(ax=ax,legend=True, marker=mk, color=cl)
+                    setColor += 1
+                    plt.legend(handles=legend_labels, numpoints=1, loc='lower center', bbox_to_anchor=(0.5, -0.02), 
+                            fancybox=True, shadow=False, frameon=False, ncol=3, prop={"size": 10})
+                date_title = str(date.strftime("%d%b%Y - %H%M")) + ' GMT'
+                plt.title(date_title, loc='right', fontsize=10)
+                plt.title(instrument_title, loc='left', fontsize=9)
+
+                plt.tight_layout()
+                plt.savefig('TotalObs_'+str(varName) + '-' + str(varType)+'_'+datefmt+'.png', bbox_inches='tight', dpi=100)
     
+            f = f + 1
+            date = date + timedelta(hours=int(nHour))
+            date_finale = date
+
+
+        if (figTS):
+            if(len(DayHour_tmp) > 4):
+                DayHour = [hr if (ix % int(len(DayHour_tmp) / 4)) == 0 else '' for ix, hr in enumerate(DayHour_tmp)]
+            else:
+                DayHour = DayHour_tmp
+            
+            x_axis      = np.arange(0, len(DayHour), 1)
+            date_title = str(datei.strftime("%d%b")) + '-' + str(date_finale.strftime("%d%b")) + ' ' + str(date_finale.strftime("%Y"))
+            
+            fig = plt.figure(figsize=(6, 4))
+            fig, ax1 = plt.subplots(1, 1)
+            plt.style.use('seaborn-ticks')
+
+            plt.axhline(y=0.0,ls='solid',c='#d3d3d3')
+
+            ax1.plot(x_axis, assi, "o", label="Assimilated \n["+str(sum(assi))+"]", color='green')
+            ax1.plot(x_axis, moni, "o", label="Monitored \n["+str(sum(moni))+"]", color='blue')
+            ax1.plot(x_axis, reje, "o", label="Rejected \n["+str(sum(reje))+"]", color='red')
+            ax1.legend(fancybox=True, frameon=True, shadow=True, loc="upper center",ncol=3)
+            ax1.set_xlabel('Date (DayHour)', fontsize=10)
+            plt.title(date_title, loc='right', fontsize=10)
+            plt.title(instrument_title, loc='left', fontsize=9)
+                
+            ax1.set_ylim(np.round(-0.05*np.max([assi,moni,reje])), np.round(1.25*np.max([assi,moni,reje])))
+            ax1.set_ylabel('Total Observations', color='black', fontsize=10)
+            ax1.tick_params('y', colors='black')
+            plt.xticks(x_axis, DayHour)
+            major_ticks = [ DayHour.index(dh) for dh in filter(None,DayHour) ]
+            ax1.set_xticks(major_ticks)
+            plt.axhline(y=np.mean(assi),ls='dotted',c='lightgray')
+            plt.axhline(y=np.mean(moni),ls='dotted',c='lightgray')
+            plt.axhline(y=np.mean(reje),ls='dotted',c='lightgray')
+            plt.tight_layout()
+            plt.savefig('time_series_'+str(varName) + '-' + str(varType)+'_TotalObs.png', bbox_inches='tight', dpi=100)
+
 #EOC
 #-----------------------------------------------------------------------------#
 
