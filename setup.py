@@ -35,7 +35,7 @@ ext  = Extension(name = 'diag2python',
 if __name__ == "__main__":
     from numpy.distutils.core import setup
     setup(name         = 'readDiag',
-          version      = '2.0',
+          version      = '2.0.1',
           description  = "Read and plot GSI diagnostics files",
           author       = "Joao Gerd Z. de Mattos",
           author_email = "joao.gerd@inpe.br",
