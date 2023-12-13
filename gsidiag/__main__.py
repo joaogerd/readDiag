@@ -574,7 +574,7 @@ class plot_diag(object):
             plt.style.use(kwargs['style'])
             del kwargs['style']
         else:
-            plt.style.use('seaborn')
+            plt.style.use('seaborn-v0_8')
         
         if 'ax' not in kwargs:
             fig = plt.figure(figsize=(12, 6))
@@ -628,7 +628,7 @@ class plot_diag(object):
             plt.style.use(kwargs['style'])
             del kwargs['style']
         else:
-            plt.style.use('seaborn')
+            plt.style.use('seaborn-v0_8')
 
         if 'ax' not in kwargs:
             fig  = plt.figure(figsize=(12, 6))
@@ -717,7 +717,7 @@ class plot_diag(object):
             plt.style.use(kwargs['style'])
             del kwargs['style']
         else:
-            plt.style.use('seaborn')
+            plt.style.use('seaborn-v0_8')
         
         if 'ax' not in kwargs:
             fig = plt.figure(figsize=(12, 6))
@@ -808,7 +808,7 @@ class plot_diag(object):
             plt.style.use(kwargs['style'])
             del kwargs['style']
         else:
-            plt.style.use('seaborn')
+            plt.style.use('seaborn-v0_8')
 
         if 'alpha' not in kwargs:
             kwargs['alpha'] = 0.5
@@ -855,7 +855,7 @@ class plot_diag(object):
             plt.style.use(kwargs['style'])
             del kwargs['style']
         else:
-            plt.style.use('seaborn')
+            plt.style.use('seaborn-v0_8')
 
         if 'alpha' not in kwargs:
             kwargs['alpha'] = 0.5
@@ -900,7 +900,7 @@ class plot_diag(object):
             plt.style.use(kwargs['style'])
             del kwargs['style']
         else:
-            plt.style.use('seaborn')
+            plt.style.use('seaborn-v0_8')
 
         if 'alpha' not in kwargs:
             kwargs['alpha'] = 0.5
@@ -918,7 +918,7 @@ class plot_diag(object):
         colors = getColor(minVal=df.min(),maxVal=df.max(),
                           value=df.values,hex=True,cmapName='Paired')
           
-        plt.style.use('seaborn')
+        plt.style.use('seaborn-v0_8')
         df.plot.bar(color=colors, **kwargs)
 
         plt.ylabel('Number of Observations by KX')
@@ -1327,7 +1327,7 @@ class plot_diag(object):
 
             fig = plt.figure(figsize=(6, 4))
             fig, ax1 = plt.subplots(1, 1)
-            plt.style.use('seaborn-ticks')
+            plt.style.use('seaborn-v0_8-ticks')
 
             plt.axhline(y=0.0,ls='solid',c='#d3d3d3')
             plt.annotate(forplot, xy=(0.0, 0.965), xytext=(0,0), xycoords='axes fraction', textcoords='offset points', color='lightgray', fontweight='bold', fontsize='12',
@@ -1383,7 +1383,7 @@ class plot_diag(object):
 
             fig = plt.figure(figsize=(6, 4))
             fig, ax1 = plt.subplots(1, 1)
-            plt.style.use('seaborn-ticks')
+            plt.style.use('seaborn-v0_8-ticks')
 
             plt.axhline(y=0.0,ls='solid',c='#d3d3d3')
             plt.annotate(forplot, xy=(0.0, 0.965), xytext=(0, 0), xycoords='axes fraction', textcoords='offset points', color='lightgray', fontweight='bold', fontsize='12',
@@ -1437,7 +1437,7 @@ class plot_diag(object):
 
             fig = plt.figure(figsize=(6, 4))
             fig, ax1 = plt.subplots(1, 1)
-            plt.style.use('seaborn-ticks')
+            plt.style.use('seaborn-v0_8-ticks')
 
             plt.annotate(forplot, xy=(0.0, 0.965), xytext=(0, 0), xycoords='axes fraction', textcoords='offset points', color='lightgray', fontweight='bold', fontsize='12',
             horizontalalignment='left', verticalalignment='center')
@@ -1486,7 +1486,7 @@ class plot_diag(object):
 
             fig = plt.figure(figsize=(6, 4))
             fig, ax1 = plt.subplots(1, 1)
-            plt.style.use('seaborn-ticks')
+            plt.style.use('seaborn-v0_8-ticks')
             
             ax1.plot(x_axis, list_meanByLevs, lw=2, label='OmF Mean', color='blue', zorder=1)
             ax1.fill_between(x_axis, OMF_inf, OMF_sup, label='OmF Std Dev',  facecolor='blue', alpha=0.3, zorder=1)
@@ -1659,7 +1659,7 @@ class plot_diag(object):
             
             fig = plt.figure(figsize=(6, 4))
             fig, ax1 = plt.subplots(1, 1)
-            plt.style.use('seaborn-ticks')
+            plt.style.use('seaborn-v0_8-ticks')
 
             plt.axhline(y=0.0,ls='solid',c='#d3d3d3')
 

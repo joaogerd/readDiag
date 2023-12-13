@@ -34,7 +34,7 @@ ext  = Extension(name = 'diag2python',
 
 if __name__ == "__main__":
     from numpy.distutils.core import setup
-    setup(name         = 'gsidiag',
+    setup(name         = 'readDiag',
           version      = '2.0',
           description  = "Read and plot GSI diagnostics files",
           author       = "Joao Gerd Z. de Mattos",
@@ -42,10 +42,11 @@ if __name__ == "__main__":
           packages     = ['gsidiag'],
           package_data={'': ['table']},
 
-          install_requires=['numpy','matplotlib', 'xarray', 'cartopy'],
+          install_requires=['numpy>=1.22','matplotlib', 'xarray', 'Cartopy>=0.22.0', 'geopandas', 'jupyterlab'],
           platforms = ['any'],
           zip_safe = False, 
-          ext_modules = [ext]
+          ext_modules = [ext],
+          python_requires='>=3.9.18',
           )
 #          packages = setuptools.find_packages(),
 

@@ -60,7 +60,7 @@ class dataSourcesInfo:
             reader = csv.reader(csv_data,skipinitialspace=True,delimiter=';')
             # eliminate blank rows if they exist
             rows = [row for row in reader if row]
-            rows.remove([''])
+#            rows.remove([''])
             headings = rows[0] # get headings
             self.tab = {}
             for row in rows[1:]:
