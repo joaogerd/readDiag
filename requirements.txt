@@ -4,5 +4,5 @@ jupyterlab==4.0.9
 matplotlib==3.8.2
 numpy==1.26.2
 pandas==2.1.4
-readdiag==2.0.1
+readDiag==2.0.1
 xarray==2023.12.0
