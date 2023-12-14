@@ -10,7 +10,7 @@ A máquina Ilopolis possui um servidor do Jupyter que pode ser utilizado para a 
 
 !!! warning "Atenção"
 
-    Nesta seção, considera-se que o usuário irá criar o ambiente readDiag e irá instalar o pacote dentro do ambiente.
+    Nesta seção, considera-se que o usuário irá criar o ambiente readDiag e irá instalar o pacote dentro do ambiente de forma que possa fazer modificações no código.
 
 1. Baixe o código do readDiag (no seu `$HOME`):
 
@@ -29,8 +29,22 @@ A máquina Ilopolis possui um servidor do Jupyter que pode ser utilizado para a 
     cd readDiag
     conda env create -f environment.yml
     conda activate readDiag
-    python setup.py install
+    pip install -e .
     ```
+
+    ou,
+
+    ```bash linenums="1"
+    cd readDiag
+    python -m venv readDiag-env
+    source readDiag-env/bin/activate
+    pip install -r requirements.txt
+    pip install -e .
+    ```
+
+    !!! note "Nota"
+
+        Com a criação do ambiente, o pacote `readDiag` será instalado automaticamente, mas ao executar o comando `pip install -e .`, a versão de lançamento do PyPi será desinstalada e a versão do repositório será instalada em modo de edição ou desenvolvimento. Dessa forma, modificações podem ser feitas no pacote sem a necessidade de refazer a instalação.
 
 3. Instale o kernel do ambiente readDiag dentro do Jupyter:
 

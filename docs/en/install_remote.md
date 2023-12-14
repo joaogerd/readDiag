@@ -10,7 +10,7 @@ The Ilopolis machine has a Jupyter server that can be used to run readDiag. This
 
 !!! warning "Warning"
 
-    In this section, it is assumed that the user will create the readDiag environment and install the package within the environment.
+    In this section, it is assumed that the user will create the readDiag environment and install the package within the environment so the user can make modifications to the code.
 
 1. Download the readDiag code (in your `$HOME`):
 
@@ -30,7 +30,22 @@ The Ilopolis machine has a Jupyter server that can be used to run readDiag. This
     conda env create -f environment.yml
     conda activate readDiag
     python setup.py install
+    pip install -e .
     ```
+
+    or,
+
+    ```bash linenums="1"
+    cd readDiag
+    python -m venv readDiag-env
+    source readDiag-env/bin/activate
+    pip install -r requirements.txt
+    pip install -e .
+    ```
+
+    !!! note "Note"
+
+        By creating the environment, the `readDiag` will be installed automatically.
 
 3. Install the readDiag environment kernel within Jupyter:
 
