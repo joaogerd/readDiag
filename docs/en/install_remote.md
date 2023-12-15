@@ -29,7 +29,6 @@ The Ilopolis machine has a Jupyter server that can be used to run readDiag. This
     cd readDiag
     conda env create -f environment.yml
     conda activate readDiag
-    python setup.py install
     pip install -e .
     ```
 
