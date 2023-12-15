@@ -44,7 +44,7 @@ The Ilopolis machine has a Jupyter server that can be used to run readDiag. This
 
     !!! note "Note"
 
-        By creating the environment, the `readDiag` will be installed automatically.
+        By creating the environment, the `readDiag` will be installed automatically. It is important to note that by running `pip install -e .`, the readDiag released version of readDiag from PyPi will be uninstalled, and the repository version will be installed in edit (or development) mode. This way, modifications made to the code will be readly available without the need to reinstall the package.
 
 3. Install the readDiag environment kernel within Jupyter:
 
@@ -106,6 +106,7 @@ To use readDiag on Egeon, follow the instructions below:
     ```bash linenums="1"
     jupyter-notebook --ip='*' --NotebookApp.token='' --NotebookApp.password='' --no-browser
     ```
+
 4. On your computer, run the following command to open Jupyter locally - where `localhost:XXXX` should be a port on your computer, e.g., `localhost:8820`:
 
     ```bash linenums="1"

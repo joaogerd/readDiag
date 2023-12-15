@@ -106,6 +106,7 @@ Para utilizar o readDiag na Egeon, siga as instruções a seguir:
     ```bash linenums="1"
     jupyter-notebook --ip='*' --NotebookApp.token='' --NotebookApp.password='' --no-browser
     ```
+
 4. No seu computador, execute o comando a seguir para abrir o Jupyter localmente - onde `localhost:XXXX` deve ser uma porta no seu computador, e.g., `localhost:8820`:
 
     ```bash linenums="1"
