@@ -47,7 +47,7 @@ if __name__ == "__main__":
           license='CC BY-NC-SA-4.0',
           keyword=['gridpoint statistical interpolation', 'atmospheric data assimilation'],
           packages=['gsidiag'],
-          package_data={'': ['table']},
+          package_data={'': ['table.yml']},
 
           install_requires=['numpy>=1.22','matplotlib', 'xarray', 'Cartopy>=0.22.0', 'geopandas', 'jupyterlab'],
           platforms=['any'],

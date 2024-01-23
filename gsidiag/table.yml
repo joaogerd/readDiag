@@ -1,0 +1,494 @@
+observations:
+  - kx: "120"
+    details:
+      - var: ps
+        abbreviation: ADPUPA
+        instrument: Radiossonda
+        color: "#1f77b4"
+        symbol: s
+        iuse: "1"
+      - var: q
+        abbreviation: ADPUPA
+        instrument: Radiossonda
+        color: "#aec7e8"
+        symbol: "*"
+        iuse: "1"
+      - var: t
+        abbreviation: ADPUPA
+        instrument: Radiossonda
+        color: "#B25809"
+        symbol: "*"
+        iuse: "1"
+  - kx: "130"
+    details:
+      - var: t
+        abbreviation: AIRCFT
+        instrument: AIREP PIREP Avião Sensores
+        color: "#ffbb78"
+        symbol: "*"
+        iuse: "1"
+      - var: q
+        abbreviation: AIRCFT
+        instrument: AIREP PIREP Avião Sensores
+        color: "#2ca02c"
+        symbol: "*"
+        iuse: "-1"
+  - kx: "230"
+    details:
+      - var: uv
+        abbreviation: AIRCFT
+        instrument: AIREP PIREP Avião Sensores
+        color: "#98df8a"
+        symbol: "*"
+        iuse: "1"
+  - kx: "132"
+    details:
+      - var: t
+        abbreviation: ADPUPA
+        instrument: Reconhecimento a nivel de voo e perfil de Dropssonda
+        color: "#FF983E"
+        symbol: "*"
+        iuse: "1"
+      - var: q
+        abbreviation: ADPUPA
+        instrument: Reconhecimento a nivel de voo e perfil de Dropssonda
+        color: "#ff7f0e"
+        symbol: "*"
+        iuse: "1"
+  - kx: "153"
+    details:
+      - var: pw
+        abbreviation: GPSIPW
+        instrument: GPS receptor
+        color: "#d62728"
+        symbol: s
+        iuse: "-1"
+  - kx: "180"
+    details:
+      - var: ps
+        abbreviation: SFCSHP
+        instrument: Boias e sensor navios
+        color: "#ff9896"
+        symbol: s
+        iuse: "1"
+      - var: t
+        abbreviation: SFCSHP
+        instrument: Boias e sensor navios
+        color: "#9467bd"
+        symbol: "*"
+        iuse: "1"
+      - var: q
+        abbreviation: SFCSHP
+        instrument: Boias e sensor navios
+        color: "#c5b0d5"
+        symbol: "*"
+        iuse: "1"
+  - kx: "182"
+    details:
+      - var: ps
+        abbreviation: SFCSHP
+        instrument: Boias e sensor navios
+        color: "#8c564b"
+        symbol: s
+        iuse: "-1"
+      - var: t
+        abbreviation: SFCSHP
+        instrument: Boias e sensor navios
+        color: "#c49c94"
+        symbol: "*"
+        iuse: "-1"
+      - var: q
+        abbreviation: SFCSHP
+        instrument: Boias e sensor navios
+        color: "#e377c2"
+        symbol: "*"
+        iuse: "-1"
+  - kx: "280"
+    details:
+      - var: uv
+        abbreviation: SFCSHP
+        instrument: Boias e sensor navios
+        color: "#f7b6d2"
+        symbol: "*"
+        iuse: "1"
+      - var: t
+        abbreviation: ADPUPA
+        instrument: Dropssonda
+        color: "#ce6dbd"
+        symbol: p
+        iuse: "-1"
+  - kx: "282"
+    details:
+      - var: uv
+        abbreviation: SFCSHP
+        instrument: Boias e sensor navios
+        color: "#7f7f7f"
+        symbol: "*"
+        iuse: "1"
+  - kx: "181"
+    details:
+      - var: ps
+        abbreviation: ADPSFC
+        instrument: Estação a superfície com pressão
+        color: "#c7c7c7"
+        symbol: s
+        iuse: "1"
+      - var: sst
+        abbreviation: ADPSFC
+        instrument: Estação a superfície com pressão
+        color: "#bcbd22"
+        symbol: "*"
+        iuse: "-1"
+      - var: t
+        abbreviation: ADPSFC
+        instrument: Estação a superfície com pressão
+        color: "#838354"
+        symbol: "*"
+        iuse: "-1"
+      - var: q
+        abbreviation: ADPSFC
+        instrument: Estação a superfície com pressão
+        color: "#17becf"
+        symbol: "*"
+        iuse: "-1"
+  - kx: "187"
+    details:
+      - var: ps
+        abbreviation: ADPSFC
+        instrument: Estação a superfície com pressão
+        color: "#9edae5"
+        symbol: s
+        iuse: "1"
+      - var: t
+        abbreviation: ADPSFC
+        instrument: Estação a superfície com pressão
+        color: "#393b79"
+        symbol: "*"
+        iuse: "-1"
+      - var: q
+        abbreviation: ADPSFC
+        instrument: Estação a superfície com pressão
+        color: "#B89441"
+        symbol: "*"
+        iuse: "-1"
+  - kx: "281"
+    details:
+      - var: uv
+        abbreviation: ADPSFC
+        instrument: Estação a superfície com pressão
+        color: "#5254a3"
+        symbol: "*"
+        iuse: "-1"
+  - kx: "183"
+    details:
+      - var: ps
+        abbreviation: ADPSFC
+        instrument: Boias a estações sem pressão
+        color: "#e7cb94"
+        symbol: s
+        iuse: "-1"
+      - var: sst
+        abbreviation: ADPSFC
+        instrument: Boias a estações sem pressão
+        color: "#4169e1"
+        symbol: "*"
+        iuse: "-1"
+      - var: t
+        abbreviation: ADPSFC
+        instrument: Boias a estações sem pressão
+        color: "#843c39"
+        symbol: "*"
+        iuse: "-1"
+      - var: q
+        abbreviation: ADPSFC
+        instrument: Boias a estações sem pressão
+        color: "#4B3F16"
+        symbol: "*"
+        iuse: "-1"
+  - kx: "284"
+    details:
+      - var: uv
+        abbreviation: ADPSFC SFCSHP
+        instrument: Boias number a estações sem pressão
+        color: "#773233"
+        symbol: "*"
+        iuse: "-1"
+  - kx: "287"
+    details:
+      - var: uv
+        abbreviation: ADPSFC
+        instrument: Boias a estações sem pressão
+        color: "#437939"
+        symbol: "*"
+        iuse: "-1"
+  - kx: "126"
+    details:
+      - var: t
+        abbreviation: RASSDA
+        instrument: RASS Perfil rede NOAA (NPN) ou multiagencia (MAP)
+        color: "#e7969c"
+        symbol: s
+        iuse: "-1"
+  - kx: "210"
+    details:
+      - var: uv
+        abbreviation: SYNDAT
+        instrument: Sintéticos (BOGUS) vento ciclone tropical
+        color: "#793963"
+        symbol: "*"
+        iuse: "1"
+  - kx: "220"
+    details:
+      - var: uv
+        abbreviation: ADPUPA
+        instrument: Radiossonda
+        color: "#cedb9c"
+        symbol: "*"
+        iuse: "1"
+  - kx: "221"
+    details:
+      - var: uv
+        abbreviation: ADPUPA
+        instrument: Balão Piloto (PIBAL)
+        color: "#a55194"
+        symbol: s
+        iuse: "1"
+  - kx: "223"
+    details:
+      - var: uv
+        abbreviation: PROFLR
+        instrument: NOAA rede Perfiladores (NPN)
+        color: "#95434a"
+        symbol: s
+        iuse: "-1"
+  - kx: "224"
+    details:
+      - var: uv
+        abbreviation: VADWND
+        instrument: Display vertical de azimute NEXRAD (VAD)
+        color: "#8ca252"
+        symbol: x
+        iuse: "1"
+  - kx: "228"
+    details:
+      - var: uv
+        abbreviation: PROFLR
+        instrument: JMA Wind Profiler
+        color: "#378ef4"
+        symbol: "*"
+        iuse: "-1"
+  - kx: "229"
+    details:
+      - var: uv
+        abbreviation: PROFLR
+        instrument: Perfis do Bolelim Piloto (Perfiladores)
+        color: "#7b4173"
+        symbol: s
+        iuse: "1"
+  - kx: "232"
+    details:
+      - var: uv
+        abbreviation: ADPUPA
+        instrument: Reconhecimento a nivel de voo e perfil de Dropssonda
+        color: "#bd9e39"
+        symbol: P
+        iuse: "1"
+  - kx: "240"
+    details:
+      - var: uv
+        abbreviation: SATWND
+        instrument: NESDIS IR (onda curta) e Todos Níveis (GOES)
+        color: "#715E22"
+        symbol: P
+        iuse: "-1"
+  - kx: "242"
+    details:
+      - var: uv
+        abbreviation: SATWND
+        instrument: JMA IR e VIS Drift abaixo 850 (GMS,MTSAT,HIMAWARI)
+        color: "#7a49a5"
+        symbol: s
+        iuse: "1"
+  - kx: "243"
+    details:
+      - var: uv
+        abbreviation: SATWND
+        instrument: EUMETSAT IR e VIS Drift abaixo 850 (GMS,MTSAT,HIMAWARI)
+        color: "#875BAE"
+        symbol: s
+        iuse: "1"
+  - kx: "244"
+    details:
+      - var: uv
+        abbreviation: SATWND
+        instrument: AVHRR  IR (onda longa) der. nuvem (todos níveis) (NOAA, METOP)
+        color: "#AF91C9"
+        symbol: s
+        iuse: "1"
+  - kx: "245"
+    details:
+      - var: uv
+        abbreviation: SATWND
+        instrument: NESDIS IR (onda longa) der. nuvem (todos niveis) (GOES)
+        color: "#9c9ede"
+        symbol: "*"
+        iuse: "1"
+  - kx: "246"
+    details:
+      - var: uv
+        abbreviation: SATWND
+        instrument: NESDIS WV (todos niveis) top nuvem (GOES)
+        color: "#ad494a"
+        symbol: o
+        iuse: "1"
+  - kx: "247"
+    details:
+      - var: uv
+        abbreviation: SATWND
+        instrument: NESDIS WV (todos niveis) DEEP Layer(GOES)
+        color: "#637939"
+        symbol: p
+        iuse: "1"
+  - kx: "250"
+    details:
+      - var: uv
+        abbreviation: SATWND
+        instrument: JMA WV (todos niveis) Top e Deep (GMS,MTSAT,HIMAWARI)
+        color: "#e49d12"
+        symbol: o
+        iuse: "1"
+      - var: q
+        abbreviation: ADPUPA
+        instrument: Dropssonda
+        color: "#8c6d31"
+        symbol: x
+        iuse: "-1"
+  - kx: "251"
+    details:
+      - var: uv
+        abbreviation: SATWND
+        instrument: NESDID VIS todos niveis GOES
+        color: "#6b3035"
+        symbol: x
+        iuse: "-1"
+  - kx: "252"
+    details:
+      - var: uv
+        abbreviation: SATWND
+        instrument: JMA IR e VIS acima de 850 Himawari
+        color: "#6b6ecf"
+        symbol: "8"
+        iuse: "1"
+  - kx: "253"
+    details:
+      - var: uv
+        abbreviation: SATWND
+        instrument: EUMETSAT IR e VIS acima de 850
+        color: "#d6616b"
+        symbol: "8"
+        iuse: "1"
+  - kx: "254"
+    details:
+      - var: uv
+        abbreviation: SATWND
+        instrument: EUMETSAT WV todo níveis top e deep (METEOSAT)
+        color: "#575738"
+        symbol: s
+        iuse: "1"
+  - kx: "257"
+    details:
+      - var: uv
+        abbreviation: SATWND
+        instrument: MODIS IR (onda longa) todos niveis (AQUA/TERRA)
+        color: "#dbdb8d"
+        symbol: "*"
+        iuse: "1"
+  - kx: "258"
+    details:
+      - var: uv
+        abbreviation: SATWND
+        instrument: MODIS WV (todos niveis) TOP (AQUA/TERRA)
+        color: "#9edae5"
+        symbol: p
+        iuse: "1"
+  - kx: "259"
+    details:
+      - var: uv
+        abbreviation: SATWND
+        instrument: MODIS WV (todos niveis) DEEP (AQUA/TERRA)
+        color: "#108590"
+        symbol: o
+        iuse: "1"
+  - kx: "260"
+    details:
+      - var: uv
+        abbreviation: SATWND
+        instrument: VIIRS IR (longa onda) der. nuvem (NPP)
+        color: "#8BDEE7"
+        symbol: o
+        iuse: "-1"
+  - kx: "290"
+    details:
+      - var: uv
+        abbreviation: ASCATW
+        instrument: Non-superobed Scatterometer Winds Over Ocean (ASCAT)
+        color: "#e7ba52"
+        symbol: x
+        iuse: "-1"
+  - kx: "3"
+    details:
+      - var: gps
+        abbreviation: GPS
+        instrument: GPS-INFO
+        color: "#297df1"
+        symbol: "8"
+        iuse: "-1"
+  - kx: "4"
+    details:
+      - var: gps
+        abbreviation: GPS
+        instrument: GPS-INFO
+        color: "#fe6f22"
+        symbol: s
+        iuse: "-1"
+  - kx: "740"
+    details:
+      - var: gps
+        abbreviation: GPS
+        instrument: GPS-INFO
+        color: "#42b7a3"
+        symbol: "*"
+        iuse: "-1"
+  - kx: "745"
+    details:
+      - var: gps
+        abbreviation: GPS
+        instrument: GPS-INFO
+        color: "#de57fb"
+        symbol: o
+        iuse: "-1"
+  - kx: "744"
+    details:
+      - var: gps
+        abbreviation: GPS
+        instrument: GPS-INFO
+        color: "#f1d34d"
+        symbol: p
+        iuse: "-1"
+  - kx: "741"
+    details:
+      - var: gps
+        abbreviation: GPS
+        instrument: GPS-INFO
+        color: "#d61d14"
+        symbol: P
+        iuse: "-1"
+  - kx: "722"
+    details:
+      - var: gps
+        abbreviation: GPS
+        instrument: GPS-INFO
+        color: "#2e8e24"
+        symbol: x
+        iuse: "-1"
+

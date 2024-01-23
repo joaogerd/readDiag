@@ -290,7 +290,7 @@ class read_diag(object):
         gc.collect()
         
         return iret
-
+    @staticmethod
     def tocsv(self, varName=None, varType=None, dateIni=None, dateFin=None, nHour="06", Level=None, Lay = None, SingleL=None):
         
         '''
@@ -310,11 +310,16 @@ class read_diag(object):
         print()
         print(separator)
         #print(" Reading dataset in " + data_path)
-        print(" Analyzing data of variable: " + varName + "  ||  type: " + str(varType) + "  ||  " + getVarInfo(varType, varName, 'instrument') + "  ||  check: " + omflag)
+        varInfo = getVarInfo(varType, varName, 'instrument')
+        if varInfo is not None:
+            print(" Analyzing data of variable: " + varName + "  ||  type: " + str(varType) + "  ||  " + varInfo + "  ||  check: " + omflag)
+        else:
+            print(" Analyzing data of variable: " + varName + "  ||  type: " + str(varType) + "  ||  Unknown instrument  ||  check: " + omflag)
         print(separator)
         print()
 
         zlevs_def = list(map(int,self[0].zlevs))
+
 
         datei = datetime.strptime(str(dateIni), "%Y%m%d%H")
         datef = datetime.strptime(str(dateFin), "%Y%m%d%H")
@@ -353,7 +358,8 @@ class read_diag(object):
             del(dataDict)
             
             date = date + timedelta(hours=int(delta))
-            
+        
+
         if(len(DayHour_tmp) > 4):
             DayHour = [hr if (ix % int(len(DayHour_tmp) / 4)) == 0 else '' for ix, hr in enumerate(DayHour_tmp)]
         else:
@@ -386,11 +392,13 @@ class read_diag(object):
             print(date.strftime(' Calculating for ' + "%Y-%m-%d:%H"))
             datefmt = date.strftime("%Y%m%d%H")
 
-            try: 
+            try:
+                dataByLevs, mean_dataByLevs, std_dataByLevs, count_dataByLevs = {}, {}, {}, {}
+                dataByLevsa, mean_dataByLevsa, std_dataByLevsa, count_dataByLevsa = {}, {}, {}, {}
+                
                 if info_check[date.strftime("%d%H")] == True:
                     dataDict = self[f].obsInfo[varName].loc[varType]
-                    dataByLevs, mean_dataByLevs, std_dataByLevs, count_dataByLevs = {}, {}, {}, {}
-                    dataByLevsa, mean_dataByLevsa, std_dataByLevsa, count_dataByLevsa = {}, {}, {}, {}
+
                     [dataByLevs.update({int(lvl): []}) for lvl in levs]
                     [dataByLevsa.update({int(lvl): []}) for lvl in levs]
                     if Level != None and Level != "Zlevs":
@@ -964,7 +972,12 @@ class plot_diag(object):
         print()
         print(separator)
         #print(" Reading dataset in " + data_path)
-        print(" Analyzing data of variable: " + varName + "  ||  type: " + str(varType) + "  ||  " + getVarInfo(varType, varName, 'instrument') + "  ||  check: " + omflag)
+        varInfo = getVarInfo(varType, varName, 'instrument')
+        if varInfo is not None:
+            print(" Analyzing data of variable: " + varName + "  ||  type: " + str(varType) + "  ||  " + varInfo + "  ||  check: " + omflag)
+        else:
+            print(" Analyzing data of variable: " + varName + "  ||  type: " + str(varType) + "  ||  Unknown instrument  ||  check: " + omflag)
+
         print(separator)
         print()
 
@@ -1592,8 +1605,12 @@ class plot_diag(object):
                 lim_qm = 7
         else:
             lim_qm = 4
-        
-        instrument_title = str(varName) + '-' + str(varType) + '  |  ' + getVarInfo(varType, varName, 'instrument')
+
+        varInfo = getVarInfo(varType, varName, 'instrument')
+        if varInfo is not None:
+            instrument_title = str(varName) + '-' + str(varType) + '  |  ' + varInfo
+        else:
+            instrument_title = str(varName) + '-' + str(varType) + '  |  ' + 'Unknown instrument'
 
         datei = datetime.strptime(str(dateIni), "%Y%m%d%H")
         datef = datetime.strptime(str(dateFin), "%Y%m%d%H")
