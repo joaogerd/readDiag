@@ -19,7 +19,7 @@ class dataSourcesInfo:
 
         self.tab = {}
         for observation in self.data['observations']:
-            kx = int(observation['kx'])
+            kx = observation['kx']
             self.tab[kx] = {}
             for detail in observation['details']:
                 var = detail['var']
