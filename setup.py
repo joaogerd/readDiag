@@ -34,7 +34,7 @@ ext  = Extension(name='diag2python',
 if __name__ == "__main__":
     from numpy.distutils.core import setup
     setup(name='readDiag',
-          version='1.2.2',
+          version='1.2.3',
           long_description=open('README.md').read(),
           long_description_content_type='text/markdown',
           description='A Python class to read and plot the Gridpoint Statistical Interpolation diagnostics files.',
@@ -49,7 +49,7 @@ if __name__ == "__main__":
           packages=['gsidiag'],
           package_data={'': ['table']},
 
-          install_requires=['numpy>=1.22','matplotlib', 'xarray', 'Cartopy>=0.22.0', 'geopandas', 'jupyterlab'],
+          install_requires=['numpy>=1.22','matplotlib==3.8.2', 'xarray', 'Cartopy>=0.22.0', 'geopandas', 'jupyterlab'],
           platforms=['any'],
           zip_safe=False, 
           ext_modules=[ext],

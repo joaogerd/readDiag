@@ -13,5 +13,5 @@ dependencies:
       - matplotlib==3.8.2
       - numpy==1.26.2
       - pandas==2.1.4
-      - readDiag==1.2.2
+      - readDiag==1.2.3
       - xarray==2023.12.0
