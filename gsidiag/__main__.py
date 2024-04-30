@@ -551,7 +551,7 @@ class plot_diag(object):
     plot diagnostic file from gsi. 
     """
 
-    def plot(self, varName, varType, param, mask=None, area=None, **kwargs):
+    def plot(self, varName, varType, param, minVal=None, maxVal=None, mask=None, area=None, **kwargs):
         '''
         The plot function makes a plot for the selected observation by using information of the following columns available within the dataframe.
  
@@ -566,6 +566,9 @@ class plot_diag(object):
         iuse : Use flag (use = 1; monitoring = -1)
         iusev: Value of the flag used in the analysis
         obs  : Observation value
+        
+        Optional parameters: minVal and maxVal (float)
+        vmin = minVal and vmax = maxVal define the data range that the colormap covers. By default (minVal=maxVal=None), the colormap covers the complete value range of the supplied data.
 
         Example:
         gd.plot('ps', 187, 'obs', mask='iuse == 1')
@@ -605,10 +608,10 @@ class plot_diag(object):
         ax = geoMap(area=area,ax=ax)
 
         if mask is None:
-            ax  = self.obsInfo[varName].loc[varType].plot(param, ax=ax, **kwargs, legend_kwds={'shrink': 0.5})
+            ax  = self.obsInfo[varName].loc[varType].plot(param, ax=ax, vmin=minVal, vmax=maxVal, **kwargs, legend_kwds={'shrink': 0.5})
         else:
             df = self.obsInfo[varName].loc[varType]
-            ax = df.query(mask).plot(param, ax=ax, **kwargs, legend_kwds={'shrink': 0.5})
+            ax = df.query(mask).plot(param, ax=ax, vmin=minVal, vmax=maxVal, **kwargs, legend_kwds={'shrink': 0.5}) 
 
         
         return ax
@@ -686,7 +689,7 @@ class plot_diag(object):
             color = getColor(minVal=cmin, maxVal=cmax,
                              value=i,hex=True,cmapName='Paired')
             instr = getVarInfo(kx,varName,'instrument')
-
+            
             label = '\n'.join(wrap(varName + '-' + str(kx) + ' | ' + instr,30))
             legend_labels.append(mpatches.Patch(color=color, 
                                  label=label)

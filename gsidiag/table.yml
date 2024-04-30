@@ -1,5 +1,5 @@
 observations:
-  - kx: "120"
+  - kx: 120
     details:
       - var: ps
         abbreviation: ADPUPA
@@ -19,7 +19,7 @@ observations:
         color: "#B25809"
         symbol: "*"
         iuse: "1"
-  - kx: "130"
+  - kx: 130
     details:
       - var: t
         abbreviation: AIRCFT
@@ -33,7 +33,7 @@ observations:
         color: "#2ca02c"
         symbol: "*"
         iuse: "-1"
-  - kx: "230"
+  - kx: 230
     details:
       - var: uv
         abbreviation: AIRCFT
@@ -41,7 +41,7 @@ observations:
         color: "#98df8a"
         symbol: "*"
         iuse: "1"
-  - kx: "132"
+  - kx: 132
     details:
       - var: t
         abbreviation: ADPUPA
@@ -55,7 +55,7 @@ observations:
         color: "#ff7f0e"
         symbol: "*"
         iuse: "1"
-  - kx: "153"
+  - kx: 153
     details:
       - var: pw
         abbreviation: GPSIPW
@@ -63,7 +63,7 @@ observations:
         color: "#d62728"
         symbol: s
         iuse: "-1"
-  - kx: "180"
+  - kx: 180
     details:
       - var: ps
         abbreviation: SFCSHP
@@ -83,7 +83,7 @@ observations:
         color: "#c5b0d5"
         symbol: "*"
         iuse: "1"
-  - kx: "182"
+  - kx: 182
     details:
       - var: ps
         abbreviation: SFCSHP
@@ -103,7 +103,7 @@ observations:
         color: "#e377c2"
         symbol: "*"
         iuse: "-1"
-  - kx: "280"
+  - kx: 280
     details:
       - var: uv
         abbreviation: SFCSHP
@@ -117,7 +117,7 @@ observations:
         color: "#ce6dbd"
         symbol: p
         iuse: "-1"
-  - kx: "282"
+  - kx: 282
     details:
       - var: uv
         abbreviation: SFCSHP
@@ -125,7 +125,7 @@ observations:
         color: "#7f7f7f"
         symbol: "*"
         iuse: "1"
-  - kx: "181"
+  - kx: 181
     details:
       - var: ps
         abbreviation: ADPSFC
@@ -151,7 +151,7 @@ observations:
         color: "#17becf"
         symbol: "*"
         iuse: "-1"
-  - kx: "187"
+  - kx: 187
     details:
       - var: ps
         abbreviation: ADPSFC
@@ -171,7 +171,7 @@ observations:
         color: "#B89441"
         symbol: "*"
         iuse: "-1"
-  - kx: "281"
+  - kx: 281
     details:
       - var: uv
         abbreviation: ADPSFC
@@ -179,7 +179,7 @@ observations:
         color: "#5254a3"
         symbol: "*"
         iuse: "-1"
-  - kx: "183"
+  - kx: 183
     details:
       - var: ps
         abbreviation: ADPSFC
@@ -205,7 +205,7 @@ observations:
         color: "#4B3F16"
         symbol: "*"
         iuse: "-1"
-  - kx: "284"
+  - kx: 284
     details:
       - var: uv
         abbreviation: ADPSFC SFCSHP
@@ -213,7 +213,7 @@ observations:
         color: "#773233"
         symbol: "*"
         iuse: "-1"
-  - kx: "287"
+  - kx: 287
     details:
       - var: uv
         abbreviation: ADPSFC
@@ -221,7 +221,7 @@ observations:
         color: "#437939"
         symbol: "*"
         iuse: "-1"
-  - kx: "126"
+  - kx: 126
     details:
       - var: t
         abbreviation: RASSDA
@@ -229,7 +229,7 @@ observations:
         color: "#e7969c"
         symbol: s
         iuse: "-1"
-  - kx: "210"
+  - kx: 210
     details:
       - var: uv
         abbreviation: SYNDAT
@@ -237,7 +237,7 @@ observations:
         color: "#793963"
         symbol: "*"
         iuse: "1"
-  - kx: "220"
+  - kx: 220
     details:
       - var: uv
         abbreviation: ADPUPA
@@ -245,7 +245,7 @@ observations:
         color: "#cedb9c"
         symbol: "*"
         iuse: "1"
-  - kx: "221"
+  - kx: 221
     details:
       - var: uv
         abbreviation: ADPUPA
@@ -253,7 +253,7 @@ observations:
         color: "#a55194"
         symbol: s
         iuse: "1"
-  - kx: "223"
+  - kx: 223
     details:
       - var: uv
         abbreviation: PROFLR
@@ -261,7 +261,7 @@ observations:
         color: "#95434a"
         symbol: s
         iuse: "-1"
-  - kx: "224"
+  - kx: 224
     details:
       - var: uv
         abbreviation: VADWND
@@ -269,7 +269,7 @@ observations:
         color: "#8ca252"
         symbol: x
         iuse: "1"
-  - kx: "228"
+  - kx: 228
     details:
       - var: uv
         abbreviation: PROFLR
@@ -277,7 +277,7 @@ observations:
         color: "#378ef4"
         symbol: "*"
         iuse: "-1"
-  - kx: "229"
+  - kx: 229
     details:
       - var: uv
         abbreviation: PROFLR
@@ -285,7 +285,7 @@ observations:
         color: "#7b4173"
         symbol: s
         iuse: "1"
-  - kx: "232"
+  - kx: 232
     details:
       - var: uv
         abbreviation: ADPUPA
@@ -293,7 +293,7 @@ observations:
         color: "#bd9e39"
         symbol: P
         iuse: "1"
-  - kx: "240"
+  - kx: 240
     details:
       - var: uv
         abbreviation: SATWND
@@ -301,7 +301,7 @@ observations:
         color: "#715E22"
         symbol: P
         iuse: "-1"
-  - kx: "242"
+  - kx: 242
     details:
       - var: uv
         abbreviation: SATWND
@@ -309,7 +309,7 @@ observations:
         color: "#7a49a5"
         symbol: s
         iuse: "1"
-  - kx: "243"
+  - kx: 243
     details:
       - var: uv
         abbreviation: SATWND
@@ -317,7 +317,7 @@ observations:
         color: "#875BAE"
         symbol: s
         iuse: "1"
-  - kx: "244"
+  - kx: 244
     details:
       - var: uv
         abbreviation: SATWND
@@ -325,7 +325,7 @@ observations:
         color: "#AF91C9"
         symbol: s
         iuse: "1"
-  - kx: "245"
+  - kx: 245
     details:
       - var: uv
         abbreviation: SATWND
@@ -333,7 +333,7 @@ observations:
         color: "#9c9ede"
         symbol: "*"
         iuse: "1"
-  - kx: "246"
+  - kx: 246
     details:
       - var: uv
         abbreviation: SATWND
@@ -341,7 +341,7 @@ observations:
         color: "#ad494a"
         symbol: o
         iuse: "1"
-  - kx: "247"
+  - kx: 247
     details:
       - var: uv
         abbreviation: SATWND
@@ -349,7 +349,7 @@ observations:
         color: "#637939"
         symbol: p
         iuse: "1"
-  - kx: "250"
+  - kx: 250
     details:
       - var: uv
         abbreviation: SATWND
@@ -363,7 +363,7 @@ observations:
         color: "#8c6d31"
         symbol: x
         iuse: "-1"
-  - kx: "251"
+  - kx: 251
     details:
       - var: uv
         abbreviation: SATWND
@@ -371,7 +371,7 @@ observations:
         color: "#6b3035"
         symbol: x
         iuse: "-1"
-  - kx: "252"
+  - kx: 252
     details:
       - var: uv
         abbreviation: SATWND
@@ -379,7 +379,7 @@ observations:
         color: "#6b6ecf"
         symbol: "8"
         iuse: "1"
-  - kx: "253"
+  - kx: 253
     details:
       - var: uv
         abbreviation: SATWND
@@ -387,7 +387,7 @@ observations:
         color: "#d6616b"
         symbol: "8"
         iuse: "1"
-  - kx: "254"
+  - kx: 254
     details:
       - var: uv
         abbreviation: SATWND
@@ -395,7 +395,7 @@ observations:
         color: "#575738"
         symbol: s
         iuse: "1"
-  - kx: "257"
+  - kx: 257
     details:
       - var: uv
         abbreviation: SATWND
@@ -403,7 +403,7 @@ observations:
         color: "#dbdb8d"
         symbol: "*"
         iuse: "1"
-  - kx: "258"
+  - kx: 258
     details:
       - var: uv
         abbreviation: SATWND
@@ -411,7 +411,7 @@ observations:
         color: "#9edae5"
         symbol: p
         iuse: "1"
-  - kx: "259"
+  - kx: 259
     details:
       - var: uv
         abbreviation: SATWND
@@ -419,7 +419,7 @@ observations:
         color: "#108590"
         symbol: o
         iuse: "1"
-  - kx: "260"
+  - kx: 260
     details:
       - var: uv
         abbreviation: SATWND
@@ -427,7 +427,7 @@ observations:
         color: "#8BDEE7"
         symbol: o
         iuse: "-1"
-  - kx: "290"
+  - kx: 290
     details:
       - var: uv
         abbreviation: ASCATW
@@ -435,7 +435,7 @@ observations:
         color: "#e7ba52"
         symbol: x
         iuse: "-1"
-  - kx: "3"
+  - kx: 3
     details:
       - var: gps
         abbreviation: GPS
@@ -443,7 +443,7 @@ observations:
         color: "#297df1"
         symbol: "8"
         iuse: "-1"
-  - kx: "4"
+  - kx: 4
     details:
       - var: gps
         abbreviation: GPS
@@ -451,7 +451,7 @@ observations:
         color: "#fe6f22"
         symbol: s
         iuse: "-1"
-  - kx: "740"
+  - kx: 740
     details:
       - var: gps
         abbreviation: GPS
@@ -459,7 +459,7 @@ observations:
         color: "#42b7a3"
         symbol: "*"
         iuse: "-1"
-  - kx: "745"
+  - kx: 745
     details:
       - var: gps
         abbreviation: GPS
@@ -467,7 +467,7 @@ observations:
         color: "#de57fb"
         symbol: o
         iuse: "-1"
-  - kx: "744"
+  - kx: 744
     details:
       - var: gps
         abbreviation: GPS
@@ -475,7 +475,7 @@ observations:
         color: "#f1d34d"
         symbol: p
         iuse: "-1"
-  - kx: "741"
+  - kx: 741
     details:
       - var: gps
         abbreviation: GPS
@@ -483,7 +483,7 @@ observations:
         color: "#d61d14"
         symbol: P
         iuse: "-1"
-  - kx: "722"
+  - kx: 722
     details:
       - var: gps
         abbreviation: GPS
@@ -491,4 +491,11 @@ observations:
         color: "#2e8e24"
         symbol: x
         iuse: "-1"
-
+  - kx: "n15"
+    details:
+      - var: amsua
+        abbreviation: radiance
+        instrument: Radiance data of the AMSU-A sensor from NOAA-15 satellite
+        color: "#2e8e24"
+        symbol: x
+        iuse: "1"
