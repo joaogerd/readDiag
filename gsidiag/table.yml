@@ -19,6 +19,14 @@ observations:
         color: "#B25809"
         symbol: "*"
         iuse: "1"
+  - kx: 126
+    details:
+      - var: t
+        abbreviation: RASSDA
+        instrument: RASS Perfil rede NOAA (NPN) ou multiagencia (MAP)
+        color: "#e7969c"
+        symbol: s
+        iuse: "-1"
   - kx: 130
     details:
       - var: t
@@ -33,14 +41,6 @@ observations:
         color: "#2ca02c"
         symbol: "*"
         iuse: "-1"
-  - kx: 230
-    details:
-      - var: uv
-        abbreviation: AIRCFT
-        instrument: AIREP PIREP Avião Sensores
-        color: "#98df8a"
-        symbol: "*"
-        iuse: "1"
   - kx: 132
     details:
       - var: t
@@ -103,28 +103,6 @@ observations:
         color: "#e377c2"
         symbol: "*"
         iuse: "-1"
-  - kx: 280
-    details:
-      - var: uv
-        abbreviation: SFCSHP
-        instrument: Boias e sensor navios
-        color: "#f7b6d2"
-        symbol: "*"
-        iuse: "1"
-      - var: t
-        abbreviation: ADPUPA
-        instrument: Dropssonda
-        color: "#ce6dbd"
-        symbol: p
-        iuse: "-1"
-  - kx: 282
-    details:
-      - var: uv
-        abbreviation: SFCSHP
-        instrument: Boias e sensor navios
-        color: "#7f7f7f"
-        symbol: "*"
-        iuse: "1"
   - kx: 181
     details:
       - var: ps
@@ -171,14 +149,6 @@ observations:
         color: "#B89441"
         symbol: "*"
         iuse: "-1"
-  - kx: 281
-    details:
-      - var: uv
-        abbreviation: ADPSFC
-        instrument: Estação a superfície com pressão
-        color: "#5254a3"
-        symbol: "*"
-        iuse: "-1"
   - kx: 183
     details:
       - var: ps
@@ -201,39 +171,15 @@ observations:
         iuse: "-1"
       - var: q
         abbreviation: ADPSFC
-        instrument: Boias a estações sem pressão
+        instrument: Boias a estacoes sem pressao
         color: "#4B3F16"
         symbol: "*"
-        iuse: "-1"
-  - kx: 284
-    details:
-      - var: uv
-        abbreviation: ADPSFC SFCSHP
-        instrument: Boias number a estações sem pressão
-        color: "#773233"
-        symbol: "*"
-        iuse: "-1"
-  - kx: 287
-    details:
-      - var: uv
-        abbreviation: ADPSFC
-        instrument: Boias a estações sem pressão
-        color: "#437939"
-        symbol: "*"
-        iuse: "-1"
-  - kx: 126
-    details:
-      - var: t
-        abbreviation: RASSDA
-        instrument: RASS Perfil rede NOAA (NPN) ou multiagencia (MAP)
-        color: "#e7969c"
-        symbol: s
         iuse: "-1"
   - kx: 210
     details:
       - var: uv
         abbreviation: SYNDAT
-        instrument: Sintéticos (BOGUS) vento ciclone tropical
+        instrument: Sinteticos (BOGUS) vento ciclone tropical
         color: "#793963"
         symbol: "*"
         iuse: "1"
@@ -249,7 +195,7 @@ observations:
     details:
       - var: uv
         abbreviation: ADPUPA
-        instrument: Balão Piloto (PIBAL)
+        instrument: Balao Piloto (PIBAL)
         color: "#a55194"
         symbol: s
         iuse: "1"
@@ -426,6 +372,52 @@ observations:
         instrument: VIIRS IR (longa onda) der. nuvem (NPP)
         color: "#8BDEE7"
         symbol: o
+        iuse: "-1"
+  - kx: 280
+    details:
+      - var: uv
+        abbreviation: SFCSHP
+        instrument: Boias e sensor navios
+        color: "#f7b6d2"
+        symbol: "*"
+        iuse: "1"
+      - var: t
+        abbreviation: ADPUPA
+        instrument: Dropssonda
+        color: "#ce6dbd"
+        symbol: p
+        iuse: "-1"
+  - kx: 281
+    details:
+      - var: uv
+        abbreviation: ADPSFC
+        instrument: Estação a superficie com pressao
+        color: "#5254a3"
+        symbol: "*"
+        iuse: "-1"
+  - kx: 282
+    details:
+      - var: uv
+        abbreviation: SFCSHP
+        instrument: Boias e sensor navios
+        color: "#7f7f7f"
+        symbol: "*"
+        iuse: "1"
+  - kx: 284
+    details:
+      - var: uv
+        abbreviation: ADPSFC SFCSHP
+        instrument: Boias number a estacoes sem pressao
+        color: "#773233"
+        symbol: "*"
+        iuse: "-1"
+  - kx: 287
+    details:
+      - var: uv
+        abbreviation: ADPSFC
+        instrument: Boias a estacoes sem pressao
+        color: "#437939"
+        symbol: "*"
         iuse: "-1"
   - kx: 290
     details:
