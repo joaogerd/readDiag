@@ -1554,7 +1554,7 @@ class plot_diag(object):
 
         return
 
-    def statcount(self, varName=None, varType=None, noiqc=False, dateIni=None, dateFin=None, nHour="06", figTS=False, figMap=False):
+    def statcount(self, varName=None, varType=None, noiqc=False, dateIni=None, dateFin=None, nHour="06", channel=None, figTS=False, figMap=False, **kwargs):
 
         '''
         The StatCount function plots a time series of assimilated, monitored and rejected data. 
@@ -1567,6 +1567,7 @@ class plot_diag(object):
         dateIni = 2013010100     # Inicial Date
         dateFin = 2013010900     # Final Date
         nHour = "06"             # Time Interval
+        channel = None           # Radiance channel number (None for the conventional dataset)
         figTS = True             # Creates the time series plot
         figMap = False           # Creates the spatial plot for each time
 
@@ -1620,88 +1621,205 @@ class plot_diag(object):
         date  = datei
 
         assi, reje, moni, DayHour_tmp = [], [], [], []
+        moniAssi, moniReje = [], []
         f = 0
         while (date <= datef):
 
             datefmt = date.strftime("%Y%m%d%H")
             DayHour_tmp.append(date.strftime("%d%H"))
-        
-            exp = "(iuse==1)"
-            assim = self[f].obsInfo[varName].loc[varType].query(exp)
-            exp = "(iuse==-1) & (idqc >= "+str(lim_qm)+" and idqc <= 15)"
-            monit = self[f].obsInfo[varName].loc[varType].query(exp)
-            exp = "(iuse==-1) & ((idqc > 15 or idqc <= 0) or (idqc > 0 and idqc < "+str(lim_qm)+"))"
-            rejei = self[f].obsInfo[varName].loc[varType].query(exp)
-
-            assi.append(len(assim))
-            moni.append(len(monit))
-            reje.append(len(rejei))
-
-            if (figMap):
-                df_list = [assim, monit, rejei]
-                name_list = ["Assimilated ["+str(len(assim))+"]","Monitored ["+str(len(monit))+"]","Rejected ["+str(len(rejei))+"]"]
-                marker_list = [".","x","*"]
-                color_list = ["green","blue","red"]
-
-                setColor = 0 
-                legend_labels = []
-
-                fig = plt.figure(figsize=(12, 6))
-                ax  = fig.add_subplot(1, 1, 1)
-                ax = geoMap(area=None,ax=ax)
-                for dfi,namedf,mk,cl in zip(df_list,name_list,marker_list,color_list):
-                    df    = dfi
-                    legend_labels.append(mpatches.Patch(color=cl, label=namedf) )
-                    ax = df.plot(ax=ax,legend=True, marker=mk, color=cl)
-                    setColor += 1
-                    plt.legend(handles=legend_labels, numpoints=1, loc='lower center', bbox_to_anchor=(0.5, -0.02), 
-                            fancybox=True, shadow=False, frameon=False, ncol=3, prop={"size": 10})
-                date_title = str(date.strftime("%d%b%Y - %H%M")) + ' GMT'
-                plt.title(date_title, loc='right', fontsize=10)
-                plt.title(instrument_title, loc='left', fontsize=9)
-
-                plt.tight_layout()
-                plt.savefig('TotalObs_'+str(varName) + '-' + str(varType)+'_'+datefmt+'.png', bbox_inches='tight', dpi=100)
-    
+            
+            
+            if(channel == None):  # Conventional
+                exp = "(iuse==1)"
+                assim = self[f].obsInfo[varName].loc[varType].query(exp)
+                exp = "(iuse==-1) & (idqc >= "+str(lim_qm)+" and idqc <= 15)"
+                monit = self[f].obsInfo[varName].loc[varType].query(exp)
+                exp = "(iuse==-1) & ((idqc > 15 or idqc <= 0) or (idqc > 0 and idqc < "+str(lim_qm)+"))"
+                rejei = self[f].obsInfo[varName].loc[varType].query(exp)
+                
+                assi.append(len(assim))
+                moni.append(len(monit))
+                reje.append(len(rejei))
+                
+                if (figMap):
+                    df_list = [assim, monit, rejei]
+                    name_list = ["Assimilated ["+str(len(assim))+"]","Monitored ["+str(len(monit))+"]","Rejected ["+str(len(rejei))+"]"]
+                    marker_list = [".","x","*"]     #["*","x","."]
+                    color_list = ["green","blue","red"]
+                    
+                    setColor = 0 
+                    legend_labels = []
+                    
+                    fig = plt.figure(figsize=(12, 6))
+                    ax  = fig.add_subplot(1, 1, 1)
+                    ax = geoMap(area=None,ax=ax)
+                    for dfi,namedf,mk,cl in zip(df_list,name_list,marker_list,color_list):
+                        df    = dfi
+                        legend_labels.append(mpatches.Patch(color=cl, label=namedf) )
+                        ax = df.plot(ax=ax,legend=True, marker=mk, color=cl, **kwargs)
+                        setColor += 1
+                        plt.legend(handles=legend_labels, numpoints=1, loc='lower center', bbox_to_anchor=(0.5, -0.02), 
+                                fancybox=True, shadow=False, frameon=False, ncol=3, prop={"size": 10})
+                    
+                    date_title = str(date.strftime("%d%b%Y - %H%M")) + ' GMT'
+                    plt.title(date_title, loc='right', fontsize=10)
+                    plt.title(instrument_title, loc='left', fontsize=9)
+                    
+                    plt.tight_layout()
+                    plt.savefig('TotalObs_'+str(varName) + '-' + str(varType)+'_'+datefmt+'.png', bbox_inches='tight', dpi=100)
+                
+                
+            else:   # Radiance
+                exp = "(nchan=="+str(channel)+" & iuse==1) & (idqc==0.0)"
+                assim = self[f].obsInfo[varName].loc[varType].query(exp)
+                exp = "(nchan=="+str(channel)+" & iuse==-1) & (idqc==0.0)"
+                monitAssim = self[f].obsInfo[varName].loc[varType].query(exp)
+                exp = "(nchan=="+str(channel)+" & iuse==-1) & (idqc!=0.0)"
+                monitRejei = self[f].obsInfo[varName].loc[varType].query(exp)
+                exp = "(nchan=="+str(channel)+" & iuse==1) & (idqc!=0.0)"
+                rejei = self[f].obsInfo[varName].loc[varType].query(exp)
+                
+                assi.append(len(assim))
+                moniAssi.append(len(monitAssim))
+                moniReje.append(len(monitRejei))
+                reje.append(len(rejei))
+                
+                # Radiance plots
+                if (figMap):
+                    df_list = [assim, rejei]    # Case: assimilated and rejected
+                    name_list = ["Assimilated ["+str(len(assim))+"]","Rejected ["+str(len(rejei))+"]"]
+                    marker_list = [".","x"]    #[".","x","*"]
+                    color_list = ["blue","red"]
+                    
+                    setColor = 0 
+                    legend_labels = []
+                    
+                    fig = plt.figure(figsize=(12, 6))
+                    ax  = fig.add_subplot(1, 1, 1)
+                    ax = geoMap(area=None,ax=ax)
+                    for dfi,namedf,mk,cl in zip(df_list,name_list,marker_list,color_list):
+                        df    = dfi
+                        legend_labels.append(mpatches.Patch(color=cl, label=namedf) )
+                        ax = df.plot(ax=ax,legend=True, marker=mk, color=cl, **kwargs) # markersize=4.80
+                        setColor += 1
+                        plt.legend(handles=legend_labels, numpoints=1, loc='lower center', bbox_to_anchor=(0.5, -0.02), 
+                                fancybox=True, shadow=False, frameon=False, ncol=2, prop={"size": 10})
+                        
+                    date_title = str(date.strftime("%d%b%Y - %H%M")) + ' GMT'
+                    plt.title(date_title, loc='right', fontsize=10)
+                    plt.title(instrument_title, loc='left', fontsize=9)
+                    
+                    plt.tight_layout()
+                    plt.savefig('Assim-Rejei_'+str(varName) + '-' + str(varType)+'_'+datefmt+'.png', bbox_inches='tight', dpi=100)
+                    
+                    # Monitored cases: would be assimilated or rejected
+                    df_list = [monitAssim, monitRejei]
+                    name_list = ["Monitored-Assimilated ["+str(len(monitAssim))+"]","Monitored-Rejected ["+str(len(monitRejei))+"]"]
+                    marker_list = ["^","v"]    #[".","x","*"]
+                    color_list = ["blue","red"]
+                    
+                    setColor = 0 
+                    legend_labels = []
+                    
+                    fig = plt.figure(figsize=(12, 6))
+                    ax  = fig.add_subplot(1, 1, 1)
+                    ax = geoMap(area=None,ax=ax)
+                    for dfi,namedf,mk,cl in zip(df_list,name_list,marker_list,color_list):
+                        df    = dfi
+                        legend_labels.append(mpatches.Patch(color=cl, label=namedf) )
+                        ax = df.plot(ax=ax,legend=True, marker=mk, color=cl, **kwargs) #   markersize=3.0
+                        setColor += 1
+                        plt.legend(handles=legend_labels, numpoints=1, loc='lower center', bbox_to_anchor=(0.5, -0.02), 
+                                fancybox=True, shadow=False, frameon=False, ncol=2, prop={"size": 10})
+                        
+                    date_title = str(date.strftime("%d%b%Y - %H%M")) + ' GMT'
+                    plt.title(date_title, loc='right', fontsize=10)
+                    plt.title(instrument_title, loc='left', fontsize=9)
+                    
+                    plt.tight_layout()
+                    plt.savefig('Monitored_'+str(varName) + '-' + str(varType)+'_'+datefmt+'.png', bbox_inches='tight', dpi=100)
+                    
+                    
+                    
             f = f + 1
             date = date + timedelta(hours=int(nHour))
             date_finale = date
+            
 
 
         if (figTS):
-            if(len(DayHour_tmp) > 4):
-                DayHour = [hr if (ix % int(len(DayHour_tmp) / 4)) == 0 else '' for ix, hr in enumerate(DayHour_tmp)]
-            else:
-                DayHour = DayHour_tmp
-            
-            x_axis      = np.arange(0, len(DayHour), 1)
-            date_title = str(datei.strftime("%d%b")) + '-' + str(date_finale.strftime("%d%b")) + ' ' + str(date_finale.strftime("%Y"))
-            
-            fig = plt.figure(figsize=(6, 4))
-            fig, ax1 = plt.subplots(1, 1)
-            plt.style.use('seaborn-v0_8-ticks')
-
-            plt.axhline(y=0.0,ls='solid',c='#d3d3d3')
-
-            ax1.plot(x_axis, assi, "o", label="Assimilated \n["+str(sum(assi))+"]", color='green')
-            ax1.plot(x_axis, moni, "o", label="Monitored \n["+str(sum(moni))+"]", color='blue')
-            ax1.plot(x_axis, reje, "o", label="Rejected \n["+str(sum(reje))+"]", color='red')
-            ax1.legend(fancybox=True, frameon=True, shadow=True, loc="upper center",ncol=3)
-            ax1.set_xlabel('Date (DayHour)', fontsize=10)
-            plt.title(date_title, loc='right', fontsize=10)
-            plt.title(instrument_title, loc='left', fontsize=9)
+            if(channel == None):   # Conventional
+                if(len(DayHour_tmp) > 4):
+                    DayHour = [hr if (ix % int(len(DayHour_tmp) / 4)) == 0 else '' for ix, hr in enumerate(DayHour_tmp)]
+                else:
+                    DayHour = DayHour_tmp
                 
-            ax1.set_ylim(np.round(-0.05*np.max([assi,moni,reje])), np.round(1.25*np.max([assi,moni,reje])))
-            ax1.set_ylabel('Total Observations', color='black', fontsize=10)
-            ax1.tick_params('y', colors='black')
-            plt.xticks(x_axis, DayHour)
-            major_ticks = [ DayHour.index(dh) for dh in filter(None,DayHour) ]
-            ax1.set_xticks(major_ticks)
-            plt.axhline(y=np.mean(assi),ls='dotted',c='lightgray')
-            plt.axhline(y=np.mean(moni),ls='dotted',c='lightgray')
-            plt.axhline(y=np.mean(reje),ls='dotted',c='lightgray')
-            plt.tight_layout()
-            plt.savefig('time_series_'+str(varName) + '-' + str(varType)+'_TotalObs.png', bbox_inches='tight', dpi=100)
+                x_axis      = np.arange(0, len(DayHour), 1)
+                date_title = str(datei.strftime("%d%b")) + '-' + str(date_finale.strftime("%d%b")) + ' ' + str(date_finale.strftime("%Y"))
+            
+                fig = plt.figure(figsize=(6, 4))
+                fig, ax1 = plt.subplots(1, 1)
+                plt.style.use('seaborn-v0_8-ticks')
+
+                plt.axhline(y=0.0,ls='solid',c='#d3d3d3')
+
+                ax1.plot(x_axis, assi, "o", label="Assimilated \n["+str(sum(assi))+"]", color='green')
+                ax1.plot(x_axis, moni, "o", label="Monitored \n["+str(sum(moni))+"]", color='blue')
+                ax1.plot(x_axis, reje, "o", label="Rejected \n["+str(sum(reje))+"]", color='red')
+                ax1.legend(fancybox=True, frameon=True, shadow=True, loc="upper center",ncol=3)
+                ax1.set_xlabel('Date (DayHour)', fontsize=10)
+                plt.title(date_title, loc='right', fontsize=10)
+                plt.title(instrument_title, loc='left', fontsize=9)
+                
+                ax1.set_ylim(np.round(-0.05*np.max([assi,moni,reje])), np.round(1.25*np.max([assi,moni,reje])))
+                ax1.set_ylabel('Total Observations', color='black', fontsize=10)
+                ax1.tick_params('y', colors='black')
+                plt.xticks(x_axis, DayHour)
+                major_ticks = [ DayHour.index(dh) for dh in filter(None,DayHour) ]
+                ax1.set_xticks(major_ticks)
+                plt.axhline(y=np.mean(assi),ls='dotted',c='lightgray')
+                plt.axhline(y=np.mean(moni),ls='dotted',c='lightgray')
+                plt.axhline(y=np.mean(reje),ls='dotted',c='lightgray')
+                plt.tight_layout()
+                plt.savefig('time_series_'+str(varName) + '-' + str(varType)+'_TotalObs.png', bbox_inches='tight', dpi=100)
+                
+            else:   # Radiance
+                if(len(DayHour_tmp) > 4):
+                    DayHour = [hr if (ix % int(len(DayHour_tmp) / 4)) == 0 else '' for ix, hr in enumerate(DayHour_tmp)]
+                else:
+                    DayHour = DayHour_tmp
+                
+                x_axis      = np.arange(0, len(DayHour), 1)
+                date_title = str(datei.strftime("%d%b")) + '-' + str(date_finale.strftime("%d%b")) + ' ' + str(date_finale.strftime("%Y"))
+            
+                fig = plt.figure(figsize=(6, 4))
+                fig, ax1 = plt.subplots(1, 1)
+                plt.style.use('seaborn-v0_8-ticks')
+
+                plt.axhline(y=0.0,ls='solid',c='#d3d3d3')
+
+                ax1.plot(x_axis, assi, "o", label="Assimilated \n["+str(sum(assi))+"]", color='green')
+                ax1.plot(x_axis, moniAssi, "o", label="Monitored-Assim \n["+str(sum(moniAssi))+"]", color='blue')
+                ax1.plot(x_axis, moniReje, "o", label="Monitored-Rejei \n["+str(sum(moniReje))+"]", color='purple')
+                ax1.plot(x_axis, reje, "o", label="Rejected \n["+str(sum(reje))+"]", color='red')
+                ax1.legend(fancybox=True, frameon=True, shadow=True, loc="best",ncol=1)
+                ax1.set_xlabel('Date (DayHour)', fontsize=10)
+                plt.title(date_title, loc='right', fontsize=10)
+                plt.title(instrument_title, loc='left', fontsize=9)
+                
+                ax1.set_ylim(np.round(-0.05*np.max([assi,moniAssi,moniReje,reje])), np.round(1.25*np.max([assi,moniAssi,moniReje,reje])))
+                ax1.set_ylabel('Total Observations', color='black', fontsize=10)
+                ax1.tick_params('y', colors='black')
+                plt.xticks(x_axis, DayHour)
+                major_ticks = [ DayHour.index(dh) for dh in filter(None,DayHour) ]
+                ax1.set_xticks(major_ticks)
+                plt.axhline(y=np.mean(assi),ls='dotted',c='lightgray')
+                plt.axhline(y=np.mean(moniAssi),ls='dotted',c='lightgray')
+                plt.axhline(y=np.mean(moniReje),ls='dotted',c='lightgray')
+                plt.axhline(y=np.mean(reje),ls='dotted',c='lightgray')
+                plt.tight_layout()
+                plt.savefig('time_series_'+str(varName) + '-' + str(varType)+'_TotalObs.png', bbox_inches='tight', dpi=100)
+
 
 #EOC
 #-----------------------------------------------------------------------------#
