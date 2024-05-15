@@ -1576,7 +1576,7 @@ class plot_diag(object):
         vmaxOMA = 4.0         # Y-axis Maximum Value for OmF or OmA
         vminSTD = 0.0         # Y-axis Minimum Value for Standard Deviation
         vmaxSTD = 14.0        # Y-axis Maximum Value for Standard Deviation
-        nchan = 1   (revisar) # Time Series chanel, if any (None), all nchan are plotted
+        channel = 1           # Time Series channel, if any (None), all nchan are plotted
         Lay = 15    (revisar)  # The size of half layer in hPa, if the plot type is sampled by layers.
         SingleL = "OneL" (revisar)     # When level is fixed, ex: 1000 hPa, the plot can be exactly in this level (SingleL = None),
                               # on all levels as a single layer (SingleL = "All") or on a layer centered in Level and bounded by
@@ -1614,13 +1614,16 @@ class plot_diag(object):
             cmaski = mask
 
         if type(channel) == list:
-            zchan_def = channel
-            Level = "Zlevs"
+            zchan = channel
+            chanList = 1
         else:
-            zchan_def = channel
-            Level = list(map(int,self[0].zlevs))
-
-        print(zchan_def,Level)
+            zchan = channel
+            chanList = 0
+            Level = 1000 
+            
+        zlevs_def = list(map(int,self[0].zlevs))
+            
+        print(zchan,chanList)
 
         datei = datetime.strptime(str(dateIni), "%Y%m%d%H")
         datef = datetime.strptime(str(dateFin), "%Y%m%d%H")
@@ -1630,9 +1633,6 @@ class plot_diag(object):
         info_check = {}
         f = 0
         
-        print("Saindo normalmente...")
-        sys.exit(0)
-                
         while (date <= datef):
             
             datefmt = date.strftime("%Y%m%d%H")
@@ -1641,20 +1641,21 @@ class plot_diag(object):
             dataDict = self[f].obsInfo[varName].query(maski).loc[varType]
             info_check.update({date.strftime("%d%H"):True})
 
-            if 'prs' in dataDict and (Level == None or Level == "Zlevs"):
+            if 'nchan' in dataDict and (Level == None or Level == "Zlevs"):
                 if(Level == None):
                     levs_tmp.extend(list(set(map(int,dataDict['prs']))))
                 else:
                     levs_tmp = zlevs_def[::-1]
                 info_check.update({date.strftime("%d%H"):True})
-                print(date.strftime(' Preparing data for: ' + "%Y-%m-%d:%H"))
+                print(date.strftime(' Preparing data for: Canais de radiancia' + "%Y-%m-%d:%H"))
                 print(' Levels: ', sorted(levs_tmp), end='\n')
                 print("")
                 f = f + 1
             else:
                 if (Level != None and Level != "Zlevs") and info_check[date.strftime("%d%H")] == True:
                     levs_tmp.extend([Level])
-                    print(date.strftime(' Preparing data for: ' + "%Y-%m-%d:%H"), ' - Level: ', Level , end='\n')
+                    info_check.update({date.strftime("%d%H"):True})
+                    print(date.strftime(' Preparing data for: ' + "%Y-%m-%d:%H"), ' - Channel de radiancia: ', zchan , end='\n')
                     f = f + 1
                 else:
                     info_check.update({date.strftime("%d%H"):False})
@@ -1682,6 +1683,8 @@ class plot_diag(object):
         levs_tmp.clear()
         del(levs_tmp[:])
 
+        
+        print('%%%%%%%%%%%%%%%%%%SingleL=',SingleL)
         f = 0
         while (date <= datef):
 
@@ -1690,45 +1693,60 @@ class plot_diag(object):
 
             try: 
                 if info_check[date.strftime("%d%H")] == True:
+                    print('%%%%%%%%%%%%%%%%%% Passei em 1',SingleL)
                     dataDict = self[f].obsInfo[varName].query(maski).loc[varType]
                     dataByLevs, mean_dataByLevs, std_dataByLevs, count_dataByLevs = {}, {}, {}, {}
                     dataByLevsa, mean_dataByLevsa, std_dataByLevsa, count_dataByLevsa = {}, {}, {}, {}
                     [dataByLevs.update({int(lvl): []}) for lvl in levs]
                     [dataByLevsa.update({int(lvl): []}) for lvl in levs]
                     if Level != None and Level != "Zlevs":
+                        print('%%%%%%%%%%%%%%%%%% Passei em 2',SingleL)
                         if SingleL == None:
+                            print('%%%%%%%%%%%%%%%%%% Passei em 3',SingleL)
                             [ dataByLevs[int(p)].append(v) for p,v in zip(self[f].obsInfo[varName].query(maski).loc[varType].prs,self[f].obsInfo[varName].query(maski).loc[varType].omf) if int(p) == Level ]
                             [ dataByLevsa[int(p)].append(v) for p,v in zip(self[f].obsInfo[varName].query(maski).loc[varType].prs,self[f].obsInfo[varName].query(maski).loc[varType].oma) if int(p) == Level ]
                             forplot = ' Level='+str(Level) +'hPa'
                             forplotname = 'level_'+str(Level) +'hPa'
                         else:
+                            print('%%%%%%%%%%%%%%%%%% Passei em 4',SingleL)
                             if SingleL == "All":
+                                print('%%%%%%%%%%%%%%%%%% Passei em 5',SingleL)
                                 [ dataByLevs[Level].append(v) for v in self[f].obsInfo[varName].query(maski).loc[varType].omf ]
                                 [ dataByLevsa[Level].append(v) for v in self[f].obsInfo[varName].query(maski).loc[varType].oma ]
                                 forplot = ' Layer=Entire Atmosphere'
                                 forplotname = 'layer_allAtm'
                             else:
+                                print('%%%%%%%%%%%%%%%%%% Passei em 6',SingleL)
                                 if SingleL == "OneL":
+                                    print('%%%%%%%%%%%%%%%%%% Passei em 7',SingleL)
                                     if Lay == None:
                                         print("")
                                         print(" Variable Lay is None, resetting it to its default value: "+str(Laydef)+" hPa.")
                                         print("")
                                         Lay = Laydef
-                                    [ dataByLevs[int(Level)].append(v) for p,v in zip(self[f].obsInfo[varName].query(maski).loc[varType].prs,self[f].obsInfo[varName].query(maski).loc[varType].omf) if int(p) >=Level-Lay and int(p) <Level+Lay ]
-                                    [ dataByLevsa[int(Level)].append(v) for p,v in zip(self[f].obsInfo[varName].query(maski).loc[varType].prs,self[f].obsInfo[varName].query(maski).loc[varType].oma) if int(p) >=Level-Lay and int(p) <Level+Lay ]
-                                    forplot = ' Layer='+str(Level+Lay)+'-'+str(Level-Lay)+'hPa'
-                                    forplotname = 'layer_'+str(Level+Lay)+'-'+str(Level-Lay)+'hPa'
+                                    print('%%%%%%%%%%%%%%%%%% Passei em 7.5: antes do calculo do nchan',SingleL)    
+                                    forplot = 'Channel ='+str(zchan)
+                                    forplotname = 'Channel_'+str(zchan)
+                                    [ dataByLevs[int(Level)].append(v) for p,v in zip(self[f].obsInfo[varName].query(maski).loc[varType].nchan,self[f].obsInfo[varName].query(maski).loc[varType].omf) if int(p) == zchan ]
+                                    print('%%%%%%%%%%%%%%%%%% Passei em 8: fazendo o calculo do nchan',SingleL)
+                                    [ dataByLevsa[int(Level)].append(v) for p,v in zip(self[f].obsInfo[varName].query(maski).loc[varType].nchan,self[f].obsInfo[varName].query(maski).loc[varType].oma) if int(p) == zchan ]
                                 else:
+                                    print('%%%%%%%%%%%%%%%%%% Passei em 9',SingleL)
                                     print(" Wrong value for variable SingleL. Please, check it and rerun the script.")    
                     else:
+                        print('%%%%%%%%%%%%%%%%%% Passei em 10',SingleL)
                         if Level == None:
+                            print('%%%%%%%%%%%%%%%%%% Passei em 11',SingleL)
                             [ dataByLevs[int(p)].append(v) for p,v in zip(self[f].obsInfo[varName].query(maski).loc[varType].prs,self[f].obsInfo[varName].query(maski).loc[varType].omf) ]
                             [ dataByLevsa[int(p)].append(v) for p,v in zip(self[f].obsInfo[varName].query(maski).loc[varType].prs,self[f].obsInfo[varName].query(maski).loc[varType].oma) ]
                             forplotname = 'all_levels_byLevels'
                         else:
+                            print('%%%%%%%%%%%%%%%%%% Passei em 12',SingleL)
                             for ll in range(len(levs)):
+                                print('%%%%%%%%%%%%%%%%%% Passei em 13',SingleL)
                                 lv = levs[ll]
                                 if Lay == None:
+                                    print('%%%%%%%%%%%%%%%%%% Passei em 14',SingleL)
                                     if ll == 0:
                                         Llayi = 0
                                     else:
@@ -1741,6 +1759,7 @@ class plot_diag(object):
                                     cutlevsa = [ v for p,v in zip(self[f].obsInfo[varName].query(maski).loc[varType].prs,self[f].obsInfo[varName].query(maski).loc[varType].oma) if int(p) >=lv-Llayi and int(p) <lv+Llayf ]
                                     forplotname = 'all_levels_filledLayers'
                                 else:
+                                    print('%%%%%%%%%%%%%%%%%% Passei em 15',SingleL)
                                     cutlevs = [ v for p,v in zip(self[f].obsInfo[varName].query(maski).loc[varType].prs,self[f].obsInfo[varName].query(maski).loc[varType].omf) if int(p) >=lv-Lay and int(p) <lv+Lay ]
                                     cutlevsa = [ v for p,v in zip(self[f].obsInfo[varName].query(maski).loc[varType].prs,self[f].obsInfo[varName].query(maski).loc[varType].oma) if int(p) >=lv-Lay and int(p) <lv+Lay ]
                                     forplotname = 'all_levels_bylayers_'+str(Lay)+"hPa"
@@ -1764,7 +1783,9 @@ class plot_diag(object):
                         count_dataByLevsa.update({int(lv): -99})
             
             except:
+                print('%%%%%%%%%%%%%%%%%% Passei em 16',SingleL)
                 if info_check[date.strftime("%d%H")] == True:
+                    print('%%%%%%%%%%%%%%%%%% Passei em 17',SingleL)
                     print("ERROR in time_series function.")
                 else:
                     print(setcolor.WARNING + "    >>> No information on this date (" + str(date.strftime("%Y-%m-%d:%H")) +") <<< " + setcolor.ENDC)
@@ -1804,6 +1825,7 @@ class plot_diag(object):
             date_finale = date
             date = date + timedelta(hours=int(delta))
 
+        
         print()
         print(separator)
         print()
@@ -1973,6 +1995,7 @@ class plot_diag(object):
             plt.style.use('seaborn-v0_8-ticks')
 
             plt.axhline(y=0.0,ls='solid',c='#d3d3d3')
+            print('&&&&&&&forplot',forplot)
             plt.annotate(forplot, xy=(0.0, 0.965), xytext=(0,0), xycoords='axes fraction', textcoords='offset points', color='lightgray', fontweight='bold', fontsize='12',
             horizontalalignment='left', verticalalignment='center')
 
