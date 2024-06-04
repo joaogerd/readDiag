@@ -1559,7 +1559,7 @@ class plot_diag(object):
         
 # radiance inicio
 
-    def time_series_radi(self, varName=None, varType=None, mask=None, dateIni=None, dateFin=None, nHour="06", vminOMA=None, vmaxOMA=None, vminSTD=0.0, vmaxSTD=14.0, channel=None, Lay = None, SingleL=None, Clean=None):
+    def time_series_radi(self, varName=None, varType=None, mask=None, dateIni=None, dateFin=None, nHour="06", vminOMA=None, vmaxOMA=None, vminSTD=0.0, vmaxSTD=14.0, channel=None, Clean=None):
         
         '''
         The time_series_radi function plots a time series for radiance data in different chanell OmF and OmA. This function is different from time_series because the level are not defined by radiance dada.
@@ -1567,8 +1567,8 @@ class plot_diag(object):
         Example:
 
         vName = 'amsua'       # Radiance Sensor 
-        vType = 224           # Source Type satellite
-        mask  = None          # Mask the data by chosen used/not used data, ex: mask='iuse==1'
+        vType = 'n15'         # Source Type satellite
+        mask  = None          # Mask the data by chosen used/not used data, ex: mask='iuse==1 & idqc==0'
         dateIni = 2013010100  # Inicial Date
         dateFin = 2013010900  # Final Date
         nHour = "06"          # Time Interval
@@ -1576,11 +1576,7 @@ class plot_diag(object):
         vmaxOMA = 4.0         # Y-axis Maximum Value for OmF or OmA
         vminSTD = 0.0         # Y-axis Minimum Value for Standard Deviation
         vmaxSTD = 14.0        # Y-axis Maximum Value for Standard Deviation
-        channel = 1           # Time Series channel, if any (None), all nchan are plotted
-        Lay = 15    (revisar)  # The size of half layer in hPa, if the plot type is sampled by layers.
-        SingleL = "OneL" (revisar)     # When level is fixed, ex: 1000 hPa, the plot can be exactly in this level (SingleL = None),
-                              # on all levels as a single layer (SingleL = "All") or on a layer centered in Level and bounded by
-                              # Level-Lay and Level+Lay (SingleL="OneL"). If Lay is not defined, it will be used a standard value of 50 hPa. 
+        channel = 1           # Time Series channel, if any (None), all nchan are plotted 
 
         '''
         if Clean == None:
@@ -1589,8 +1585,6 @@ class plot_diag(object):
         delta = nHour
         omflag = "OmF"
         omflaga = "OmA"
-
-        Laydef = 50
 
         separator = " ============================================================================================================="
 
@@ -1616,27 +1610,18 @@ class plot_diag(object):
         if type(channel) == list:
             zchan = channel
             chanList = 1
-#             Level = None
-            Level = "Zlevs"
             zlevs_def = zchan
         elif channel == None:
-            zchan = list(map(int,self[0].obsInfo[varName].loc[varType].nchan.unique()))
-            chanList = 1
-            Level = channel
+            zchan = list(map(int,self[0].obsInfo[varName].loc[varType].nchan.unique())) #verificar se é melhor definir como default a lista 
+            chanList = 0                                                                #de canais na classe read_diag na funcao __init__
             zlevs_def = zchan
         else:
             zchan = channel
-            chanList = 0
-            Level = 1000 
+            chanList = 0 
             zlevs_def = list(map(int,self[0].obsInfo[varName].loc[varType].nchan.unique()))
-            
-#         zlevs_def = list(map(int,self[0].zlevs))
+
             
         print(zchan,chanList)
-        
-#         print('Antes : zlevs_def = ',zlevs_def)
-#         levs_tmp = zlevs_def[::-1]
-#         print('Depois : levs_tmp = ',levs_tmp)
 
         datei = datetime.strptime(str(dateIni), "%Y%m%d%H")
         datef = datetime.strptime(str(dateFin), "%Y%m%d%H")
@@ -1654,19 +1639,16 @@ class plot_diag(object):
             dataDict = self[f].obsInfo[varName].query(maski).loc[varType]
             info_check.update({date.strftime("%d%H"):True})
 
-            if 'nchan' in dataDict and (channel == None or Level == "Zlevs"):
-                if(channel == None):
-                    levs_tmp.extend(list(set(map(int,dataDict['nchan']))))
-                else:
-                    levs_tmp = zlevs_def[::-1]
+            if 'nchan' in dataDict and (channel == None or chanList == 1):
+                levs_tmp = zlevs_def[::-1]
                 info_check.update({date.strftime("%d%H"):True})
                 print(date.strftime(' Preparing data for: Canais de radiancia' + "%Y-%m-%d:%H"))
-                print(' Levels: ', sorted(levs_tmp), end='\n')
+                print(' Channels: ', sorted(levs_tmp), end='\n')
                 print("")
                 f = f + 1
             else:
-                if (Level != None and Level != "Zlevs") and info_check[date.strftime("%d%H")] == True:
-                    levs_tmp.extend([Level])
+                if (channel != None and chanList != 1) and info_check[date.strftime("%d%H")] == True:
+                    levs_tmp.extend([zchan])
                     info_check.update({date.strftime("%d%H"):True})
                     print(date.strftime(' Preparing data for: ' + "%Y-%m-%d:%H"), ' - Channel de radiancia: ', zchan , end='\n')
                     f = f + 1
@@ -1682,15 +1664,8 @@ class plot_diag(object):
             DayHour = [hr if (ix % int(len(DayHour_tmp) / 4)) == 0 else '' for ix, hr in enumerate(DayHour_tmp)]
         else:
             DayHour = DayHour_tmp
-
-#         print('HHHHHHH z = ',z,'HHHHHHHHHH')
-        print('%%%%%%%%%% zlevs_def=',zlevs_def,'%%%%%%%%%%%%%%%%%%%%%%%%')
-        
-        print('%%%%%%%%%% levs_tmp=',levs_tmp,'%%%%%%%%%%%%%%%%%%%%%%%%')
         
         zlevs = [z if z in zlevs_def else "" for z in sorted(set(levs_tmp+zlevs_def))]
-        
-        print('%%%%%%%%%% zlevs=',zlevs,'%%%%%%%%%%%%%%%%%%%%%%%%')
 
         print()
         print(separator)
@@ -1702,9 +1677,10 @@ class plot_diag(object):
         levs = sorted(list(set(levs_tmp)))
         levs_tmp.clear()
         del(levs_tmp[:])
+        
+        print('levs = ',levs)
 
         
-        print('%%%%%%%%%%%%%%%%%%SingleL=',SingleL)
         f = 0
         while (date <= datef):
 
@@ -1713,80 +1689,27 @@ class plot_diag(object):
 
             try: 
                 if info_check[date.strftime("%d%H")] == True:
-                    print('%%%%%%%%%%%%%%%%%% Passei em 1',SingleL)
                     dataDict = self[f].obsInfo[varName].query(maski).loc[varType]
                     dataByLevs, mean_dataByLevs, std_dataByLevs, count_dataByLevs = {}, {}, {}, {}
                     dataByLevsa, mean_dataByLevsa, std_dataByLevsa, count_dataByLevsa = {}, {}, {}, {}
                     [dataByLevs.update({int(lvl): []}) for lvl in levs]
                     [dataByLevsa.update({int(lvl): []}) for lvl in levs]
-                    if Level != None and Level != "Zlevs":
-                        print('%%%%%%%%%%%%%%%%%% Passei em 2',SingleL)
-                        if SingleL == None:
-                            print('%%%%%%%%%%%%%%%%%% Passei em 3',SingleL)
-                            [ dataByLevs[int(p)].append(v) for p,v in zip(self[f].obsInfo[varName].query(maski).loc[varType].prs,self[f].obsInfo[varName].query(maski).loc[varType].omf) if int(p) == Level ]
-                            [ dataByLevsa[int(p)].append(v) for p,v in zip(self[f].obsInfo[varName].query(maski).loc[varType].prs,self[f].obsInfo[varName].query(maski).loc[varType].oma) if int(p) == Level ]
-                            forplot = ' Level='+str(Level) +'hPa'
-                            forplotname = 'level_'+str(Level) +'hPa'
-                        else:
-                            print('%%%%%%%%%%%%%%%%%% Passei em 4',SingleL)
-                            if SingleL == "All":
-                                print('%%%%%%%%%%%%%%%%%% Passei em 5',SingleL)
-                                [ dataByLevs[Level].append(v) for v in self[f].obsInfo[varName].query(maski).loc[varType].omf ]
-                                [ dataByLevsa[Level].append(v) for v in self[f].obsInfo[varName].query(maski).loc[varType].oma ]
-                                forplot = ' Layer=Entire Atmosphere'
-                                forplotname = 'layer_allAtm'
-                            else:
-                                print('%%%%%%%%%%%%%%%%%% Passei em 6',SingleL)
-                                if SingleL == "OneL":
-                                    print('%%%%%%%%%%%%%%%%%% Passei em 7',SingleL)
-                                    if Lay == None:
-                                        print("")
-                                        print(" Variable Lay is None, resetting it to its default value: "+str(Laydef)+" hPa.")
-                                        print("")
-                                        Lay = Laydef
-                                    print('%%%%%%%%%%%%%%%%%% Passei em 7.5: antes do calculo do nchan',SingleL)    
-                                    forplot = 'Channel ='+str(zchan)
-                                    forplotname = 'Channel_'+str(zchan)
-                                    [ dataByLevs[int(Level)].append(v) for p,v in zip(self[f].obsInfo[varName].query(maski).loc[varType].nchan,self[f].obsInfo[varName].query(maski).loc[varType].omf) if int(p) == zchan ]
-                                    print('%%%%%%%%%%%%%%%%%% Passei em 8: fazendo o calculo do nchan',SingleL)
-                                    [ dataByLevsa[int(Level)].append(v) for p,v in zip(self[f].obsInfo[varName].query(maski).loc[varType].nchan,self[f].obsInfo[varName].query(maski).loc[varType].oma) if int(p) == zchan ]
-                                else:
-                                    print('%%%%%%%%%%%%%%%%%% Passei em 9',SingleL)
-                                    print(" Wrong value for variable SingleL. Please, check it and rerun the script.")    
+                    if channel != None and chanList != 1: 
+                        forplot = 'Channel ='+str(zchan)
+                        forplotname = 'Channel_'+str(zchan)
+                        [ dataByLevs[int(zchan)].append(v) for p,v in zip(self[f].obsInfo[varName].query(maski).loc[varType].nchan,self[f].obsInfo[varName].query(maski).loc[varType].omf) if int(p) == zchan ]
+                        [ dataByLevsa[int(zchan)].append(v) for p,v in zip(self[f].obsInfo[varName].query(maski).loc[varType].nchan,self[f].obsInfo[varName].query(maski).loc[varType].oma) if int(p) == zchan ]   
                     else:
-                        print('%%%%%%%%%%%%%%%%%% Passei em 10',SingleL)
-                        if Level == None:
-                            print('%%%%%%%%%%%%%%%%%% Passei em 11',SingleL)
-                            [ dataByLevs[int(p)].append(v) for p,v in zip(self[f].obsInfo[varName].query(maski).loc[varType].nchan,self[f].obsInfo[varName].query(maski).loc[varType].omf) ]
-                            [ dataByLevsa[int(p)].append(v) for p,v in zip(self[f].obsInfo[varName].query(maski).loc[varType].nchan,self[f].obsInfo[varName].query(maski).loc[varType].oma) ]
-                            forplotname = 'all_nchan'
-                        else:
-                            print('%%%%%%%%%%%%%%%%%% Passei em 12',SingleL)
-                            for ll in range(len(levs)):
-                                print('%%%%%%%%%%%%%%%%%% Passei em 13',SingleL)
-                                lv = levs[ll]
-                                if Lay == None:
-                                    print('%%%%%%%%%%%%%%%%%% Passei em 14',SingleL)
-                                    if ll == 0:
-                                        Llayi = 0
-                                    else:
-                                        Llayi = (levs[ll] - levs[ll-1]) / 2.0
-                                    if ll == len(levs)-1:
-                                        Llayf = Llayi
-                                    else:
-                                        Llayf = (levs[ll+1] - levs[ll]) / 2.0
-                                    cutlevs = [ v for p,v in zip(self[f].obsInfo[varName].query(maski).loc[varType].prs,self[f].obsInfo[varName].query(maski).loc[varType].omf) if int(p) >=lv-Llayi and int(p) <lv+Llayf ]
-                                    cutlevsa = [ v for p,v in zip(self[f].obsInfo[varName].query(maski).loc[varType].prs,self[f].obsInfo[varName].query(maski).loc[varType].oma) if int(p) >=lv-Llayi and int(p) <lv+Llayf ]
-                                    forplotname = 'all_levels_filledLayers'
-                                else:
-                                    print('%%%%%%%%%%%%%%%%%% Passei em 15',SingleL)
-                                    cutlevs = [ v for p,v in zip(self[f].obsInfo[varName].query(maski).loc[varType].nchan,self[f].obsInfo[varName].query(maski).loc[varType].omf) if int(p) == lv ]
-                                    cutlevsa = [ v for p,v in zip(self[f].obsInfo[varName].query(maski).loc[varType].nchan,self[f].obsInfo[varName].query(maski).loc[varType].oma) if int(p) == lv ]
-                                    forplotname = 'List_nchan'
-                                [ dataByLevs[lv].append(il) for il in cutlevs ]
-                                [ dataByLevsa[lv].append(il) for il in cutlevsa ]
+                        for ll in range(len(levs)):
+                            lv = levs[ll]
+                            cutlevs = [ v for p,v in zip(self[f].obsInfo[varName].query(maski).loc[varType].nchan,self[f].obsInfo[varName].query(maski).loc[varType].omf) if int(p) == lv ]
+                            cutlevsa = [ v for p,v in zip(self[f].obsInfo[varName].query(maski).loc[varType].nchan,self[f].obsInfo[varName].query(maski).loc[varType].oma) if int(p) == lv ]
+                            forplotname = 'List_Channel'
+                            [ dataByLevs[lv].append(il) for il in cutlevs ]
+                            [ dataByLevsa[lv].append(il) for il in cutlevsa ]
+                            cutlevs.clear()
+                            cutlevsa.clear()
                     f = f + 1
-                print('Antes for lv in levs: levs =',levs)
                 for lv in levs:
                     if len(dataByLevs[lv]) != 0 and info_check[date.strftime("%d%H")] == True:
                         mean_dataByLevs.update({int(lv): np.mean(np.array(dataByLevs[lv]))})
@@ -1802,12 +1725,9 @@ class plot_diag(object):
                         mean_dataByLevsa.update({int(lv): -99})
                         std_dataByLevsa.update({int(lv): -99})
                         count_dataByLevsa.update({int(lv): -99})
-                print('Depois for lv in levs')
             
             except:
-                print('%%%%%%%%%%%%%%%%%% Passei em 16',SingleL)
                 if info_check[date.strftime("%d%H")] == True:
-                    print('%%%%%%%%%%%%%%%%%% Passei em 17',SingleL)
                     print("ERROR in time_series function.")
                 else:
                     print(setcolor.WARNING + "    >>> No information on this date (" + str(date.strftime("%Y-%m-%d:%H")) +") <<< " + setcolor.ENDC)
@@ -1820,21 +1740,21 @@ class plot_diag(object):
                     std_dataByLevsa.update({int(lv): -99})
                     count_dataByLevsa.update({int(lv): -99})
 
-            if Level == None or Level == "Zlevs":
-                list_meanByLevs.append(list(mean_dataByLevs.values()))
-                list_stdByLevs.append(list(std_dataByLevs.values()))
-                list_countByLevs.append(list(count_dataByLevs.values()))
-                list_meanByLevsa.append(list(mean_dataByLevsa.values()))
-                list_stdByLevsa.append(list(std_dataByLevsa.values()))
-                list_countByLevsa.append(list(count_dataByLevsa.values()))
-                print('list_meanByLevs = ',list_meanByLevs)     #### PRINT Valores médias e std: retirar
+            
+            if channel == None or chanList == 1:
+                list_meanByLevs.append(list(reversed(mean_dataByLevs.values())))
+                list_stdByLevs.append(list(reversed(std_dataByLevs.values())))
+                list_countByLevs.append(list(reversed(count_dataByLevs.values())))
+                list_meanByLevsa.append(list(reversed(mean_dataByLevsa.values())))
+                list_stdByLevsa.append(list(reversed(std_dataByLevsa.values())))
+                list_countByLevsa.append(list(reversed(count_dataByLevsa.values())))
             else:
-                list_meanByLevs.append(mean_dataByLevs[int(Level)])
-                list_stdByLevs.append(std_dataByLevs[int(Level)])
-                list_countByLevs.append(count_dataByLevs[int(Level)])
-                list_meanByLevsa.append(mean_dataByLevsa[int(Level)])
-                list_stdByLevsa.append(std_dataByLevsa[int(Level)])
-                list_countByLevsa.append(count_dataByLevsa[int(Level)])
+                list_meanByLevs.append(mean_dataByLevs[int(zchan)])
+                list_stdByLevs.append(std_dataByLevs[int(zchan)])
+                list_countByLevs.append(count_dataByLevs[int(zchan)])
+                list_meanByLevsa.append(mean_dataByLevsa[int(zchan)])
+                list_stdByLevsa.append(std_dataByLevsa[int(zchan)])
+                list_countByLevsa.append(count_dataByLevsa[int(zchan)])
 
             dataByLevs.clear()
             mean_dataByLevs.clear()
@@ -1864,17 +1784,11 @@ class plot_diag(object):
         mean_finala  = np.ma.masked_array(np.array(list_meanByLevsa), np.array(list_meanByLevsa) == -99)
         std_finala   = np.ma.masked_array(np.array(list_stdByLevsa), np.array(list_stdByLevsa) == -99)
         count_finala = np.ma.masked_array(np.array(list_countByLevsa), np.array(list_countByLevsa) == -99)
-        
-#         print('mean_final = ',mean_final)
-        
-#         print('std_final = ',std_final)
 
         OMF_inf = np.array(list_meanByLevs)-np.array(list_stdByLevs)
         OMF_sup = np.array(list_meanByLevs)+np.array(list_stdByLevs)
         OMA_inf = np.array(list_meanByLevsa)-np.array(list_stdByLevsa)
         OMA_sup = np.array(list_meanByLevsa)+np.array(list_stdByLevsa)
-        
-#         print('OMF_inf =',OMF_inf,'OMF_sup = ',OMF_sup)
 
         mean_limit_inf = np.min(np.array([np.min(mean_final), np.min(mean_finala)]))
         mean_limit_sup = np.max(np.array([np.max(mean_final), np.max(mean_finala)]))
@@ -1902,8 +1816,8 @@ class plot_diag(object):
         date_title = str(datei.strftime("%d%b")) + '-' + str(date_finale.strftime("%d%b")) + ' ' + str(date_finale.strftime("%Y"))
         instrument_title = str(varName) + '-' + str(varType) + '  |  ' + getVarInfo(varType, varName, 'instrument')
 
-        # Figure with more than one level - default levels: [600, 700, 800, 900, 1000]
-        if Level == None or Level == "Zlevs":
+        # Figure with more than one channel - default all channels
+        if channel == None or chanList == 1:
             fig = plt.figure(figsize=(6, 9))
             plt.rcParams['axes.facecolor'] = 'None'
             plt.rcParams['hatch.linewidth'] = 0.3
@@ -1913,16 +1827,14 @@ class plot_diag(object):
             plt.subplot(3, 1, 1)
             ax = plt.gca()
             ax.add_patch(mpl.patches.Rectangle((-1,-1),(len(DayHour)+1),(len(levs)+3), hatch='xxxxx', color='black', fill=False, snap=False, zorder=0))
-#             plt.imshow(np.flipud(mean_final.T), origin='lower', vmin=-vmaxOMAabs, vmax=vmaxOMAabs, cmap='seismic', aspect='auto', zorder=1,interpolation='none')
-            plt.imshow(np.flipud(mean_final.T), origin='lower', cmap='seismic', aspect='auto', zorder=1,interpolation='none')
+            plt.imshow(np.flipud(mean_final.T), origin='lower', vmin=-vmaxOMAabs, vmax=vmaxOMAabs, cmap='seismic', aspect='auto', zorder=1,interpolation='none')
             plt.colorbar(orientation='horizontal', pad=0.18, shrink=1.0)
             plt.tight_layout()
             plt.title(instrument_title, loc='left', fontsize=10)
             plt.title(date_title, loc='right', fontsize=10)
-#             plt.ylabel('Vertical Levels (hPa)')
             plt.ylabel('Channels')
             plt.xlabel('Mean ('+omflag+')', labelpad=50)
-            plt.yticks(y_axis, zlevs[::-1])
+            plt.yticks(y_axis, zlevs)
             plt.xticks(x_axis, DayHour)
             major_ticks = [ DayHour.index(dh) for dh in filter(None,DayHour) ]
             ax.set_xticks(major_ticks)
@@ -1930,16 +1842,14 @@ class plot_diag(object):
             plt.subplot(3, 1, 2)
             ax = plt.gca()
             ax.add_patch(mpl.patches.Rectangle((-1,-1),(len(DayHour)+1),(len(levs)+3), hatch='xxxxx', color='black', fill=False, snap=False, zorder=0))
-#             plt.imshow(np.flipud(std_final.T), origin='lower', vmin=vminSTD, vmax=vmaxSTD, cmap='Blues', aspect='auto', zorder=1,interpolation='none')
-            plt.imshow(np.flipud(std_final.T), origin='lower', cmap='Blues', aspect='auto', zorder=1,interpolation='none')
+            plt.imshow(np.flipud(std_final.T), origin='lower', vmin=vminSTD, vmax=vmaxSTD, cmap='Blues', aspect='auto', zorder=1,interpolation='none')
             plt.colorbar(orientation='horizontal', pad=0.18, shrink=1.0)
             plt.tight_layout()
             plt.title(instrument_title, loc='left', fontsize=10)
             plt.title(date_title, loc='right', fontsize=10)
-#             plt.ylabel('Vertical Levels (hPa)')
             plt.ylabel('Channels')
             plt.xlabel('Standard Deviation ('+omflag+')', labelpad=50)
-            plt.yticks(y_axis, zlevs[::-1])
+            plt.yticks(y_axis, zlevs)
             plt.xticks(x_axis, DayHour)
             major_ticks = [ DayHour.index(dh) for dh in filter(None,DayHour) ]
             ax.set_xticks(major_ticks)
@@ -1948,14 +1858,12 @@ class plot_diag(object):
             ax = plt.gca()
             ax.add_patch(mpl.patches.Rectangle((-1,-1),(len(DayHour)+1),(len(levs)+3), hatch='xxxxx', color='black', fill=False, snap=False, zorder=0))
             plt.imshow(np.flipud(count_final.T), origin='lower', vmin=0.0, vmax=np.max(count_final), cmap='gist_heat_r', aspect='auto', zorder=1,interpolation='none')
-#             plt.imshow(np.flipud(count_final.T), origin='lower', cmap='gist_heat_r', aspect='auto', zorder=1,interpolation='none')
             plt.colorbar(orientation='horizontal', pad=0.18, shrink=1.0)
             plt.title(instrument_title, loc='left', fontsize=10)
             plt.title(date_title, loc='right', fontsize=10)
-#             plt.ylabel('Vertical Levels (hPa)')
             plt.ylabel('Channels')
             plt.xlabel('Total Observations'+" ("+cmaski+")", labelpad=50)
-            plt.yticks(y_axis, zlevs[::-1])
+            plt.yticks(y_axis, zlevs)
             plt.xticks(x_axis, DayHour)
             major_ticks = [ DayHour.index(dh) for dh in filter(None,DayHour) ]
             ax.set_xticks(major_ticks)
@@ -1974,16 +1882,14 @@ class plot_diag(object):
             plt.subplot(3, 1, 1)
             ax = plt.gca()
             ax.add_patch(mpl.patches.Rectangle((-1,-1),(len(DayHour)+1),(len(levs)+3), hatch='xxxxx', color='black', fill=False, snap=False, zorder=0))
-#             plt.imshow(np.flipud(mean_finala.T), origin='lower', vmin=-vmaxOMAabs, vmax=vmaxOMAabs, cmap='seismic', aspect='auto', zorder=1,interpolation='none')
-            plt.imshow(np.flipud(mean_finala.T), origin='lower', cmap='seismic', aspect='auto', zorder=1,interpolation='none')
+            plt.imshow(np.flipud(mean_finala.T), origin='lower', vmin=-vmaxOMAabs, vmax=vmaxOMAabs, cmap='seismic', aspect='auto', zorder=1,interpolation='none')
             plt.colorbar(orientation='horizontal', pad=0.18, shrink=1.0)
             plt.tight_layout()
             plt.title(instrument_title, loc='left', fontsize=10)
             plt.title(date_title, loc='right', fontsize=10)
-#             plt.ylabel('Vertical Levels (hPa)')
             plt.ylabel('Channels')
             plt.xlabel('Mean ('+omflaga+')', labelpad=50)
-            plt.yticks(y_axis, zlevs[::-1])
+            plt.yticks(y_axis, zlevs)
             plt.xticks(x_axis, DayHour)
             major_ticks = [ DayHour.index(dh) for dh in filter(None,DayHour) ]
             ax.set_xticks(major_ticks)
@@ -1991,16 +1897,14 @@ class plot_diag(object):
             plt.subplot(3, 1, 2)
             ax = plt.gca()
             ax.add_patch(mpl.patches.Rectangle((-1,-1),(len(DayHour)+1),(len(levs)+3), hatch='xxxxx', color='black', fill=False, snap=False, zorder=0))
-#             plt.imshow(np.flipud(std_finala.T), origin='lower', vmin=vminSTD, vmax=vmaxSTD, cmap='Blues', aspect='auto', zorder=1,interpolation='none')
-            plt.imshow(np.flipud(std_finala.T), origin='lower', cmap='Blues', aspect='auto', zorder=1,interpolation='none')
+            plt.imshow(np.flipud(std_finala.T), origin='lower', vmin=vminSTD, vmax=vmaxSTD, cmap='Blues', aspect='auto', zorder=1,interpolation='none')
             plt.colorbar(orientation='horizontal', pad=0.18, shrink=1.0)
             plt.tight_layout()
             plt.title(instrument_title, loc='left', fontsize=10)
             plt.title(date_title, loc='right', fontsize=10)
-#             plt.ylabel('Vertical Levels (hPa)')
             plt.ylabel('Channels')
             plt.xlabel('Standard Deviation ('+omflaga+')', labelpad=50)
-            plt.yticks(y_axis, zlevs[::-1])
+            plt.yticks(y_axis, zlevs)
             plt.xticks(x_axis, DayHour)
             major_ticks = [ DayHour.index(dh) for dh in filter(None,DayHour) ]
             ax.set_xticks(major_ticks)
@@ -2009,14 +1913,12 @@ class plot_diag(object):
             ax = plt.gca()
             ax.add_patch(mpl.patches.Rectangle((-1,-1),(len(DayHour)+1),(len(levs)+3), hatch='xxxxx', color='black', fill=False, snap=False, zorder=0))
             plt.imshow(np.flipud(count_finala.T), origin='lower', vmin=0.0, vmax=np.max(count_finala), cmap='gist_heat_r', aspect='auto', zorder=1,interpolation='none')
-#             plt.imshow(np.flipud(count_finala.T), origin='lower', cmap='gist_heat_r', aspect='auto', zorder=1,interpolation='none')
             plt.colorbar(orientation='horizontal', pad=0.18, shrink=1.0)
             plt.title(instrument_title, loc='left', fontsize=10)
             plt.title(date_title, loc='right', fontsize=10)
-#             plt.ylabel('Vertical Levels (hPa)')
             plt.ylabel('Channels')
             plt.xlabel('Total Observations'+" ("+cmaski+")", labelpad=50)
-            plt.yticks(y_axis, zlevs[::-1])
+            plt.yticks(y_axis, zlevs)
             plt.xticks(x_axis, DayHour)
             major_ticks = [ DayHour.index(dh) for dh in filter(None,DayHour) ]
             ax.set_xticks(major_ticks)
@@ -2026,7 +1928,7 @@ class plot_diag(object):
             if Clean:
                 plt.clf()
 
-        # Figure with only one level
+        # Figure with only one channel
         else:
         
             ##### OMF
@@ -2268,7 +2170,8 @@ class plot_diag(object):
         channel = None           # Radiance channel number (None for the conventional dataset)
         figTS = True             # Creates the time series plot
         figMap = False           # Creates the spatial plot for each time
-
+        
+        ! Case conventional dataset: channel = None
         ! The QC process creates a number indicating the data quality for each observation.
         ! These numbers are called QC markers in PrepBUFR files and are important as parts of
         ! the observation information. GSI uses QC markers to decide how to use the data. A 
@@ -2298,6 +2201,23 @@ class plot_diag(object):
         !    +----------------------+---------------+---------------+
         !    |False (with OI QC)    |       4       |       4       |
         !    +----------------------+---------------+---------------+
+        
+        
+        ! Case radiance dataset: channel = number
+        ! There are three types of data classification: assimilated, monitored and rejected.
+        ! Monitored data is organized into two groups: possibly assimilated and possibly rejected.
+        !
+        !    +------------------------+-------------+------------+
+        !    |                        |   idqc      |   iuse     |
+        !    +------------------------+-------------+------------+
+        !    | Assimilated            |   == 0      |   == 1     |
+        !    +------------------------+-------------+------------+
+        !    |            assimilated |   == 0      |   == -1    |
+        !    | Monitored              |             |            |
+        !    |            rejected    |   != 0      |   == -1    |
+        !    +------------------------+-------------+------------+
+        !    | Rejected               |   != 0      |   == 1     |
+        !    +------------------------+-------------+------------+
         '''
 
 
