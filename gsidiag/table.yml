@@ -507,3 +507,27 @@ observations:
         color: "#2e8e24"
         symbol: x
         iuse: "1"
+  - kx: "metop-a"
+    details:
+      - var: amsua
+        abbreviation: radiance
+        instrument: Radiance - AMSU-A - MetOp-A.
+        color: "#2e8e24"
+        symbol: x
+        iuse: "1"
+  - kx: "metop-b"
+    details:
+      - var: amsua
+        abbreviation: radiance
+        instrument: Radiance - AMSU-A - MetOp-B.
+        color: "#2e8e24"
+        symbol: x
+        iuse: "1"
+  - kx: "metop-c"
+    details:
+      - var: amsua
+        abbreviation: radiance
+        instrument: Radiance - AMSU-A - MetOp-C.
+        color: "#2e8e24"
+        symbol: x
+        iuse: "1"

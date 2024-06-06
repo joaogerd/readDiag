@@ -2302,11 +2302,13 @@ class plot_diag(object):
                 moniReje.append(len(monitRejei))
                 reje.append(len(rejei))
                 
+                forplot = 'Channel ='+str(channel)
+                
                 # Radiance plots
                 if (figMap):
                     df_list = [assim, rejei]    # Case: assimilated and rejected
                     name_list = ["Assimilated ["+str(len(assim))+"]","Rejected ["+str(len(rejei))+"]"]
-                    marker_list = [".","x"]    #[".","x","*"]
+                    marker_list = ["^","v"]    #[".","x","*"]
                     color_list = ["blue","red"]
                     
                     setColor = 0 
@@ -2326,15 +2328,17 @@ class plot_diag(object):
                     date_title = str(date.strftime("%d%b%Y - %H%M")) + ' GMT'
                     plt.title(date_title, loc='right', fontsize=10)
                     plt.title(instrument_title, loc='left', fontsize=9)
+                    plt.annotate(forplot, xy=(0.45, 1.015), xytext=(0, 0), xycoords='axes fraction', textcoords='offset points', color='gray', fontweight='bold', fontsize='10',
+            horizontalalignment='left', verticalalignment='center')
                     
                     plt.tight_layout()
-                    plt.savefig('Assim-Rejei_'+str(varName) + '-' + str(varType)+'_'+datefmt+'.png', bbox_inches='tight', dpi=100)
+                    plt.savefig('Assim-Rejei_'+str(varName) + '-' + str(varType)+'_'+ 'CH' + str(channel) + '_' +datefmt+'.png', bbox_inches='tight', dpi=100)
                     
-                    # Monitored cases: would be assimilated or rejected
+                    # Monitored cases: would be assimilated or rejected 
                     df_list = [monitAssim, monitRejei]
                     name_list = ["Monitored-Assimilated ["+str(len(monitAssim))+"]","Monitored-Rejected ["+str(len(monitRejei))+"]"]
                     marker_list = ["^","v"]    #[".","x","*"]
-                    color_list = ["blue","red"]
+                    color_list = ["teal","purple"]
                     
                     setColor = 0 
                     legend_labels = []
@@ -2353,9 +2357,11 @@ class plot_diag(object):
                     date_title = str(date.strftime("%d%b%Y - %H%M")) + ' GMT'
                     plt.title(date_title, loc='right', fontsize=10)
                     plt.title(instrument_title, loc='left', fontsize=9)
+                    plt.annotate(forplot, xy=(0.45, 1.015), xytext=(0, 0), xycoords='axes fraction', textcoords='offset points', color='gray', fontweight='bold', fontsize='10',
+            horizontalalignment='left', verticalalignment='center')
                     
                     plt.tight_layout()
-                    plt.savefig('Monitored_'+str(varName) + '-' + str(varType)+'_'+datefmt+'.png', bbox_inches='tight', dpi=100)
+                    plt.savefig('Monitored_'+str(varName) + '-' + str(varType)+'_'+ 'CH' + str(channel) + '_'+datefmt+'.png', bbox_inches='tight', dpi=100)
                     
                     
                     
@@ -2416,14 +2422,16 @@ class plot_diag(object):
 
                 plt.axhline(y=0.0,ls='solid',c='#d3d3d3')
 
-                ax1.plot(x_axis, assi, "o", label="Assimilated \n["+str(sum(assi))+"]", color='green')
-                ax1.plot(x_axis, moniAssi, "o", label="Monitored-Assim \n["+str(sum(moniAssi))+"]", color='blue')
+                ax1.plot(x_axis, assi, "o", label="Assimilated \n["+str(sum(assi))+"]", color='blue')
+                ax1.plot(x_axis, moniAssi, "o", label="Monitored-Assim \n["+str(sum(moniAssi))+"]", color='teal')
                 ax1.plot(x_axis, moniReje, "o", label="Monitored-Rejei \n["+str(sum(moniReje))+"]", color='purple')
                 ax1.plot(x_axis, reje, "o", label="Rejected \n["+str(sum(reje))+"]", color='red')
                 ax1.legend(fancybox=True, frameon=True, shadow=True, loc="best",ncol=1)
                 ax1.set_xlabel('Date (DayHour)', fontsize=10)
                 plt.title(date_title, loc='right', fontsize=10)
                 plt.title(instrument_title, loc='left', fontsize=9)
+                plt.annotate(forplot, xy=(0.0, 0.965), xytext=(0, 0), xycoords='axes fraction', textcoords='offset points', color='lightgray', fontweight='bold', fontsize='12',
+            horizontalalignment='left', verticalalignment='center')
                 
                 ax1.set_ylim(np.round(-0.05*np.max([assi,moniAssi,moniReje,reje])), np.round(1.25*np.max([assi,moniAssi,moniReje,reje])))
                 ax1.set_ylabel('Total Observations', color='black', fontsize=10)
@@ -2436,7 +2444,7 @@ class plot_diag(object):
                 plt.axhline(y=np.mean(moniReje),ls='dotted',c='lightgray')
                 plt.axhline(y=np.mean(reje),ls='dotted',c='lightgray')
                 plt.tight_layout()
-                plt.savefig('time_series_'+str(varName) + '-' + str(varType)+'_TotalObs.png', bbox_inches='tight', dpi=100)
+                plt.savefig('time_series_'+str(varName) + '-' + str(varType) +'_'+ 'CH' + str(channel) + '_'+'_TotalObs.png', bbox_inches='tight', dpi=100)
 
 
 #EOC
