@@ -2302,66 +2302,76 @@ class plot_diag(object):
                 moniReje.append(len(monitRejei))
                 reje.append(len(rejei))
                 
+                print('assi =',assi,'reje =',reje)
+                print('moniAssi =',moniAssi,'moniReje =',moniReje)
+                
                 forplot = 'Channel ='+str(channel)
                 
                 # Radiance plots
                 if (figMap):
-                    df_list = [assim, rejei]    # Case: assimilated and rejected
-                    name_list = ["Assimilated ["+str(len(assim))+"]","Rejected ["+str(len(rejei))+"]"]
-                    marker_list = ["^","v"]    #[".","x","*"]
-                    color_list = ["blue","red"]
+                    # Case: assimilated and rejected
+                    if ((len(assim)) != 0 or (len(rejei)) != 0):
+                        df_list = [assim, rejei]    
+                        name_list = ["Assimilated ["+str(len(assim))+"]","Rejected ["+str(len(rejei))+"]"]
+                        marker_list = ["^","v"]    #[".","x","*"]
+                        color_list = ["blue","red"]
                     
-                    setColor = 0 
-                    legend_labels = []
+                        setColor = 0 
+                        legend_labels = []
                     
-                    fig = plt.figure(figsize=(12, 6))
-                    ax  = fig.add_subplot(1, 1, 1)
-                    ax = geoMap(area=None,ax=ax)
-                    for dfi,namedf,mk,cl in zip(df_list,name_list,marker_list,color_list):
-                        df    = dfi
-                        legend_labels.append(mpatches.Patch(color=cl, label=namedf) )
-                        ax = df.plot(ax=ax,legend=True, marker=mk, color=cl, **kwargs) # markersize=4.80
-                        setColor += 1
-                        plt.legend(handles=legend_labels, numpoints=1, loc='lower center', bbox_to_anchor=(0.5, -0.02), 
-                                fancybox=True, shadow=False, frameon=False, ncol=2, prop={"size": 10})
+                        fig = plt.figure(figsize=(12, 6))
+                        ax  = fig.add_subplot(1, 1, 1)
+                        ax = geoMap(area=None,ax=ax)
+                        for dfi,namedf,mk,cl in zip(df_list,name_list,marker_list,color_list):
+                            df    = dfi
+                            legend_labels.append(mpatches.Patch(color=cl, label=namedf) )
+                            ax = df.plot(ax=ax,legend=True, marker=mk, color=cl, **kwargs) # markersize=4.80
+                            setColor += 1
+                            plt.legend(handles=legend_labels, numpoints=1, loc='lower center', bbox_to_anchor=(0.5, -0.02), 
+                                    fancybox=True, shadow=False, frameon=False, ncol=2, prop={"size": 10})
                         
-                    date_title = str(date.strftime("%d%b%Y - %H%M")) + ' GMT'
-                    plt.title(date_title, loc='right', fontsize=10)
-                    plt.title(instrument_title, loc='left', fontsize=9)
-                    plt.annotate(forplot, xy=(0.45, 1.015), xytext=(0, 0), xycoords='axes fraction', textcoords='offset points', color='gray', fontweight='bold', fontsize='10',
-            horizontalalignment='left', verticalalignment='center')
+                        date_title = str(date.strftime("%d%b%Y - %H%M")) + ' GMT'
+                        plt.title(date_title, loc='right', fontsize=10)
+                        plt.title(instrument_title, loc='left', fontsize=9)
+                        plt.annotate(forplot, xy=(0.45, 1.015), xytext=(0, 0), xycoords='axes fraction', textcoords='offset points', color='gray', fontweight='bold', fontsize='10',
+                horizontalalignment='left', verticalalignment='center')
                     
-                    plt.tight_layout()
-                    plt.savefig('Assim-Rejei_'+str(varName) + '-' + str(varType)+'_'+ 'CH' + str(channel) + '_' +datefmt+'.png', bbox_inches='tight', dpi=100)
+                        plt.tight_layout()
+                        plt.savefig('Assim-Rejei_'+str(varName) + '-' + str(varType)+'_'+ 'CH' + str(channel) + '_' +datefmt+'.png', bbox_inches='tight', dpi=100)
+                    else:
+                        print("No assimilated or rejected data for the channel:",channel,'->',date.strftime("%Y-%m-%d:%H"))
                     
                     # Monitored cases: would be assimilated or rejected 
-                    df_list = [monitAssim, monitRejei]
-                    name_list = ["Monitored-Assimilated ["+str(len(monitAssim))+"]","Monitored-Rejected ["+str(len(monitRejei))+"]"]
-                    marker_list = ["^","v"]    #[".","x","*"]
-                    color_list = ["teal","purple"]
+                    if ((len(monitAssim)) != 0 or (len(monitRejei)) != 0):
+                        df_list = [monitAssim, monitRejei]
+                        name_list = ["Monitored-Assimilated ["+str(len(monitAssim))+"]","Monitored-Rejected ["+str(len(monitRejei))+"]"]
+                        marker_list = ["^","v"]    #[".","x","*"]
+                        color_list = ["teal","purple"]
                     
-                    setColor = 0 
-                    legend_labels = []
+                        setColor = 0 
+                        legend_labels = []
                     
-                    fig = plt.figure(figsize=(12, 6))
-                    ax  = fig.add_subplot(1, 1, 1)
-                    ax = geoMap(area=None,ax=ax)
-                    for dfi,namedf,mk,cl in zip(df_list,name_list,marker_list,color_list):
-                        df    = dfi
-                        legend_labels.append(mpatches.Patch(color=cl, label=namedf) )
-                        ax = df.plot(ax=ax,legend=True, marker=mk, color=cl, **kwargs) #   markersize=3.0
-                        setColor += 1
-                        plt.legend(handles=legend_labels, numpoints=1, loc='lower center', bbox_to_anchor=(0.5, -0.02), 
-                                fancybox=True, shadow=False, frameon=False, ncol=2, prop={"size": 10})
+                        fig = plt.figure(figsize=(12, 6))
+                        ax  = fig.add_subplot(1, 1, 1)
+                        ax = geoMap(area=None,ax=ax)
+                        for dfi,namedf,mk,cl in zip(df_list,name_list,marker_list,color_list):
+                            df    = dfi
+                            legend_labels.append(mpatches.Patch(color=cl, label=namedf) )
+                            ax = df.plot(ax=ax,legend=True, marker=mk, color=cl, **kwargs) #   markersize=3.0
+                            setColor += 1
+                            plt.legend(handles=legend_labels, numpoints=1, loc='lower center', bbox_to_anchor=(0.5, -0.02), 
+                                    fancybox=True, shadow=False, frameon=False, ncol=2, prop={"size": 10})
                         
-                    date_title = str(date.strftime("%d%b%Y - %H%M")) + ' GMT'
-                    plt.title(date_title, loc='right', fontsize=10)
-                    plt.title(instrument_title, loc='left', fontsize=9)
-                    plt.annotate(forplot, xy=(0.45, 1.015), xytext=(0, 0), xycoords='axes fraction', textcoords='offset points', color='gray', fontweight='bold', fontsize='10',
-            horizontalalignment='left', verticalalignment='center')
+                        date_title = str(date.strftime("%d%b%Y - %H%M")) + ' GMT'
+                        plt.title(date_title, loc='right', fontsize=10)
+                        plt.title(instrument_title, loc='left', fontsize=9)
+                        plt.annotate(forplot, xy=(0.45, 1.015), xytext=(0, 0), xycoords='axes fraction', textcoords='offset points', color='gray', fontweight='bold', fontsize='10',
+                horizontalalignment='left', verticalalignment='center')
                     
-                    plt.tight_layout()
-                    plt.savefig('Monitored_'+str(varName) + '-' + str(varType)+'_'+ 'CH' + str(channel) + '_'+datefmt+'.png', bbox_inches='tight', dpi=100)
+                        plt.tight_layout()
+                        plt.savefig('Monitored_'+str(varName) + '-' + str(varType)+'_'+ 'CH' + str(channel) + '_'+datefmt+'.png', bbox_inches='tight', dpi=100)
+                    else:
+                        print("No monitored data for the channel:",channel,'->',date.strftime("%Y-%m-%d:%H"))
                     
                     
                     
