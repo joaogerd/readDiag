@@ -608,12 +608,18 @@ class plot_diag(object):
             kwargs['cmap'] = 'jet'
 
         ax = geoMap(area=area,ax=ax)
-
-        if mask is None:
-            ax  = self.obsInfo[varName].loc[varType].plot(param, ax=ax, vmin=minVal, vmax=maxVal, **kwargs, legend_kwds={'shrink': 0.5})
-        else:
-            df = self.obsInfo[varName].loc[varType]
-            ax = df.query(mask).plot(param, ax=ax, vmin=minVal, vmax=maxVal, **kwargs, legend_kwds={'shrink': 0.5}) 
+        
+        # try: caso aconteça algum problema no plot dos pontos (falta de arquivo) uma mensagem de erro é impressa
+        try:
+            if mask is None:
+                ax  = self.obsInfo[varName].loc[varType].plot(param, ax=ax, vmin=minVal, vmax=maxVal, **kwargs, legend_kwds={'shrink': 0.5})
+            else:
+                df = self.obsInfo[varName].loc[varType]
+                ax = df.query(mask).plot(param, ax=ax, vmin=minVal, vmax=maxVal, **kwargs, legend_kwds={'shrink': 0.5})
+                    
+        except:
+            print("!!!!!!!! AttributeError: Not found file !!!!!!!!")
+                        
 
         
         return ax
@@ -1636,27 +1642,38 @@ class plot_diag(object):
             datefmt = date.strftime("%Y%m%d%H")
             DayHour_tmp.append(date.strftime("%d%H"))
             
-            dataDict = self[f].obsInfo[varName].query(maski).loc[varType]
-            info_check.update({date.strftime("%d%H"):True})
-
-            if 'nchan' in dataDict and (channel == None or chanList == 1):
-                levs_tmp = zlevs_def[::-1]
+            # Try: caso ocorra algum problema na leitura do arquivo (ou não exista), 
+            # imprime uma mensagen de erro no except e continua para outras datas
+            try:
+                dataDict = self[f].obsInfo[varName].query(maski).loc[varType]
                 info_check.update({date.strftime("%d%H"):True})
-                print(date.strftime(' Preparing data for: Canais de radiancia' + "%Y-%m-%d:%H"))
-                print(' Channels: ', sorted(levs_tmp), end='\n')
-                print("")
-                f = f + 1
-            else:
-                if (channel != None and chanList != 1) and info_check[date.strftime("%d%H")] == True:
-                    levs_tmp.extend([zchan])
+
+                if 'nchan' in dataDict and (channel == None or chanList == 1):
+                    levs_tmp = zlevs_def[::-1]
                     info_check.update({date.strftime("%d%H"):True})
-                    print(date.strftime(' Preparing data for: ' + "%Y-%m-%d:%H"), ' - Channel de radiancia: ', zchan , end='\n')
+                    print(date.strftime(' Preparing data for: Canais de radiancia' + "%Y-%m-%d:%H"))
+                    print(' Channels: ', sorted(levs_tmp), end='\n')
+                    print("")
                     f = f + 1
                 else:
-                    info_check.update({date.strftime("%d%H"):False})
-                    print(date.strftime(setcolor.WARNING + ' Preparing data for: ' + "%Y-%m-%d:%H"), ' - No information on this date ' + setcolor.ENDC, end='\n')
-
-            del(dataDict)
+                    if (channel != None and chanList != 1) and info_check[date.strftime("%d%H")] == True:
+                        levs_tmp.extend([zchan])
+                        info_check.update({date.strftime("%d%H"):True})
+                        print(date.strftime(' Preparing data for: ' + "%Y-%m-%d:%H"), ' - Channel de radiancia: ', zchan , end='\n')
+                        f = f + 1
+                    else:
+                        info_check.update({date.strftime("%d%H"):False})
+                        print(date.strftime(setcolor.WARNING + ' Preparing data for: ' + "%Y-%m-%d:%H"), ' - No information on this date ' + setcolor.ENDC, end='\n')
+                
+                del(dataDict)
+                
+            except:
+                print("+++++++++++ ERROR: file reading --> time_series_radi +++++++++++")
+                print("AttributeError: Not found file for data -->",datefmt)
+                info_check.update({date.strftime("%d%H"):False})
+                print(" Error --> info_check[date.strftime(%d%H)]",info_check[date.strftime("%d%H")])
+                print("")
+                f = f + 1
             
             date = date + timedelta(hours=int(delta))
             
@@ -1678,7 +1695,7 @@ class plot_diag(object):
         levs_tmp.clear()
         del(levs_tmp[:])
         
-        print('levs = ',levs)
+        print('channels = ',levs)
 
         
         f = 0
@@ -1687,9 +1704,11 @@ class plot_diag(object):
             print(date.strftime(' Calculating for ' + "%Y-%m-%d:%H"))
             datefmt = date.strftime("%Y%m%d%H")
 
+#             print(" -----> info_check[date.strftime(%d%H)]",info_check[date.strftime("%d%H")])
             try: 
                 if info_check[date.strftime("%d%H")] == True:
                     dataDict = self[f].obsInfo[varName].query(maski).loc[varType]
+#                     print("!!!!!!!! Passou dataDict !!!!!!!!")
                     dataByLevs, mean_dataByLevs, std_dataByLevs, count_dataByLevs = {}, {}, {}, {}
                     dataByLevsa, mean_dataByLevsa, std_dataByLevsa, count_dataByLevsa = {}, {}, {}, {}
                     [dataByLevs.update({int(lvl): []}) for lvl in levs]
@@ -1730,6 +1749,7 @@ class plot_diag(object):
                 if info_check[date.strftime("%d%H")] == True:
                     print("ERROR in time_series function.")
                 else:
+                    f = f + 1 # Estava faltando: com isso o dataDict do próximo UTC não era concatenado corretamente
                     print(setcolor.WARNING + "    >>> No information on this date (" + str(date.strftime("%Y-%m-%d:%H")) +") <<< " + setcolor.ENDC)
 
                 for lv in levs:
@@ -2240,81 +2260,33 @@ class plot_diag(object):
 
         assi, reje, moni, DayHour_tmp = [], [], [], []
         moniAssi, moniReje = [], []
+        assif, rejef, monif, moniAssif, moniRejef = [], [], [], [], []
         f = 0
         while (date <= datef):
 
             datefmt = date.strftime("%Y%m%d%H")
             DayHour_tmp.append(date.strftime("%d%H"))
             
-            
-            if(channel == None):  # Conventional
-                exp = "(iuse==1)"
-                assim = self[f].obsInfo[varName].loc[varType].query(exp)
-                exp = "(iuse==-1) & (idqc >= "+str(lim_qm)+" and idqc <= 15)"
-                monit = self[f].obsInfo[varName].loc[varType].query(exp)
-                exp = "(iuse==-1) & ((idqc > 15 or idqc <= 0) or (idqc > 0 and idqc < "+str(lim_qm)+"))"
-                rejei = self[f].obsInfo[varName].loc[varType].query(exp)
+            # O try foi inserido, pois, caso o arquivo não exista, ele continua fazendo para outras datas e printa no except uma mensagem
+            try:
                 
-                assi.append(len(assim))
-                moni.append(len(monit))
-                reje.append(len(rejei))
+                if(channel == None):  # Conventional
+                    exp = "(iuse==1)"
+                    assim = self[f].obsInfo[varName].loc[varType].query(exp)
+                    exp = "(iuse==-1) & (idqc >= "+str(lim_qm)+" and idqc <= 15)"
+                    monit = self[f].obsInfo[varName].loc[varType].query(exp)
+                    exp = "(iuse==-1) & ((idqc > 15 or idqc <= 0) or (idqc > 0 and idqc < "+str(lim_qm)+"))"
+                    rejei = self[f].obsInfo[varName].loc[varType].query(exp)
                 
-                if (figMap):
-                    df_list = [assim, monit, rejei]
-                    name_list = ["Assimilated ["+str(len(assim))+"]","Monitored ["+str(len(monit))+"]","Rejected ["+str(len(rejei))+"]"]
-                    marker_list = [".","x","*"]     #["*","x","."]
-                    color_list = ["green","blue","red"]
-                    
-                    setColor = 0 
-                    legend_labels = []
-                    
-                    fig = plt.figure(figsize=(12, 6))
-                    ax  = fig.add_subplot(1, 1, 1)
-                    ax = geoMap(area=None,ax=ax)
-                    for dfi,namedf,mk,cl in zip(df_list,name_list,marker_list,color_list):
-                        df    = dfi
-                        legend_labels.append(mpatches.Patch(color=cl, label=namedf) )
-                        ax = df.plot(ax=ax,legend=True, marker=mk, color=cl, **kwargs)
-                        setColor += 1
-                        plt.legend(handles=legend_labels, numpoints=1, loc='lower center', bbox_to_anchor=(0.5, -0.02), 
-                                fancybox=True, shadow=False, frameon=False, ncol=3, prop={"size": 10})
-                    
-                    date_title = str(date.strftime("%d%b%Y - %H%M")) + ' GMT'
-                    plt.title(date_title, loc='right', fontsize=10)
-                    plt.title(instrument_title, loc='left', fontsize=9)
-                    
-                    plt.tight_layout()
-                    plt.savefig('TotalObs_'+str(varName) + '-' + str(varType)+'_'+datefmt+'.png', bbox_inches='tight', dpi=100)
+                    assi.append(len(assim))
+                    moni.append(len(monit))
+                    reje.append(len(rejei))
                 
-                
-            else:   # Radiance
-                exp = "(nchan=="+str(channel)+" & iuse==1) & (idqc==0.0)"
-                assim = self[f].obsInfo[varName].loc[varType].query(exp)
-                exp = "(nchan=="+str(channel)+" & iuse==-1) & (idqc==0.0)"
-                monitAssim = self[f].obsInfo[varName].loc[varType].query(exp)
-                exp = "(nchan=="+str(channel)+" & iuse==-1) & (idqc!=0.0)"
-                monitRejei = self[f].obsInfo[varName].loc[varType].query(exp)
-                exp = "(nchan=="+str(channel)+" & iuse==1) & (idqc!=0.0)"
-                rejei = self[f].obsInfo[varName].loc[varType].query(exp)
-                
-                assi.append(len(assim))
-                moniAssi.append(len(monitAssim))
-                moniReje.append(len(monitRejei))
-                reje.append(len(rejei))
-                
-                print('assi =',assi,'reje =',reje)
-                print('moniAssi =',moniAssi,'moniReje =',moniReje)
-                
-                forplot = 'Channel ='+str(channel)
-                
-                # Radiance plots
-                if (figMap):
-                    # Case: assimilated and rejected
-                    if ((len(assim)) != 0 or (len(rejei)) != 0):
-                        df_list = [assim, rejei]    
-                        name_list = ["Assimilated ["+str(len(assim))+"]","Rejected ["+str(len(rejei))+"]"]
-                        marker_list = ["^","v"]    #[".","x","*"]
-                        color_list = ["blue","red"]
+                    if (figMap):
+                        df_list = [assim, monit, rejei]
+                        name_list = ["Assimilated ["+str(len(assim))+"]","Monitored ["+str(len(monit))+"]","Rejected ["+str(len(rejei))+"]"]
+                        marker_list = [".","x","*"]     #["*","x","."]
+                        color_list = ["green","blue","red"]
                     
                         setColor = 0 
                         legend_labels = []
@@ -2325,55 +2297,116 @@ class plot_diag(object):
                         for dfi,namedf,mk,cl in zip(df_list,name_list,marker_list,color_list):
                             df    = dfi
                             legend_labels.append(mpatches.Patch(color=cl, label=namedf) )
-                            ax = df.plot(ax=ax,legend=True, marker=mk, color=cl, **kwargs) # markersize=4.80
+                            ax = df.plot(ax=ax,legend=True, marker=mk, color=cl, **kwargs)
                             setColor += 1
                             plt.legend(handles=legend_labels, numpoints=1, loc='lower center', bbox_to_anchor=(0.5, -0.02), 
-                                    fancybox=True, shadow=False, frameon=False, ncol=2, prop={"size": 10})
-                        
+                                    fancybox=True, shadow=False, frameon=False, ncol=3, prop={"size": 10})
+                    
                         date_title = str(date.strftime("%d%b%Y - %H%M")) + ' GMT'
                         plt.title(date_title, loc='right', fontsize=10)
                         plt.title(instrument_title, loc='left', fontsize=9)
-                        plt.annotate(forplot, xy=(0.45, 1.015), xytext=(0, 0), xycoords='axes fraction', textcoords='offset points', color='gray', fontweight='bold', fontsize='10',
-                horizontalalignment='left', verticalalignment='center')
                     
                         plt.tight_layout()
-                        plt.savefig('Assim-Rejei_'+str(varName) + '-' + str(varType)+'_'+ 'CH' + str(channel) + '_' +datefmt+'.png', bbox_inches='tight', dpi=100)
-                    else:
-                        print("No assimilated or rejected data for the channel:",channel,'->',date.strftime("%Y-%m-%d:%H"))
+                        plt.savefig('TotalObs_'+str(varName) + '-' + str(varType)+'_'+datefmt+'.png', bbox_inches='tight', dpi=100)
+                
+                
+                else:   # Radiance
+                    exp = "(nchan=="+str(channel)+" & iuse==1) & (idqc==0.0)"
+                    assim = self[f].obsInfo[varName].loc[varType].query(exp)
+                    exp = "(nchan=="+str(channel)+" & iuse==-1) & (idqc==0.0)"
+                    monitAssim = self[f].obsInfo[varName].loc[varType].query(exp)
+                    exp = "(nchan=="+str(channel)+" & iuse==-1) & (idqc!=0.0)"
+                    monitRejei = self[f].obsInfo[varName].loc[varType].query(exp)
+                    exp = "(nchan=="+str(channel)+" & iuse==1) & (idqc!=0.0)"
+                    rejei = self[f].obsInfo[varName].loc[varType].query(exp)
+                
+                    assi.append(len(assim))
+                    moniAssi.append(len(monitAssim))
+                    moniReje.append(len(monitRejei))
+                    reje.append(len(rejei))
+                
+                    print('assi =',assi,'reje =',reje)
+                    print('moniAssi =',moniAssi,'moniReje =',moniReje)
+                
+                    forplot = 'Channel ='+str(channel)
+                
+                    # Radiance plots
+                    if (figMap):
+                        # Case: assimilated and rejected
+                        if ((len(assim)) != 0 or (len(rejei)) != 0):
+                            df_list = [assim, rejei]    
+                            name_list = ["Assimilated ["+str(len(assim))+"]","Rejected ["+str(len(rejei))+"]"]
+                            marker_list = ["^","v"]    #[".","x","*"]
+                            color_list = ["blue","red"]
                     
-                    # Monitored cases: would be assimilated or rejected 
-                    if ((len(monitAssim)) != 0 or (len(monitRejei)) != 0):
-                        df_list = [monitAssim, monitRejei]
-                        name_list = ["Monitored-Assimilated ["+str(len(monitAssim))+"]","Monitored-Rejected ["+str(len(monitRejei))+"]"]
-                        marker_list = ["^","v"]    #[".","x","*"]
-                        color_list = ["teal","purple"]
+                            setColor = 0 
+                            legend_labels = []
                     
-                        setColor = 0 
-                        legend_labels = []
-                    
-                        fig = plt.figure(figsize=(12, 6))
-                        ax  = fig.add_subplot(1, 1, 1)
-                        ax = geoMap(area=None,ax=ax)
-                        for dfi,namedf,mk,cl in zip(df_list,name_list,marker_list,color_list):
-                            df    = dfi
-                            legend_labels.append(mpatches.Patch(color=cl, label=namedf) )
-                            ax = df.plot(ax=ax,legend=True, marker=mk, color=cl, **kwargs) #   markersize=3.0
-                            setColor += 1
-                            plt.legend(handles=legend_labels, numpoints=1, loc='lower center', bbox_to_anchor=(0.5, -0.02), 
-                                    fancybox=True, shadow=False, frameon=False, ncol=2, prop={"size": 10})
+                            fig = plt.figure(figsize=(12, 6))
+                            ax  = fig.add_subplot(1, 1, 1)
+                            ax = geoMap(area=None,ax=ax)
+                            for dfi,namedf,mk,cl in zip(df_list,name_list,marker_list,color_list):
+                                df    = dfi
+                                legend_labels.append(mpatches.Patch(color=cl, label=namedf) )
+                                ax = df.plot(ax=ax,legend=True, marker=mk, color=cl, **kwargs) # markersize=4.80
+                                setColor += 1
+                                plt.legend(handles=legend_labels, numpoints=1, loc='lower center', bbox_to_anchor=(0.5, -0.02), 
+                                        fancybox=True, shadow=False, frameon=False, ncol=2, prop={"size": 10})
                         
-                        date_title = str(date.strftime("%d%b%Y - %H%M")) + ' GMT'
-                        plt.title(date_title, loc='right', fontsize=10)
-                        plt.title(instrument_title, loc='left', fontsize=9)
-                        plt.annotate(forplot, xy=(0.45, 1.015), xytext=(0, 0), xycoords='axes fraction', textcoords='offset points', color='gray', fontweight='bold', fontsize='10',
-                horizontalalignment='left', verticalalignment='center')
+                            date_title = str(date.strftime("%d%b%Y - %H%M")) + ' GMT'
+                            plt.title(date_title, loc='right', fontsize=10)
+                            plt.title(instrument_title, loc='left', fontsize=9)
+                            plt.annotate(forplot, xy=(0.45, 1.015), xytext=(0, 0), xycoords='axes fraction', textcoords='offset points', color='gray', fontweight='bold', fontsize='10',
+                    horizontalalignment='left', verticalalignment='center')
                     
-                        plt.tight_layout()
-                        plt.savefig('Monitored_'+str(varName) + '-' + str(varType)+'_'+ 'CH' + str(channel) + '_'+datefmt+'.png', bbox_inches='tight', dpi=100)
-                    else:
-                        print("No monitored data for the channel:",channel,'->',date.strftime("%Y-%m-%d:%H"))
+                            plt.tight_layout()
+                            plt.savefig('Assim-Rejei_'+str(varName) + '-' + str(varType)+'_'+ 'CH' + str(channel) + '_' +datefmt+'.png', bbox_inches='tight', dpi=100)
+                        else:
+                            print("No assimilated or rejected data for the channel:",channel,'->',date.strftime("%Y-%m-%d:%H"))
                     
+                        # Monitored cases: would be assimilated or rejected 
+                        if ((len(monitAssim)) != 0 or (len(monitRejei)) != 0):
+                            df_list = [monitAssim, monitRejei]
+                            name_list = ["Monitored-Assimilated ["+str(len(monitAssim))+"]","Monitored-Rejected ["+str(len(monitRejei))+"]"]
+                            marker_list = ["^","v"]    #[".","x","*"]
+                            color_list = ["teal","purple"]
                     
+                            setColor = 0 
+                            legend_labels = []
+                    
+                            fig = plt.figure(figsize=(12, 6))
+                            ax  = fig.add_subplot(1, 1, 1)
+                            ax = geoMap(area=None,ax=ax)
+                            for dfi,namedf,mk,cl in zip(df_list,name_list,marker_list,color_list):
+                                df    = dfi
+                                legend_labels.append(mpatches.Patch(color=cl, label=namedf) )
+                                ax = df.plot(ax=ax,legend=True, marker=mk, color=cl, **kwargs) #   markersize=3.0
+                                setColor += 1
+                                plt.legend(handles=legend_labels, numpoints=1, loc='lower center', bbox_to_anchor=(0.5, -0.02), 
+                                        fancybox=True, shadow=False, frameon=False, ncol=2, prop={"size": 10})
+                        
+                            date_title = str(date.strftime("%d%b%Y - %H%M")) + ' GMT'
+                            plt.title(date_title, loc='right', fontsize=10)
+                            plt.title(instrument_title, loc='left', fontsize=9)
+                            plt.annotate(forplot, xy=(0.45, 1.015), xytext=(0, 0), xycoords='axes fraction', textcoords='offset points', color='gray', fontweight='bold', fontsize='10',
+                    horizontalalignment='left', verticalalignment='center')
+                    
+                            plt.tight_layout()
+                            plt.savefig('Monitored_'+str(varName) + '-' + str(varType)+'_'+ 'CH' + str(channel) + '_'+datefmt+'.png', bbox_inches='tight', dpi=100)
+                        else:
+                            print("No monitored data for the channel:",channel,'->',date.strftime("%Y-%m-%d:%H"))
+                    
+            except:
+                print("AttributeError: Not found file for data -->", date.strftime("%Y-%m-%d:%H"))
+                if(channel == None):
+                    assi.append(None)
+                    moni.append(None)
+                    reje.append(None)
+                else:
+                    assi.append(None)
+                    moniAssi.append(None)
+                    moniReje.append(None)
+                    reje.append(None)
                     
             f = f + 1
             date = date + timedelta(hours=int(nHour))
@@ -2431,11 +2464,18 @@ class plot_diag(object):
                 plt.style.use('seaborn-v0_8-ticks')
 
                 plt.axhline(y=0.0,ls='solid',c='#d3d3d3')
+                
+                # Caso alguma lista contenha valor None, este valor é retirado para que possa ser calculado a soma, max e min
+                # As listas abaixo vão ser utilizadas apenas para definir a escala dos eixos e a soma total de dados assi/rejei/monit
+                assif     = [x for x in assi if x != None]
+                moniAssif = [x for x in moniAssi if x != None]
+                moniRejef = [x for x in moniReje if x != None]
+                rejef     = [x for x in reje if x != None]
 
-                ax1.plot(x_axis, assi, "o", label="Assimilated \n["+str(sum(assi))+"]", color='blue')
-                ax1.plot(x_axis, moniAssi, "o", label="Monitored-Assim \n["+str(sum(moniAssi))+"]", color='teal')
-                ax1.plot(x_axis, moniReje, "o", label="Monitored-Rejei \n["+str(sum(moniReje))+"]", color='purple')
-                ax1.plot(x_axis, reje, "o", label="Rejected \n["+str(sum(reje))+"]", color='red')
+                ax1.plot(x_axis, assi, "o", label="Assimilated \n["+str(sum(assif))+"]", color='blue')
+                ax1.plot(x_axis, moniAssi, "o", label="Monitored-Assim \n["+str(sum(moniAssif))+"]", color='teal')
+                ax1.plot(x_axis, moniReje, "o", label="Monitored-Rejei \n["+str(sum(moniRejef))+"]", color='purple')
+                ax1.plot(x_axis, reje, "o", label="Rejected \n["+str(sum(rejef))+"]", color='red')
                 ax1.legend(fancybox=True, frameon=True, shadow=True, loc="best",ncol=1)
                 ax1.set_xlabel('Date (DayHour)', fontsize=10)
                 plt.title(date_title, loc='right', fontsize=10)
@@ -2443,16 +2483,16 @@ class plot_diag(object):
                 plt.annotate(forplot, xy=(0.0, 0.965), xytext=(0, 0), xycoords='axes fraction', textcoords='offset points', color='lightgray', fontweight='bold', fontsize='12',
             horizontalalignment='left', verticalalignment='center')
                 
-                ax1.set_ylim(np.round(-0.05*np.max([assi,moniAssi,moniReje,reje])), np.round(1.25*np.max([assi,moniAssi,moniReje,reje])))
+                ax1.set_ylim(np.round(-0.05*np.max([assif,moniAssif,moniRejef,rejef])), np.round(1.25*np.max([assif,moniAssif,moniRejef,rejef])))
                 ax1.set_ylabel('Total Observations', color='black', fontsize=10)
                 ax1.tick_params('y', colors='black')
                 plt.xticks(x_axis, DayHour)
                 major_ticks = [ DayHour.index(dh) for dh in filter(None,DayHour) ]
                 ax1.set_xticks(major_ticks)
-                plt.axhline(y=np.mean(assi),ls='dotted',c='lightgray')
-                plt.axhline(y=np.mean(moniAssi),ls='dotted',c='lightgray')
-                plt.axhline(y=np.mean(moniReje),ls='dotted',c='lightgray')
-                plt.axhline(y=np.mean(reje),ls='dotted',c='lightgray')
+                plt.axhline(y=np.mean(assif),ls='dotted',c='lightgray')
+                plt.axhline(y=np.mean(moniAssif),ls='dotted',c='lightgray')
+                plt.axhline(y=np.mean(moniRejef),ls='dotted',c='lightgray')
+                plt.axhline(y=np.mean(rejef),ls='dotted',c='lightgray')
                 plt.tight_layout()
                 plt.savefig('time_series_'+str(varName) + '-' + str(varType) +'_'+ 'CH' + str(channel) + '_'+'_TotalObs.png', bbox_inches='tight', dpi=100)
 
