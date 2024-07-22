@@ -12,9 +12,10 @@
 #
 # !REVISION HISTORY: 
 # 09 out 2017 - J. G. de Mattos - Initial Version
+# 08 may 2024 - L. F. Saoycci - Radiance initial version
 #
 # !REMARKS:
-#   Work only with conventional diganostics files
+#   This version can be used not only with conventional diganostics files by radiance too.
 #
 #EOP
 #-----------------------------------------------------------------------------#
@@ -34,6 +35,7 @@ import matplotlib.patches as mpatches
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from cartopy import crs as ccrs
 import gc
+import sys
 from textwrap import wrap
 import matplotlib as mpl
 import matplotlib.ticker as mticker
@@ -127,7 +129,7 @@ class read_diag(object):
     """
     #@profile(precision=8)
 
-    def __init__(self, diagFile, diagFileAnl=None, isisList=None, zlevs=None):
+    def __init__(self, diagFile, diagFileAnl=None, isisList=None, zlevs=None, zchan=None):
 
         print(' ')
         print('>>> GSI DIAG <<<')
@@ -175,7 +177,7 @@ class read_diag(object):
            self.zlevs = [1000.0,900.0,800.0,700.0,600.0,500.0,400.0,300.0,250.0,200.0,150.0,100.0,50.0,0.0]
         else:
            self.zlevs = zlevs
-
+        
         #
         # Get extra informations
         #
@@ -551,7 +553,7 @@ class plot_diag(object):
     plot diagnostic file from gsi. 
     """
 
-    def plot(self, varName, varType, param, mask=None, area=None, **kwargs):
+    def plot(self, varName, varType, param, minVal=None, maxVal=None, mask=None, area=None, **kwargs):
         '''
         The plot function makes a plot for the selected observation by using information of the following columns available within the dataframe.
  
@@ -566,6 +568,9 @@ class plot_diag(object):
         iuse : Use flag (use = 1; monitoring = -1)
         iusev: Value of the flag used in the analysis
         obs  : Observation value
+        
+        Optional parameters: minVal and maxVal (float)
+        vmin = minVal and vmax = maxVal define the data range that the colormap covers. By default (minVal=maxVal=None), the colormap covers the complete value range of the supplied data.
 
         Example:
         gd.plot('ps', 187, 'obs', mask='iuse == 1')
@@ -603,13 +608,21 @@ class plot_diag(object):
             kwargs['cmap'] = 'jet'
 
         ax = geoMap(area=area,ax=ax)
-
-        if mask is None:
-            ax  = self.obsInfo[varName].loc[varType].plot(param, ax=ax, **kwargs, legend_kwds={'shrink': 0.5})
-        else:
-            df = self.obsInfo[varName].loc[varType]
-            ax = df.query(mask).plot(param, ax=ax, **kwargs, legend_kwds={'shrink': 0.5})
-
+        
+        # try: For issues reading the file (file not found)
+        # in the except statement an error message is printed and continues for other dates
+        try:
+            if mask is None:
+                ax  = self.obsInfo[varName].loc[varType].plot(param, ax=ax, vmin=minVal, vmax=maxVal, **kwargs, legend_kwds={'shrink': 0.5})
+            else:
+                df = self.obsInfo[varName].loc[varType]
+                ax = df.query(mask).plot(param, ax=ax, vmin=minVal, vmax=maxVal, **kwargs, legend_kwds={'shrink': 0.5})
+                    
+        except:
+            ax = None
+            print("++++++++++++++++++++++++++ ERROR: file reading --> plot ++++++++++++++++++++++++++")
+            print(setcolor.WARNING + "    >>> No information on this date <<< " + setcolor.ENDC)   
+            
         
         return ax
 
@@ -647,6 +660,7 @@ class plot_diag(object):
 
         if varType is None:
             varType = self.obsInfo[varName].index.levels[0].tolist()
+            print('varType',varType)
 
         if 'alpha' not in kwargs:
             kwargs['alpha'] = 0.5
@@ -686,7 +700,7 @@ class plot_diag(object):
             color = getColor(minVal=cmin, maxVal=cmax,
                              value=i,hex=True,cmapName='Paired')
             instr = getVarInfo(kx,varName,'instrument')
-
+            
             label = '\n'.join(wrap(varName + '-' + str(kx) + ' | ' + instr,30))
             legend_labels.append(mpatches.Patch(color=color, 
                                  label=label)
@@ -1550,8 +1564,625 @@ class plot_diag(object):
                
 
         return
+        
+# radiance inicio
 
-    def statcount(self, varName=None, varType=None, noiqc=False, dateIni=None, dateFin=None, nHour="06", figTS=False, figMap=False):
+    def time_series_radi(self, varName=None, varType=None, mask=None, dateIni=None, dateFin=None, nHour="06", vminOMA=None, vmaxOMA=None, vminSTD=0.0, vmaxSTD=14.0, channel=None, Clean=None):
+        
+        '''
+        The time_series_radi function plots a time series for radiance data in different chanell OmF and OmA. This function is different from time_series because the level are not defined by radiance dada.
+
+        Example:
+
+        vName = 'amsua'       # Radiance Sensor 
+        vType = 'n15'         # Source Type satellite
+        mask  = None          # Mask the data by chosen used/not used data, ex: mask='iuse==1 & idqc==0'
+        dateIni = 2013010100  # Inicial Date
+        dateFin = 2013010900  # Final Date
+        nHour = "06"          # Time Interval
+        vminOMA = -4.0        # Y-axis Minimum Value for OmF or OmA
+        vmaxOMA = 4.0         # Y-axis Maximum Value for OmF or OmA
+        vminSTD = 0.0         # Y-axis Minimum Value for Standard Deviation
+        vmaxSTD = 14.0        # Y-axis Maximum Value for Standard Deviation
+        channel = 1           # Time Series channel, if any (None), all nchan are plotted 
+
+        '''
+        if Clean == None:
+            Clean = True
+
+        delta = nHour
+        omflag = "OmF"
+        omflaga = "OmA"
+
+        separator = " ============================================================================================================="
+
+        print()
+        print(separator)
+        #print(" Reading dataset in " + data_path)
+        varInfo = getVarInfo(varType, varName, 'instrument')
+        if varInfo is not None:
+            print(" Variable: " + varName + "  ||  type: " + str(varType) + "  ||  " + varInfo + "  ||  check: " + omflag)
+        else:
+            print(" Variable: " + varName + "  ||  type: " + str(varType) + "  ||  Unknown instrument  ||  check: " + omflag)
+
+        print(separator)
+        print()
+
+        if mask == None:
+            maski  = "iuse>-99999.9"
+            cmaski = "iuse = All"
+        else:
+            maski  = mask
+            cmaski = mask
+
+        if type(channel) == list:
+            zchan = channel
+            chanList = 1
+            zchans_def = zchan
+        elif channel == None:
+            zchan = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]  #list of all channels of the amsua sensor 
+            chanList = 0
+            zchans_def = zchan
+        else:
+            zchan = channel
+            chanList = 0 
+            zchans_def = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]  #list of all channels of the amsua sensor 
+
+            
+#         print(zchan,chanList)
+
+        datei = datetime.strptime(str(dateIni), "%Y%m%d%H")
+        datef = datetime.strptime(str(dateFin), "%Y%m%d%H")
+        date  = datei
+
+        levs_tmp, DayHour_tmp = [], []
+        info_check = {}
+        f = 0
+        
+        while (date <= datef):
+            
+            datefmt = date.strftime("%Y%m%d%H")
+            DayHour_tmp.append(date.strftime("%d%H"))
+            
+            # Try: For issues reading the file (file not found), 
+            # in the except statement an error message is printed and continues for other dates
+            try:
+                dataDict = self[f].obsInfo[varName].query(maski).loc[varType]
+                info_check.update({date.strftime("%d%H"):True})
+
+                if 'nchan' in dataDict and (channel == None or chanList == 1):
+                    levs_tmp = zchans_def[::-1]
+                    info_check.update({date.strftime("%d%H"):True})
+                    print(date.strftime(' Preparing data for: Canais de radiancia' + "%Y-%m-%d:%H"))
+                    print(' Channels: ', sorted(levs_tmp), end='\n')
+                    print("")
+                    f = f + 1
+                else:
+                    if (channel != None and chanList != 1) and info_check[date.strftime("%d%H")] == True:
+                        levs_tmp.extend([zchan])
+                        info_check.update({date.strftime("%d%H"):True})
+                        print(date.strftime(' Preparing data for: ' + "%Y-%m-%d:%H"), ' - Channel de radiancia: ', zchan , end='\n')
+                        f = f + 1
+                    else:
+                        info_check.update({date.strftime("%d%H"):False})
+                        print(date.strftime(setcolor.WARNING + ' Preparing data for: ' + "%Y-%m-%d:%H"), ' - No information on this date ' + setcolor.ENDC, end='\n')
+                
+                del(dataDict)
+                
+            except:
+                print("++++++++++++++++++++++++++ ERROR: file reading --> time_series_radi ++++++++++++++++++++++++++")
+                print(setcolor.WARNING + "    >>> No information on this date (" + str(date.strftime("%Y-%m-%d:%H")) +") <<< " + setcolor.ENDC)
+                info_check.update({date.strftime("%d%H"):False})
+                print(" Update info --> info_check[date.strftime(%d%H)]",info_check[date.strftime("%d%H")])
+                print("")
+                f = f + 1
+            
+            date = date + timedelta(hours=int(delta))
+            
+        if(len(DayHour_tmp) > 4):
+            DayHour = [hr if (ix % int(len(DayHour_tmp) / 4)) == 0 else '' for ix, hr in enumerate(DayHour_tmp)]
+        else:
+            DayHour = DayHour_tmp
+        
+        zlevs = [z if z in zchans_def else "" for z in sorted(set(levs_tmp+zchans_def))]
+
+        print()
+        print(separator)
+        print()
+
+        list_meanByLevs, list_stdByLevs, list_countByLevs = [], [], []
+        list_meanByLevsa, list_stdByLevsa, list_countByLevsa = [], [], []
+        date = datei
+        levs = sorted(list(set(levs_tmp)))
+        levs_tmp.clear()
+        del(levs_tmp[:])
+        
+        print('channels = ',levs)
+
+        
+        f = 0
+        while (date <= datef):
+
+            print(date.strftime(' Calculating for ' + "%Y-%m-%d:%H"))
+            datefmt = date.strftime("%Y%m%d%H")
+
+
+            try: 
+                if info_check[date.strftime("%d%H")] == True:
+                    dataDict = self[f].obsInfo[varName].query(maski).loc[varType]
+                    dataByLevs, mean_dataByLevs, std_dataByLevs, count_dataByLevs = {}, {}, {}, {}
+                    dataByLevsa, mean_dataByLevsa, std_dataByLevsa, count_dataByLevsa = {}, {}, {}, {}
+                    [dataByLevs.update({int(lvl): []}) for lvl in levs]
+                    [dataByLevsa.update({int(lvl): []}) for lvl in levs]
+                    if channel != None and chanList != 1: 
+                        forplot = 'Channel ='+str(zchan)
+                        forplotname = 'Channel_'+str(zchan)
+                        [ dataByLevs[int(zchan)].append(v) for p,v in zip(self[f].obsInfo[varName].query(maski).loc[varType].nchan,self[f].obsInfo[varName].query(maski).loc[varType].omf) if int(p) == zchan ]
+                        [ dataByLevsa[int(zchan)].append(v) for p,v in zip(self[f].obsInfo[varName].query(maski).loc[varType].nchan,self[f].obsInfo[varName].query(maski).loc[varType].oma) if int(p) == zchan ]   
+                    else:
+                        for ll in range(len(levs)):
+                            lv = levs[ll]
+                            cutlevs = [ v for p,v in zip(self[f].obsInfo[varName].query(maski).loc[varType].nchan,self[f].obsInfo[varName].query(maski).loc[varType].omf) if int(p) == lv ]
+                            cutlevsa = [ v for p,v in zip(self[f].obsInfo[varName].query(maski).loc[varType].nchan,self[f].obsInfo[varName].query(maski).loc[varType].oma) if int(p) == lv ]
+                            forplotname = 'List_Channel'
+                            [ dataByLevs[lv].append(il) for il in cutlevs ]
+                            [ dataByLevsa[lv].append(il) for il in cutlevsa ]
+                            cutlevs.clear()
+                            cutlevsa.clear()
+                    f = f + 1
+                for lv in levs:
+                    if len(dataByLevs[lv]) != 0 and info_check[date.strftime("%d%H")] == True:
+                        mean_dataByLevs.update({int(lv): np.mean(np.array(dataByLevs[lv]))})
+                        std_dataByLevs.update({int(lv): np.std(np.array(dataByLevs[lv]))})
+                        count_dataByLevs.update({int(lv): len(np.array(dataByLevs[lv]))})
+                        mean_dataByLevsa.update({int(lv): np.mean(np.array(dataByLevsa[lv]))})
+                        std_dataByLevsa.update({int(lv): np.std(np.array(dataByLevsa[lv]))})
+                        count_dataByLevsa.update({int(lv): len(np.array(dataByLevsa[lv]))})
+                    else:
+                        mean_dataByLevs.update({int(lv): -99})
+                        std_dataByLevs.update({int(lv): -99})
+                        count_dataByLevs.update({int(lv): -99})
+                        mean_dataByLevsa.update({int(lv): -99})
+                        std_dataByLevsa.update({int(lv): -99})
+                        count_dataByLevsa.update({int(lv): -99})
+            
+            except:
+                dataByLevs, mean_dataByLevs, std_dataByLevs, count_dataByLevs = {}, {}, {}, {}
+                dataByLevsa, mean_dataByLevsa, std_dataByLevsa, count_dataByLevsa = {}, {}, {}, {}
+                if info_check[date.strftime("%d%H")] == True:
+                    print("ERROR in time_series function.")
+                else:
+                    f = f + 1 # Estava faltando: sem essa atualização o dataDict do próximo UTC não é concatenado corretamente
+                    print(setcolor.WARNING + "    >>> No information on this date (" + str(date.strftime("%Y-%m-%d:%H")) +") <<< " + setcolor.ENDC)
+
+                for lv in levs:
+                    mean_dataByLevs.update({int(lv): -99})
+                    std_dataByLevs.update({int(lv): -99})
+                    count_dataByLevs.update({int(lv): -99})
+                    mean_dataByLevsa.update({int(lv): -99})
+                    std_dataByLevsa.update({int(lv): -99})
+                    count_dataByLevsa.update({int(lv): -99})
+
+            
+            if channel == None or chanList == 1:
+                list_meanByLevs.append(list(reversed(mean_dataByLevs.values())))
+                list_stdByLevs.append(list(reversed(std_dataByLevs.values())))
+                list_countByLevs.append(list(reversed(count_dataByLevs.values())))
+                list_meanByLevsa.append(list(reversed(mean_dataByLevsa.values())))
+                list_stdByLevsa.append(list(reversed(std_dataByLevsa.values())))
+                list_countByLevsa.append(list(reversed(count_dataByLevsa.values())))
+            else:
+                list_meanByLevs.append(mean_dataByLevs[int(zchan)])
+                list_stdByLevs.append(std_dataByLevs[int(zchan)])
+                list_countByLevs.append(count_dataByLevs[int(zchan)])
+                list_meanByLevsa.append(mean_dataByLevsa[int(zchan)])
+                list_stdByLevsa.append(std_dataByLevsa[int(zchan)])
+                list_countByLevsa.append(count_dataByLevsa[int(zchan)])
+
+            dataByLevs.clear()
+            mean_dataByLevs.clear()
+            std_dataByLevs.clear()
+            count_dataByLevs.clear()
+            dataByLevsa.clear()
+            mean_dataByLevsa.clear()
+            std_dataByLevsa.clear()
+            count_dataByLevsa.clear()
+
+            date_finale = date
+            date = date + timedelta(hours=int(delta))
+
+        
+        print()
+        print(separator)
+        print()
+
+        print(' Making Graphics...')
+
+        y_axis      = np.arange(0, len(zlevs), 1)
+        x_axis      = np.arange(0, len(DayHour), 1)
+
+        mean_final  = np.ma.masked_array(np.array(list_meanByLevs), np.array(list_meanByLevs) == -99)
+        std_final   = np.ma.masked_array(np.array(list_stdByLevs), np.array(list_stdByLevs) == -99)
+        count_final = np.ma.masked_array(np.array(list_countByLevs), np.array(list_countByLevs) == -99)
+        mean_finala  = np.ma.masked_array(np.array(list_meanByLevsa), np.array(list_meanByLevsa) == -99)
+        std_finala   = np.ma.masked_array(np.array(list_stdByLevsa), np.array(list_stdByLevsa) == -99)
+        count_finala = np.ma.masked_array(np.array(list_countByLevsa), np.array(list_countByLevsa) == -99)
+
+        OMF_inf = np.array(list_meanByLevs)-np.array(list_stdByLevs)
+        OMF_sup = np.array(list_meanByLevs)+np.array(list_stdByLevs)
+        OMA_inf = np.array(list_meanByLevsa)-np.array(list_stdByLevsa)
+        OMA_sup = np.array(list_meanByLevsa)+np.array(list_stdByLevsa)
+
+        mean_limit_inf = np.min(np.array([np.min(mean_final), np.min(mean_finala)]))
+        mean_limit_sup = np.max(np.array([np.max(mean_final), np.max(mean_finala)]))
+
+        std_limit_inf = np.min(np.array([np.min(std_final), np.min(std_finala)]))
+        std_limit_sup = np.max(np.array([np.max(std_final), np.max(std_finala)]))
+
+        omfoma_limit_inf =     (np.min(np.array([np.min(OMF_inf), np.min(OMA_inf)])))
+        if omfoma_limit_inf > 0:
+            omfoma_limit_inf = 0.9*omfoma_limit_inf
+        else:
+            omfoma_limit_inf = 1.1*omfoma_limit_inf  
+        omfoma_limit_sup = 1.1*(np.max(np.array([np.max(OMF_sup), np.max(OMA_sup)])))
+
+        if (vminOMA == None) and (vmaxOMA == None): vminOMA, vmaxOMA = mean_limit_inf, 1.1*mean_limit_sup
+        if vminOMA > 0:
+            vminOMA = 0.9*vminOMA
+        else:
+            vminOMA = 1.1*vminOMA 
+
+        vmaxOMAabs = np.max([np.abs(vminOMA),np.abs(vminOMA)])
+
+        if (vminSTD == None) and (vmaxSTD == None): vminSTD, vmaxSTD = std_limit_inf - 0.1*std_limit_inf,  1.1*std_limit_sup
+
+        date_title = str(datei.strftime("%d%b")) + '-' + str(date_finale.strftime("%d%b")) + ' ' + str(date_finale.strftime("%Y"))
+        instrument_title = str(varName) + '-' + str(varType) + '  |  ' + getVarInfo(varType, varName, 'instrument')
+
+        # Figure with more than one channel - default all channels
+        if channel == None or chanList == 1:
+            fig = plt.figure(figsize=(6, 9))
+            plt.rcParams['axes.facecolor'] = 'None'
+            plt.rcParams['hatch.linewidth'] = 0.3
+
+            ##### OMF
+
+            plt.subplot(3, 1, 1)
+            ax = plt.gca()
+            ax.add_patch(mpl.patches.Rectangle((-1,-1),(len(DayHour)+1),(len(levs)+3), hatch='xxxxx', color='black', fill=False, snap=False, zorder=0))
+            plt.imshow(np.flipud(mean_final.T), origin='lower', vmin=-vmaxOMAabs, vmax=vmaxOMAabs, cmap='seismic', aspect='auto', zorder=1,interpolation='none')
+            plt.colorbar(orientation='horizontal', pad=0.18, shrink=1.0)
+            plt.tight_layout()
+            plt.title(instrument_title, loc='left', fontsize=10)
+            plt.title(date_title, loc='right', fontsize=10)
+            plt.ylabel('Channels')
+            plt.xlabel('Mean ('+omflag+')', labelpad=50)
+            plt.yticks(y_axis, zlevs)
+            plt.xticks(x_axis, DayHour)
+            major_ticks = [ DayHour.index(dh) for dh in filter(None,DayHour) ]
+            ax.set_xticks(major_ticks)
+
+            plt.subplot(3, 1, 2)
+            ax = plt.gca()
+            ax.add_patch(mpl.patches.Rectangle((-1,-1),(len(DayHour)+1),(len(levs)+3), hatch='xxxxx', color='black', fill=False, snap=False, zorder=0))
+            plt.imshow(np.flipud(std_final.T), origin='lower', vmin=vminSTD, vmax=vmaxSTD, cmap='Blues', aspect='auto', zorder=1,interpolation='none')
+            plt.colorbar(orientation='horizontal', pad=0.18, shrink=1.0)
+            plt.tight_layout()
+            plt.title(instrument_title, loc='left', fontsize=10)
+            plt.title(date_title, loc='right', fontsize=10)
+            plt.ylabel('Channels')
+            plt.xlabel('Standard Deviation ('+omflag+')', labelpad=50)
+            plt.yticks(y_axis, zlevs)
+            plt.xticks(x_axis, DayHour)
+            major_ticks = [ DayHour.index(dh) for dh in filter(None,DayHour) ]
+            ax.set_xticks(major_ticks)
+
+            plt.subplot(3, 1, 3)
+            ax = plt.gca()
+            ax.add_patch(mpl.patches.Rectangle((-1,-1),(len(DayHour)+1),(len(levs)+3), hatch='xxxxx', color='black', fill=False, snap=False, zorder=0))
+            plt.imshow(np.flipud(count_final.T), origin='lower', vmin=0.0, vmax=np.max(count_final), cmap='gist_heat_r', aspect='auto', zorder=1,interpolation='none')
+            plt.colorbar(orientation='horizontal', pad=0.18, shrink=1.0)
+            plt.title(instrument_title, loc='left', fontsize=10)
+            plt.title(date_title, loc='right', fontsize=10)
+            plt.ylabel('Channels')
+            plt.xlabel('Total Observations'+" ("+cmaski+")", labelpad=50)
+            plt.yticks(y_axis, zlevs)
+            plt.xticks(x_axis, DayHour)
+            major_ticks = [ DayHour.index(dh) for dh in filter(None,DayHour) ]
+            ax.set_xticks(major_ticks)
+
+            plt.tight_layout()
+            if chanList == 1:
+                plt.savefig('hovmoller_'+str(varName) + '-' + str(varType)+'_'+omflag+'_'+forplotname+'.png', bbox_inches='tight', dpi=100)
+            else:
+                plt.savefig('hovmoller_'+str(varName) + '-' + str(varType)+'_'+omflag+'.png', bbox_inches='tight', dpi=100)
+            if Clean:
+                plt.clf()
+
+            ##### OMA
+
+            fig = plt.figure(figsize=(6, 9))
+            plt.rcParams['axes.facecolor'] = 'None'
+            plt.rcParams['hatch.linewidth'] = 0.3
+
+            plt.subplot(3, 1, 1)
+            ax = plt.gca()
+            ax.add_patch(mpl.patches.Rectangle((-1,-1),(len(DayHour)+1),(len(levs)+3), hatch='xxxxx', color='black', fill=False, snap=False, zorder=0))
+            plt.imshow(np.flipud(mean_finala.T), origin='lower', vmin=-vmaxOMAabs, vmax=vmaxOMAabs, cmap='seismic', aspect='auto', zorder=1,interpolation='none')
+            plt.colorbar(orientation='horizontal', pad=0.18, shrink=1.0)
+            plt.tight_layout()
+            plt.title(instrument_title, loc='left', fontsize=10)
+            plt.title(date_title, loc='right', fontsize=10)
+            plt.ylabel('Channels')
+            plt.xlabel('Mean ('+omflaga+')', labelpad=50)
+            plt.yticks(y_axis, zlevs)
+            plt.xticks(x_axis, DayHour)
+            major_ticks = [ DayHour.index(dh) for dh in filter(None,DayHour) ]
+            ax.set_xticks(major_ticks)
+
+            plt.subplot(3, 1, 2)
+            ax = plt.gca()
+            ax.add_patch(mpl.patches.Rectangle((-1,-1),(len(DayHour)+1),(len(levs)+3), hatch='xxxxx', color='black', fill=False, snap=False, zorder=0))
+            plt.imshow(np.flipud(std_finala.T), origin='lower', vmin=vminSTD, vmax=vmaxSTD, cmap='Blues', aspect='auto', zorder=1,interpolation='none')
+            plt.colorbar(orientation='horizontal', pad=0.18, shrink=1.0)
+            plt.tight_layout()
+            plt.title(instrument_title, loc='left', fontsize=10)
+            plt.title(date_title, loc='right', fontsize=10)
+            plt.ylabel('Channels')
+            plt.xlabel('Standard Deviation ('+omflaga+')', labelpad=50)
+            plt.yticks(y_axis, zlevs)
+            plt.xticks(x_axis, DayHour)
+            major_ticks = [ DayHour.index(dh) for dh in filter(None,DayHour) ]
+            ax.set_xticks(major_ticks)
+
+            plt.subplot(3, 1, 3)
+            ax = plt.gca()
+            ax.add_patch(mpl.patches.Rectangle((-1,-1),(len(DayHour)+1),(len(levs)+3), hatch='xxxxx', color='black', fill=False, snap=False, zorder=0))
+            plt.imshow(np.flipud(count_finala.T), origin='lower', vmin=0.0, vmax=np.max(count_finala), cmap='gist_heat_r', aspect='auto', zorder=1,interpolation='none')
+            plt.colorbar(orientation='horizontal', pad=0.18, shrink=1.0)
+            plt.title(instrument_title, loc='left', fontsize=10)
+            plt.title(date_title, loc='right', fontsize=10)
+            plt.ylabel('Channels')
+            plt.xlabel('Total Observations'+" ("+cmaski+")", labelpad=50)
+            plt.yticks(y_axis, zlevs)
+            plt.xticks(x_axis, DayHour)
+            major_ticks = [ DayHour.index(dh) for dh in filter(None,DayHour) ]
+            ax.set_xticks(major_ticks)
+
+            plt.tight_layout()
+            if chanList == 1:
+                plt.savefig('hovmoller_'+str(varName) + '-' + str(varType)+'_'+omflaga+'_'+forplotname+'.png', bbox_inches='tight', dpi=100)
+            else:
+                plt.savefig('hovmoller_'+str(varName) + '-' + str(varType)+'_'+omflaga+'.png', bbox_inches='tight', dpi=100)
+            if Clean:
+                plt.clf()
+
+        # Figure with only one channel
+        else:
+        
+            ##### OMF
+
+            fig = plt.figure(figsize=(6, 4))
+            fig, ax1 = plt.subplots(1, 1)
+            plt.style.use('seaborn-v0_8-ticks')
+
+            plt.axhline(y=0.0,ls='solid',c='#d3d3d3')
+            plt.annotate(forplot, xy=(0.0, 0.965), xytext=(0,0), xycoords='axes fraction', textcoords='offset points', color='lightgray', fontweight='bold', fontsize='12',
+            horizontalalignment='left', verticalalignment='center')
+
+            ax1.plot(x_axis, list_meanByLevs, "b-", label="Mean ("+omflag+")")
+            ax1.plot(x_axis, list_meanByLevs, "bo", label="Mean ("+omflag+")")
+            ax1.set_xlabel('Date (DayHour)', fontsize=10)
+            # Make the y-axis label, ticks and tick labels match the line color.
+            ax1.set_ylim(vminOMA, vmaxOMA)
+            ax1.set_ylabel('Mean ('+omflag+')', color='b', fontsize=10)
+            ax1.tick_params('y', colors='b')
+            plt.xticks(x_axis, DayHour)
+            major_ticks = [ DayHour.index(dh) for dh in filter(None,DayHour) ]
+            ax1.set_xticks(major_ticks)
+            plt.axhline(y=np.mean(list_meanByLevs),ls='dotted',c='blue')
+            
+            ax2 = ax1.twinx()
+            ax2.plot(x_axis, std_final, "r-", label="Std. Deviation ("+omflag+")")
+            ax2.plot(x_axis, std_final, "rs", label="Std. Deviation ("+omflag+")")
+            ax2.set_ylim(vminSTD, vmaxSTD)
+            ax2.set_ylabel('Std. Deviation ('+omflag+')', color='r', fontsize=10)
+            ax2.tick_params('y', colors='r')
+            major_ticks = np.arange(0, max(x_axis), len(DayHour)/len(list(filter(None, DayHour))))
+            ax2.set_xticks(major_ticks)
+            plt.axhline(y=np.mean(std_final),ls='dotted',c='red')
+
+            ax3 = ax1.twinx()
+            ax3.plot(x_axis, count_final, "g-", label="Total Observations"+" ("+cmaski+")")
+            ax3.plot(x_axis, count_final, "g^", label="Total Observations"+" ("+cmaski+")")
+            ax3.set_ylim(0, np.max(count_final) + (np.max(count_final)/8))
+            ax3.set_ylabel('Total Observations'+" ("+cmaski+")", color='g', fontsize=10)
+            ax3.tick_params('y', colors='g')
+            ax3.spines["right"].set_position(("axes", 1.15))
+            plt.yticks(rotation=90)
+            plt.axhline(y=np.mean(count_final),ls='dotted',c='green')
+
+            ax3.set_title(instrument_title, loc='left', fontsize=10)
+            ax3.set_title(date_title, loc='right', fontsize=10)
+
+            plt.xticks(x_axis, DayHour)
+            major_ticks = [ DayHour.index(dh) for dh in filter(None,DayHour) ]
+            ax3.set_xticks(major_ticks)
+            plt.title(instrument_title, loc='left', fontsize=9)
+            plt.title(date_title, loc='right', fontsize=9)
+            plt.subplots_adjust(left=None, bottom=None, right=0.80, top=None)
+            plt.tight_layout()
+            plt.savefig('time_series_'+str(varName) + '-' + str(varType)+'_'+omflag+'_'+forplotname+'.png', bbox_inches='tight', dpi=100)
+            if Clean:
+                plt.clf()
+
+            ##### OMA
+
+            fig = plt.figure(figsize=(6, 4))
+            fig, ax1 = plt.subplots(1, 1)
+            plt.style.use('seaborn-v0_8-ticks')
+
+            plt.axhline(y=0.0,ls='solid',c='#d3d3d3')
+            plt.annotate(forplot, xy=(0.0, 0.965), xytext=(0, 0), xycoords='axes fraction', textcoords='offset points', color='lightgray', fontweight='bold', fontsize='12',
+            horizontalalignment='left', verticalalignment='center')
+
+            ax1.plot(x_axis, list_meanByLevsa, "b-", label="Mean ("+omflaga+")")
+            ax1.plot(x_axis, list_meanByLevsa, "bo", label="Mean ("+omflaga+")")
+            ax1.set_xlabel('Date (DayHour)', fontsize=10)
+            # Make the y-axis label, ticks and tick labels match the line color.
+            ax1.set_ylim(vminOMA, vmaxOMA)
+            ax1.set_ylabel('Mean ('+omflaga+')', color='b', fontsize=10)
+            ax1.tick_params('y', colors='b')
+            plt.xticks(x_axis, DayHour)
+            major_ticks = [ DayHour.index(dh) for dh in filter(None,DayHour) ]
+            ax1.set_xticks(major_ticks)
+            plt.axhline(y=np.mean(list_meanByLevsa),ls='dotted',c='blue')
+            
+            ax2 = ax1.twinx()
+            ax2.plot(x_axis, std_finala, "r-", label="Std. Deviation ("+omflaga+")")
+            ax2.plot(x_axis, std_finala, "rs", label="Std. Deviation ("+omflaga+")")
+            ax2.set_ylim(vminSTD, vmaxSTD)
+            ax2.set_ylabel('Std. Deviation ('+omflaga+')', color='r', fontsize=10)
+            ax2.tick_params('y', colors='r')
+            plt.axhline(y=np.mean(std_finala),ls='dotted',c='red')
+
+            ax3 = ax1.twinx()
+            ax3.plot(x_axis, count_finala, "g-", label="Total Observations"+" ("+cmaski+")")
+            ax3.plot(x_axis, count_finala, "g^", label="Total Observations"+" ("+cmaski+")")
+            ax3.set_ylim(0, 1.2*np.max(count_finala))
+            ax3.set_ylabel('Total Observations'+" ("+cmaski+")", color='g', fontsize=10)
+            ax3.tick_params('y', colors='g')
+            ax3.spines["right"].set_position(("axes", 1.15))
+            plt.yticks(rotation=90)
+            plt.axhline(y=np.mean(count_finala),ls='dotted',c='green')
+
+            ax3.set_title(instrument_title, loc='left', fontsize=10)
+            ax3.set_title(date_title, loc='right', fontsize=10)
+
+            plt.xticks(x_axis, DayHour)
+            major_ticks = [ DayHour.index(dh) for dh in filter(None,DayHour) ]
+            ax3.set_xticks(major_ticks)
+            plt.title(instrument_title, loc='left', fontsize=9)
+            plt.title(date_title, loc='right', fontsize=9)
+            plt.subplots_adjust(left=None, bottom=None, right=0.80, top=None)
+            plt.tight_layout()
+            plt.savefig('time_series_'+str(varName) + '-' + str(varType)+'_'+omflaga+'_'+forplotname+'.png', bbox_inches='tight', dpi=100)
+            if Clean:
+                plt.clf()
+
+            ##### OMF and OMA
+
+            fig = plt.figure(figsize=(6, 4))
+            fig, ax1 = plt.subplots(1, 1)
+            plt.style.use('seaborn-v0_8-ticks')
+
+            plt.annotate(forplot, xy=(0.0, 0.965), xytext=(0, 0), xycoords='axes fraction', textcoords='offset points', color='lightgray', fontweight='bold', fontsize='12',
+            horizontalalignment='left', verticalalignment='center')
+
+            plt.axhline(y=0.0,ls='solid',c='#d3d3d3')
+            ax1.plot(x_axis, list_meanByLevs, "b-", label="Mean ("+omflag+")")
+            ax1.plot(x_axis, list_meanByLevs, "bo", label="")
+            ax1.set_xlabel('Date (DayHour)', fontsize=10)
+            # Make the y-axis label, ticks and tick labels match the line color.
+            ax1.set_ylim(vminOMA, vmaxOMA)
+            ax1.tick_params('y', colors='b')
+            plt.xticks(x_axis, DayHour)
+            major_ticks = [ DayHour.index(dh) for dh in filter(None,DayHour) ]
+            ax1.set_xticks(major_ticks)
+            plt.axhline(y=np.mean(list_meanByLevs),ls='dotted',c='blue')
+            
+            ax1.plot(x_axis, list_meanByLevsa, "r-", label="Mean ("+omflaga+")")
+            ax1.plot(x_axis, list_meanByLevsa, "rs", label="")
+            ax1.set_ylim(vminOMA, vmaxOMA)
+            ax1.tick_params('y', colors='black')
+            plt.axhline(y=np.mean(list_meanByLevsa),ls='dotted',c='red')
+
+            plt.xticks(x_axis, DayHour)
+            major_ticks = [ DayHour.index(dh) for dh in filter(None,DayHour) ]
+            ax1.set_xticks(major_ticks)
+            plt.title(instrument_title, loc='left', fontsize=9)
+            plt.title(date_title, loc='right', fontsize=9)
+            plt.subplots_adjust(left=None, bottom=None, right=0.80, top=None)
+
+            ybox1 = TextArea('Mean ('+omflag+')' , textprops=dict(color="b", size=12,rotation=90,ha='left',va='bottom'))
+            ybox2 = TextArea(' and '             , textprops=dict(color="k", size=12,rotation=90,ha='left',va='bottom'))
+            ybox3 = TextArea('Mean ('+omflaga+')', textprops=dict(color="r", size=12,rotation=90,ha='left',va='bottom'))
+
+            ybox = VPacker(children=[ybox3, ybox2, ybox1],align="bottom", pad=0, sep=5)
+
+            anchored_ybox = AnchoredOffsetbox(loc=3, child=ybox, pad=0., frameon=False, bbox_to_anchor=(-0.12, 0.16), 
+                                                bbox_transform=ax1.transAxes, borderpad=0.)
+
+            ax1.add_artist(anchored_ybox)
+            plt.legend()
+
+            plt.tight_layout()
+            plt.savefig('time_series_'+str(varName) + '-' + str(varType)+'_OmFOmA_'+ forplotname +'.png', bbox_inches='tight', dpi=100)
+
+            # OMF and OMA and StdDev
+
+            fig = plt.figure(figsize=(6, 4))
+            fig, ax1 = plt.subplots(1, 1)
+            plt.style.use('seaborn-v0_8-ticks')
+            
+            ax1.plot(x_axis, list_meanByLevs, lw=2, label='OmF Mean', color='blue', zorder=1)
+            ax1.fill_between(x_axis, OMF_inf, OMF_sup, label='OmF Std Dev',  facecolor='blue', alpha=0.3, zorder=1)
+            ax1.plot(x_axis, list_meanByLevsa, lw=2, label='OmA Mean', color='red', zorder=2)
+            ax1.fill_between(x_axis, OMA_inf, OMA_sup, label='OmA Std Dev',  facecolor='red', alpha=0.3, zorder=2)
+            ybox1 = TextArea(' OmF ' , textprops=dict(color="b", size=12,rotation=90,ha='left',va='bottom'))
+            ybox2 = TextArea(' | '             , textprops=dict(color="k", size=12,rotation=90,ha='left',va='bottom'))
+            ybox3 = TextArea(' OmA ', textprops=dict(color="r", size=12,rotation=90,ha='left',va='bottom'))
+
+            ybox = VPacker(children=[ybox3, ybox2, ybox1],align="bottom", pad=0, sep=5)
+
+            anchored_ybox = AnchoredOffsetbox(loc=3, child=ybox, pad=0., frameon=False, bbox_to_anchor=(-0.125, 0.42), 
+                                                bbox_transform=ax1.transAxes, borderpad=0.)
+
+            ax1.add_artist(anchored_ybox)
+            ax1.set_xlabel('Date (DayHour)', fontsize=12)
+            ax1.set_ylim(omfoma_limit_inf,omfoma_limit_sup)
+            ax1.legend(bbox_to_anchor=(-0.11, -0.25),ncol=4,loc='lower left', fancybox=True, shadow=False, frameon=True, framealpha=1.0, fontsize='11', facecolor='white', edgecolor='lightgray')
+            plt.grid(axis='y', color='lightgray', linestyle='-.', linewidth=0.5, zorder=0)
+
+            ax2 = ax1.twinx()
+            ax2.plot(x_axis, list_countByLevsa, lw=2, label='OmA', linestyle='--', color='green', zorder=3)
+            ax2.plot(x_axis, list_countByLevs, lw=2, label='OmF', linestyle=':', color='purple', zorder=3)
+            ax2.set_ylabel('Total Observations (OmF | OmA)'+"\n ("+cmaski+")", fontsize=12)
+            ax2.set_ylim(0, (np.max(list_countByLevsa) + np.max(list_countByLevsa)/5))
+            ax2.legend(loc='upper left', ncol=2, fancybox=True, shadow=False, frameon=True, framealpha=1.0, fontsize='11', facecolor='white', edgecolor='lightgray')
+            
+            plt.xticks(x_axis, DayHour)
+            major_ticks = [ DayHour.index(dh) for dh in filter(None,DayHour) ]
+            ax2.set_xticks(major_ticks)
+            plt.title(instrument_title, loc='left', fontsize=10)
+            plt.title(date_title, loc='right', fontsize=10)
+        
+            t = plt.annotate(forplot, xy=(0.78, 0.995), xytext=(-9, -9), xycoords='axes fraction', textcoords='offset points', color='darkgray', fontweight='bold', fontsize='10',
+                                horizontalalignment='center', verticalalignment='center')
+            t.set_bbox(dict(facecolor='whitesmoke', alpha=1.0, edgecolor='whitesmoke', boxstyle="square,pad=0.3"))
+
+            plt.tight_layout()
+            plt.savefig('time_series_'+str(varName) + '-' + str(varType)+'_OmFOmA_StdDev_'+ forplotname +'.png', bbox_inches='tight', dpi=100)
+
+        # Cleaning up
+        if Clean:
+            plt.close('all')
+
+        print(' Done!')
+        print()
+        
+               
+
+        return
+
+
+
+
+
+
+# radiance final
+
+    def statcount(self, varName=None, varType=None, noiqc=False, dateIni=None, dateFin=None, nHour="06", channel=None, figTS=False, figMap=False, **kwargs):
 
         '''
         The StatCount function plots a time series of assimilated, monitored and rejected data. 
@@ -1564,9 +2195,11 @@ class plot_diag(object):
         dateIni = 2013010100     # Inicial Date
         dateFin = 2013010900     # Final Date
         nHour = "06"             # Time Interval
+        channel = None           # Radiance channel number (None for the conventional dataset)
         figTS = True             # Creates the time series plot
         figMap = False           # Creates the spatial plot for each time
-
+        
+        ! Case conventional dataset: channel = None
         ! The QC process creates a number indicating the data quality for each observation.
         ! These numbers are called QC markers in PrepBUFR files and are important as parts of
         ! the observation information. GSI uses QC markers to decide how to use the data. A 
@@ -1596,6 +2229,23 @@ class plot_diag(object):
         !    +----------------------+---------------+---------------+
         !    |False (with OI QC)    |       4       |       4       |
         !    +----------------------+---------------+---------------+
+        
+        
+        ! Case radiance dataset: channel = number
+        ! There are three types of data classification: assimilated, monitored and rejected.
+        ! Monitored data is organized into two groups: possibly assimilated and possibly rejected.
+        !
+        !    +------------------------+-------------+--------------------+
+        !    |                        |   idqc      |        iuse        |
+        !    +------------------------+-------------+--------------------+
+        !    | Assimilated            |   == 0      |   >= 1             |
+        !    +------------------------+-------------+--------------------+
+        !    |            assimilated |   == 0      |   >= -1 and < 1    |
+        !    | Monitored              |             |                    |
+        !    |            rejected    |   != 0      |   >= -1 and < 1    |
+        !    +------------------------+-------------+--------------------+
+        !    | Rejected               |   != 0      |   >= 1             |
+        !    +------------------------+-------------+--------------------+
         '''
 
 
@@ -1617,88 +2267,248 @@ class plot_diag(object):
         date  = datei
 
         assi, reje, moni, DayHour_tmp = [], [], [], []
+        moniAssi, moniReje = [], []
+        assif, rejef, monif, moniAssif, moniRejef = [], [], [], [], []
         f = 0
         while (date <= datef):
 
             datefmt = date.strftime("%Y%m%d%H")
             DayHour_tmp.append(date.strftime("%d%H"))
-        
-            exp = "(iuse==1)"
-            assim = self[f].obsInfo[varName].loc[varType].query(exp)
-            exp = "(iuse==-1) & (idqc >= "+str(lim_qm)+" and idqc <= 15)"
-            monit = self[f].obsInfo[varName].loc[varType].query(exp)
-            exp = "(iuse==-1) & ((idqc > 15 or idqc <= 0) or (idqc > 0 and idqc < "+str(lim_qm)+"))"
-            rejei = self[f].obsInfo[varName].loc[varType].query(exp)
-
-            assi.append(len(assim))
-            moni.append(len(monit))
-            reje.append(len(rejei))
-
-            if (figMap):
-                df_list = [assim, monit, rejei]
-                name_list = ["Assimilated ["+str(len(assim))+"]","Monitored ["+str(len(monit))+"]","Rejected ["+str(len(rejei))+"]"]
-                marker_list = [".","x","*"]
-                color_list = ["green","blue","red"]
-
-                setColor = 0 
-                legend_labels = []
-
-                fig = plt.figure(figsize=(12, 6))
-                ax  = fig.add_subplot(1, 1, 1)
-                ax = geoMap(area=None,ax=ax)
-                for dfi,namedf,mk,cl in zip(df_list,name_list,marker_list,color_list):
-                    df    = dfi
-                    legend_labels.append(mpatches.Patch(color=cl, label=namedf) )
-                    ax = df.plot(ax=ax,legend=True, marker=mk, color=cl)
-                    setColor += 1
-                    plt.legend(handles=legend_labels, numpoints=1, loc='lower center', bbox_to_anchor=(0.5, -0.02), 
-                            fancybox=True, shadow=False, frameon=False, ncol=3, prop={"size": 10})
-                date_title = str(date.strftime("%d%b%Y - %H%M")) + ' GMT'
-                plt.title(date_title, loc='right', fontsize=10)
-                plt.title(instrument_title, loc='left', fontsize=9)
-
-                plt.tight_layout()
-                plt.savefig('TotalObs_'+str(varName) + '-' + str(varType)+'_'+datefmt+'.png', bbox_inches='tight', dpi=100)
-    
+            
+            # try: For issues reading the file (file not found)
+            # in the except statement an error message is printed and continues for other dates
+            try:
+                
+                if(channel == None):  # Conventional
+                    exp = "(iuse==1)"
+                    assim = self[f].obsInfo[varName].loc[varType].query(exp)
+                    exp = "(iuse==-1) & (idqc >= "+str(lim_qm)+" and idqc <= 15)"
+                    monit = self[f].obsInfo[varName].loc[varType].query(exp)
+                    exp = "(iuse==-1) & ((idqc > 15 or idqc <= 0) or (idqc > 0 and idqc < "+str(lim_qm)+"))"
+                    rejei = self[f].obsInfo[varName].loc[varType].query(exp)
+                
+                    assi.append(len(assim))
+                    moni.append(len(monit))
+                    reje.append(len(rejei))
+                
+                    if (figMap):
+                        df_list = [assim, monit, rejei]
+                        name_list = ["Assimilated ["+str(len(assim))+"]","Monitored ["+str(len(monit))+"]","Rejected ["+str(len(rejei))+"]"]
+                        marker_list = [".","x","*"]     
+                        color_list = ["green","blue","red"]
+                    
+                        setColor = 0 
+                        legend_labels = []
+                    
+                        fig = plt.figure(figsize=(12, 6))
+                        ax  = fig.add_subplot(1, 1, 1)
+                        ax = geoMap(area=None,ax=ax)
+                        for dfi,namedf,mk,cl in zip(df_list,name_list,marker_list,color_list):
+                            df    = dfi
+                            legend_labels.append(mpatches.Patch(color=cl, label=namedf) )
+                            ax = df.plot(ax=ax,legend=True, marker=mk, color=cl, **kwargs)
+                            setColor += 1
+                            plt.legend(handles=legend_labels, numpoints=1, loc='lower center', bbox_to_anchor=(0.5, -0.02), 
+                                    fancybox=True, shadow=False, frameon=False, ncol=3, prop={"size": 10})
+                    
+                        date_title = str(date.strftime("%d%b%Y - %H%M")) + ' GMT'
+                        plt.title(date_title, loc='right', fontsize=10)
+                        plt.title(instrument_title, loc='left', fontsize=9)
+                    
+                        plt.tight_layout()
+                        plt.savefig('TotalObs_'+str(varName) + '-' + str(varType)+'_'+datefmt+'.png', bbox_inches='tight', dpi=100)
+                
+                
+                else:   # Radiance
+                    exp = "(nchan=="+str(channel)+") & (iuse >= 1 & idqc==0.0)"
+                    assim = self[f].obsInfo[varName].loc[varType].query(exp)
+                    exp = "(nchan=="+str(channel)+") & ((iuse >= -1 and iuse < 1) & idqc==0.0)"
+                    monitAssim = self[f].obsInfo[varName].loc[varType].query(exp)
+                    exp = "(nchan=="+str(channel)+") & ((iuse >= -1 and iuse < 1) & idqc!=0.0)"
+                    monitRejei = self[f].obsInfo[varName].loc[varType].query(exp)
+                    exp = "(nchan=="+str(channel)+") & (iuse >= 1 & idqc!=0.0)"
+                    rejei = self[f].obsInfo[varName].loc[varType].query(exp)
+                
+                    assi.append(len(assim))
+                    moniAssi.append(len(monitAssim))
+                    moniReje.append(len(monitRejei))
+                    reje.append(len(rejei))
+                    
+                    forplot = 'Channel ='+str(channel)
+                
+                    # Radiance plots
+                    if (figMap):
+                        # Case: assimilated and rejected
+                        if ((len(assim)) != 0 or (len(rejei)) != 0):
+                            df_list = [assim, rejei]    
+                            name_list = ["Assimilated ["+str(len(assim))+"]","Rejected ["+str(len(rejei))+"]"]
+                            marker_list = ["^","v"]    
+                            color_list = ["green","red"]
+                    
+                            setColor = 0 
+                            legend_labels = []
+                    
+                            fig = plt.figure(figsize=(12, 6))
+                            ax  = fig.add_subplot(1, 1, 1)
+                            ax = geoMap(area=None,ax=ax)
+                            for dfi,namedf,mk,cl in zip(df_list,name_list,marker_list,color_list):
+                                df    = dfi
+                                legend_labels.append(mpatches.Patch(color=cl, label=namedf) )
+                                ax = df.plot(ax=ax,legend=True, marker=mk, color=cl, **kwargs) 
+                                setColor += 1
+                                plt.legend(handles=legend_labels, numpoints=1, loc='lower center', bbox_to_anchor=(0.5, -0.02), 
+                                        fancybox=True, shadow=False, frameon=False, ncol=2, prop={"size": 10})
+                        
+                            date_title = str(date.strftime("%d%b%Y - %H%M")) + ' GMT'
+                            plt.title(date_title, loc='right', fontsize=10)
+                            plt.title(instrument_title, loc='left', fontsize=9)
+                            plt.annotate(forplot, xy=(0.45, 1.015), xytext=(0, 0), xycoords='axes fraction', textcoords='offset points', 
+                                         color='gray', fontweight='bold', fontsize='10', horizontalalignment='left', 
+                                         verticalalignment='center')
+                    
+                            plt.tight_layout()
+                            plt.savefig('Assim-Rejei_'+str(varName) + '-' + str(varType)+'_'+ 'CH' + str(channel) + '_' +datefmt+'.png', 
+                                        bbox_inches='tight', dpi=100)
+                        else:
+                            print("channel ",channel," not assimilated or rejected on the date -->",date.strftime("%Y-%m-%d:%H"))
+                    
+                        # Monitored cases: would be assimilated or rejected 
+                        if ((len(monitAssim)) != 0 or (len(monitRejei)) != 0):
+                            df_list = [monitAssim, monitRejei]
+                            name_list = ["Monitored-Assimilated ["+str(len(monitAssim))+"]","Monitored-Rejected ["+str(len(monitRejei))+"]"]
+                            marker_list = ["^","v"]   
+                            color_list = ["teal","purple"]
+                    
+                            setColor = 0 
+                            legend_labels = []
+                    
+                            fig = plt.figure(figsize=(12, 6))
+                            ax  = fig.add_subplot(1, 1, 1)
+                            ax = geoMap(area=None,ax=ax)
+                            for dfi,namedf,mk,cl in zip(df_list,name_list,marker_list,color_list):
+                                df    = dfi
+                                legend_labels.append(mpatches.Patch(color=cl, label=namedf) )
+                                ax = df.plot(ax=ax,legend=True, marker=mk, color=cl, **kwargs) 
+                                setColor += 1
+                                plt.legend(handles=legend_labels, numpoints=1, loc='lower center', bbox_to_anchor=(0.5, -0.02), 
+                                        fancybox=True, shadow=False, frameon=False, ncol=2, prop={"size": 10})
+                        
+                            date_title = str(date.strftime("%d%b%Y - %H%M")) + ' GMT'
+                            plt.title(date_title, loc='right', fontsize=10)
+                            plt.title(instrument_title, loc='left', fontsize=9)
+                            plt.annotate(forplot, xy=(0.45, 1.015), xytext=(0, 0), xycoords='axes fraction', textcoords='offset points', 
+                                         color='gray', fontweight='bold', fontsize='10', horizontalalignment='left', 
+                                         verticalalignment='center')
+                    
+                            plt.tight_layout()
+                            plt.savefig('Monitored_'+str(varName) + '-' + str(varType)+'_'+ 'CH' + str(channel) + '_'+datefmt+'.png', 
+                                        bbox_inches='tight', dpi=100)
+                        else:
+                            print("channel ",channel," not monitored on the date -->",date.strftime("%Y-%m-%d:%H"))
+                    
+            except:
+                print("++++++++++++++++++++++++++ ERROR: file reading --> STATCOUNT ++++++++++++++++++++++++++")
+                print(setcolor.WARNING + "    >>> No information on this date (" + str(date.strftime("%Y-%m-%d:%H")) +") <<< " + setcolor.ENDC)
+                if(channel == None):
+                    assi.append(None)
+                    moni.append(None)
+                    reje.append(None)
+                else:
+                    assi.append(None)
+                    moniAssi.append(None)
+                    moniReje.append(None)
+                    reje.append(None)
+                    
             f = f + 1
             date = date + timedelta(hours=int(nHour))
             date_finale = date
+            
 
 
         if (figTS):
-            if(len(DayHour_tmp) > 4):
-                DayHour = [hr if (ix % int(len(DayHour_tmp) / 4)) == 0 else '' for ix, hr in enumerate(DayHour_tmp)]
-            else:
-                DayHour = DayHour_tmp
-            
-            x_axis      = np.arange(0, len(DayHour), 1)
-            date_title = str(datei.strftime("%d%b")) + '-' + str(date_finale.strftime("%d%b")) + ' ' + str(date_finale.strftime("%Y"))
-            
-            fig = plt.figure(figsize=(6, 4))
-            fig, ax1 = plt.subplots(1, 1)
-            plt.style.use('seaborn-v0_8-ticks')
-
-            plt.axhline(y=0.0,ls='solid',c='#d3d3d3')
-
-            ax1.plot(x_axis, assi, "o", label="Assimilated \n["+str(sum(assi))+"]", color='green')
-            ax1.plot(x_axis, moni, "o", label="Monitored \n["+str(sum(moni))+"]", color='blue')
-            ax1.plot(x_axis, reje, "o", label="Rejected \n["+str(sum(reje))+"]", color='red')
-            ax1.legend(fancybox=True, frameon=True, shadow=True, loc="upper center",ncol=3)
-            ax1.set_xlabel('Date (DayHour)', fontsize=10)
-            plt.title(date_title, loc='right', fontsize=10)
-            plt.title(instrument_title, loc='left', fontsize=9)
+            if(channel == None):   # Conventional
+                if(len(DayHour_tmp) > 4):
+                    DayHour = [hr if (ix % int(len(DayHour_tmp) / 4)) == 0 else '' for ix, hr in enumerate(DayHour_tmp)]
+                else:
+                    DayHour = DayHour_tmp
                 
-            ax1.set_ylim(np.round(-0.05*np.max([assi,moni,reje])), np.round(1.25*np.max([assi,moni,reje])))
-            ax1.set_ylabel('Total Observations', color='black', fontsize=10)
-            ax1.tick_params('y', colors='black')
-            plt.xticks(x_axis, DayHour)
-            major_ticks = [ DayHour.index(dh) for dh in filter(None,DayHour) ]
-            ax1.set_xticks(major_ticks)
-            plt.axhline(y=np.mean(assi),ls='dotted',c='lightgray')
-            plt.axhline(y=np.mean(moni),ls='dotted',c='lightgray')
-            plt.axhline(y=np.mean(reje),ls='dotted',c='lightgray')
-            plt.tight_layout()
-            plt.savefig('time_series_'+str(varName) + '-' + str(varType)+'_TotalObs.png', bbox_inches='tight', dpi=100)
+                x_axis      = np.arange(0, len(DayHour), 1)
+                date_title = str(datei.strftime("%d%b")) + '-' + str(date_finale.strftime("%d%b")) + ' ' + str(date_finale.strftime("%Y"))
+            
+                fig = plt.figure(figsize=(6, 4))
+                fig, ax1 = plt.subplots(1, 1)
+                plt.style.use('seaborn-v0_8-ticks')
+
+                plt.axhline(y=0.0,ls='solid',c='#d3d3d3')
+
+                ax1.plot(x_axis, assi, "o", label="Assimilated \n["+str(sum(assi))+"]", color='green')
+                ax1.plot(x_axis, moni, "o", label="Monitored \n["+str(sum(moni))+"]", color='blue')
+                ax1.plot(x_axis, reje, "o", label="Rejected \n["+str(sum(reje))+"]", color='red')
+                ax1.legend(fancybox=True, frameon=True, shadow=True, loc="upper center",ncol=3)
+                ax1.set_xlabel('Date (DayHour)', fontsize=10)
+                plt.title(date_title, loc='right', fontsize=10)
+                plt.title(instrument_title, loc='left', fontsize=9)
+                
+                ax1.set_ylim(np.round(-0.05*np.max([assi,moni,reje])), np.round(1.25*np.max([assi,moni,reje])))
+                ax1.set_ylabel('Total Observations', color='black', fontsize=10)
+                ax1.tick_params('y', colors='black')
+                plt.xticks(x_axis, DayHour)
+                major_ticks = [ DayHour.index(dh) for dh in filter(None,DayHour) ]
+                ax1.set_xticks(major_ticks)
+                plt.axhline(y=np.mean(assi),ls='dotted',c='lightgray')
+                plt.axhline(y=np.mean(moni),ls='dotted',c='lightgray')
+                plt.axhline(y=np.mean(reje),ls='dotted',c='lightgray')
+                plt.tight_layout()
+                plt.savefig('time_series_'+str(varName) + '-' + str(varType)+'_TotalObs.png', bbox_inches='tight', dpi=100)
+                
+            else:   # Radiance
+                if(len(DayHour_tmp) > 4):
+                    DayHour = [hr if (ix % int(len(DayHour_tmp) / 4)) == 0 else '' for ix, hr in enumerate(DayHour_tmp)]
+                else:
+                    DayHour = DayHour_tmp
+                
+                x_axis      = np.arange(0, len(DayHour), 1)
+                date_title = str(datei.strftime("%d%b")) + '-' + str(date_finale.strftime("%d%b")) + ' ' + str(date_finale.strftime("%Y"))
+            
+                fig = plt.figure(figsize=(6, 4))
+                fig, ax1 = plt.subplots(1, 1)
+                plt.style.use('seaborn-v0_8-ticks')
+
+                plt.axhline(y=0.0,ls='solid',c='#d3d3d3')
+                
+                # List with value None: is removed to calculate sum, max and min
+                # The lists below are only used to define the scale of the axes and the total sum of assi/rejei/monit data
+                assif     = [x for x in assi if x != None]
+                moniAssif = [x for x in moniAssi if x != None]
+                moniRejef = [x for x in moniReje if x != None]
+                rejef     = [x for x in reje if x != None]
+
+                ax1.plot(x_axis, assi, "o", label="Assimilated \n["+str(sum(assif))+"]", color='green')
+                ax1.plot(x_axis, moniAssi, "o", label="Monitored-Assim \n["+str(sum(moniAssif))+"]", color='teal')
+                ax1.plot(x_axis, moniReje, "o", label="Monitored-Rejei \n["+str(sum(moniRejef))+"]", color='purple')
+                ax1.plot(x_axis, reje, "o", label="Rejected \n["+str(sum(rejef))+"]", color='red')
+                ax1.legend(fancybox=True, frameon=True, shadow=True, loc="best",ncol=1)
+                ax1.set_xlabel('Date (DayHour)', fontsize=10)
+                plt.title(date_title, loc='right', fontsize=10)
+                plt.title(instrument_title, loc='left', fontsize=9)
+                plt.annotate(forplot, xy=(0.0, 0.965), xytext=(0, 0), xycoords='axes fraction', textcoords='offset points', 
+                             color='lightgray', fontweight='bold', fontsize='12', horizontalalignment='left', verticalalignment='center')
+                
+                ax1.set_ylim(np.round(-0.05*np.max([assif,moniAssif,moniRejef,rejef])),
+                             np.round(1.25*np.max([assif,moniAssif,moniRejef,rejef])))
+                ax1.set_ylabel('Total Observations', color='black', fontsize=10)
+                ax1.tick_params('y', colors='black')
+                plt.xticks(x_axis, DayHour)
+                major_ticks = [ DayHour.index(dh) for dh in filter(None,DayHour) ]
+                ax1.set_xticks(major_ticks)
+                plt.axhline(y=np.mean(assif),ls='dotted',c='lightgray')
+                plt.axhline(y=np.mean(moniAssif),ls='dotted',c='lightgray')
+                plt.axhline(y=np.mean(moniRejef),ls='dotted',c='lightgray')
+                plt.axhline(y=np.mean(rejef),ls='dotted',c='lightgray')
+                plt.tight_layout()
+                plt.savefig('time_series_'+str(varName) + '-' + str(varType) +'_'+ 'CH' + str(channel) + '_'+'_TotalObs.png',
+                            bbox_inches='tight', dpi=100)
+
 
 #EOC
 #-----------------------------------------------------------------------------#
