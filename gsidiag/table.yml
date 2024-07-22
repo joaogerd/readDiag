@@ -1,5 +1,6 @@
 observations:
-  - kx: "120"
+  # Radiosonde data source list
+  - kx: 120
     details:
       - var: ps
         abbreviation: ADPUPA
@@ -19,7 +20,15 @@ observations:
         color: "#B25809"
         symbol: "*"
         iuse: "1"
-  - kx: "130"
+  - kx: 126
+    details:
+      - var: t
+        abbreviation: RASSDA
+        instrument: RASS Perfil rede NOAA (NPN) ou multiagencia (MAP)
+        color: "#e7969c"
+        symbol: s
+        iuse: "-1"
+  - kx: 130
     details:
       - var: t
         abbreviation: AIRCFT
@@ -33,16 +42,14 @@ observations:
         color: "#2ca02c"
         symbol: "*"
         iuse: "-1"
-  - kx: "230"
+  - kx: 132
     details:
-      - var: uv
-        abbreviation: AIRCFT
-        instrument: AIREP PIREP Avião Sensores
-        color: "#98df8a"
+      - var: ps
+        abbreviation: ADPUPA
+        instrument: Reconhecimento a nivel de voo e perfil de Dropssonda
+        color: "#FF983E"
         symbol: "*"
         iuse: "1"
-  - kx: "132"
-    details:
       - var: t
         abbreviation: ADPUPA
         instrument: Reconhecimento a nivel de voo e perfil de Dropssonda
@@ -55,7 +62,8 @@ observations:
         color: "#ff7f0e"
         symbol: "*"
         iuse: "1"
-  - kx: "153"
+  # PWV GNSS data source list      
+  - kx: 153
     details:
       - var: pw
         abbreviation: GPSIPW
@@ -63,7 +71,8 @@ observations:
         color: "#d62728"
         symbol: s
         iuse: "-1"
-  - kx: "180"
+  # Ship data source list
+  - kx: 180
     details:
       - var: ps
         abbreviation: SFCSHP
@@ -83,49 +92,7 @@ observations:
         color: "#c5b0d5"
         symbol: "*"
         iuse: "1"
-  - kx: "182"
-    details:
-      - var: ps
-        abbreviation: SFCSHP
-        instrument: Boias e sensor navios
-        color: "#8c564b"
-        symbol: s
-        iuse: "-1"
-      - var: t
-        abbreviation: SFCSHP
-        instrument: Boias e sensor navios
-        color: "#c49c94"
-        symbol: "*"
-        iuse: "-1"
-      - var: q
-        abbreviation: SFCSHP
-        instrument: Boias e sensor navios
-        color: "#e377c2"
-        symbol: "*"
-        iuse: "-1"
-  - kx: "280"
-    details:
-      - var: uv
-        abbreviation: SFCSHP
-        instrument: Boias e sensor navios
-        color: "#f7b6d2"
-        symbol: "*"
-        iuse: "1"
-      - var: t
-        abbreviation: ADPUPA
-        instrument: Dropssonda
-        color: "#ce6dbd"
-        symbol: p
-        iuse: "-1"
-  - kx: "282"
-    details:
-      - var: uv
-        abbreviation: SFCSHP
-        instrument: Boias e sensor navios
-        color: "#7f7f7f"
-        symbol: "*"
-        iuse: "1"
-  - kx: "181"
+  - kx: 181
     details:
       - var: ps
         abbreviation: ADPSFC
@@ -151,35 +118,27 @@ observations:
         color: "#17becf"
         symbol: "*"
         iuse: "-1"
-  - kx: "187"
+  - kx: 182
     details:
       - var: ps
-        abbreviation: ADPSFC
-        instrument: Estação a superfície com pressão
-        color: "#9edae5"
+        abbreviation: SFCSHP
+        instrument: Boias e sensor navios
+        color: "#8c564b"
         symbol: s
-        iuse: "1"
+        iuse: "-1"
       - var: t
-        abbreviation: ADPSFC
-        instrument: Estação a superfície com pressão
-        color: "#393b79"
+        abbreviation: SFCSHP
+        instrument: Boias e sensor navios
+        color: "#c49c94"
         symbol: "*"
         iuse: "-1"
       - var: q
-        abbreviation: ADPSFC
-        instrument: Estação a superfície com pressão
-        color: "#B89441"
+        abbreviation: SFCSHP
+        instrument: Boias e sensor navios
+        color: "#e377c2"
         symbol: "*"
         iuse: "-1"
-  - kx: "281"
-    details:
-      - var: uv
-        abbreviation: ADPSFC
-        instrument: Estação a superfície com pressão
-        color: "#5254a3"
-        symbol: "*"
-        iuse: "-1"
-  - kx: "183"
+  - kx: 183
     details:
       - var: ps
         abbreviation: ADPSFC
@@ -201,43 +160,46 @@ observations:
         iuse: "-1"
       - var: q
         abbreviation: ADPSFC
-        instrument: Boias a estações sem pressão
+        instrument: Boias a estacoes sem pressao
         color: "#4B3F16"
         symbol: "*"
         iuse: "-1"
-  - kx: "284"
+  - kx: 187
     details:
-      - var: uv
-        abbreviation: ADPSFC SFCSHP
-        instrument: Boias number a estações sem pressão
-        color: "#773233"
-        symbol: "*"
-        iuse: "-1"
-  - kx: "287"
-    details:
-      - var: uv
+      - var: ps
         abbreviation: ADPSFC
-        instrument: Boias a estações sem pressão
-        color: "#437939"
+        instrument: Estação a superfície com pressão
+        color: "#9edae5"
+        symbol: s
+        iuse: "1"
+      - var: sst
+        abbreviation: ADPSFC
+        instrument: Estação a superfície com pressão
+        color: "#9edae5"
+        symbol: s
+        iuse: "1"
+      - var: t
+        abbreviation: ADPSFC
+        instrument: Estação a superfície com pressão
+        color: "#393b79"
         symbol: "*"
         iuse: "-1"
-  - kx: "126"
-    details:
-      - var: t
-        abbreviation: RASSDA
-        instrument: RASS Perfil rede NOAA (NPN) ou multiagencia (MAP)
-        color: "#e7969c"
-        symbol: s
+      - var: q
+        abbreviation: ADPSFC
+        instrument: Estação a superfície com pressão
+        color: "#B89441"
+        symbol: "*"
         iuse: "-1"
-  - kx: "210"
+  # Wind data source list
+  - kx: 210
     details:
       - var: uv
         abbreviation: SYNDAT
-        instrument: Sintéticos (BOGUS) vento ciclone tropical
+        instrument: Sinteticos (BOGUS) vento ciclone tropical
         color: "#793963"
         symbol: "*"
         iuse: "1"
-  - kx: "220"
+  - kx: 220
     details:
       - var: uv
         abbreviation: ADPUPA
@@ -245,15 +207,15 @@ observations:
         color: "#cedb9c"
         symbol: "*"
         iuse: "1"
-  - kx: "221"
+  - kx: 221
     details:
       - var: uv
         abbreviation: ADPUPA
-        instrument: Balão Piloto (PIBAL)
+        instrument: Balao Piloto (PIBAL)
         color: "#a55194"
         symbol: s
         iuse: "1"
-  - kx: "223"
+  - kx: 223
     details:
       - var: uv
         abbreviation: PROFLR
@@ -261,7 +223,7 @@ observations:
         color: "#95434a"
         symbol: s
         iuse: "-1"
-  - kx: "224"
+  - kx: 224
     details:
       - var: uv
         abbreviation: VADWND
@@ -269,7 +231,7 @@ observations:
         color: "#8ca252"
         symbol: x
         iuse: "1"
-  - kx: "228"
+  - kx: 228
     details:
       - var: uv
         abbreviation: PROFLR
@@ -277,7 +239,7 @@ observations:
         color: "#378ef4"
         symbol: "*"
         iuse: "-1"
-  - kx: "229"
+  - kx: 229
     details:
       - var: uv
         abbreviation: PROFLR
@@ -285,7 +247,7 @@ observations:
         color: "#7b4173"
         symbol: s
         iuse: "1"
-  - kx: "232"
+  - kx: 232
     details:
       - var: uv
         abbreviation: ADPUPA
@@ -293,7 +255,7 @@ observations:
         color: "#bd9e39"
         symbol: P
         iuse: "1"
-  - kx: "240"
+  - kx: 240
     details:
       - var: uv
         abbreviation: SATWND
@@ -301,7 +263,7 @@ observations:
         color: "#715E22"
         symbol: P
         iuse: "-1"
-  - kx: "242"
+  - kx: 242
     details:
       - var: uv
         abbreviation: SATWND
@@ -309,7 +271,7 @@ observations:
         color: "#7a49a5"
         symbol: s
         iuse: "1"
-  - kx: "243"
+  - kx: 243
     details:
       - var: uv
         abbreviation: SATWND
@@ -317,7 +279,7 @@ observations:
         color: "#875BAE"
         symbol: s
         iuse: "1"
-  - kx: "244"
+  - kx: 244
     details:
       - var: uv
         abbreviation: SATWND
@@ -325,7 +287,7 @@ observations:
         color: "#AF91C9"
         symbol: s
         iuse: "1"
-  - kx: "245"
+  - kx: 245
     details:
       - var: uv
         abbreviation: SATWND
@@ -333,7 +295,7 @@ observations:
         color: "#9c9ede"
         symbol: "*"
         iuse: "1"
-  - kx: "246"
+  - kx: 246
     details:
       - var: uv
         abbreviation: SATWND
@@ -341,7 +303,7 @@ observations:
         color: "#ad494a"
         symbol: o
         iuse: "1"
-  - kx: "247"
+  - kx: 247
     details:
       - var: uv
         abbreviation: SATWND
@@ -349,7 +311,7 @@ observations:
         color: "#637939"
         symbol: p
         iuse: "1"
-  - kx: "250"
+  - kx: 250
     details:
       - var: uv
         abbreviation: SATWND
@@ -363,7 +325,7 @@ observations:
         color: "#8c6d31"
         symbol: x
         iuse: "-1"
-  - kx: "251"
+  - kx: 251
     details:
       - var: uv
         abbreviation: SATWND
@@ -371,7 +333,7 @@ observations:
         color: "#6b3035"
         symbol: x
         iuse: "-1"
-  - kx: "252"
+  - kx: 252
     details:
       - var: uv
         abbreviation: SATWND
@@ -379,7 +341,7 @@ observations:
         color: "#6b6ecf"
         symbol: "8"
         iuse: "1"
-  - kx: "253"
+  - kx: 253
     details:
       - var: uv
         abbreviation: SATWND
@@ -387,7 +349,7 @@ observations:
         color: "#d6616b"
         symbol: "8"
         iuse: "1"
-  - kx: "254"
+  - kx: 254
     details:
       - var: uv
         abbreviation: SATWND
@@ -395,7 +357,15 @@ observations:
         color: "#575738"
         symbol: s
         iuse: "1"
-  - kx: "257"
+  - kx: 255
+    details:
+      - var: uv
+        abbreviation: SATWND
+        instrument: WIND Report - NESDIS picture triplet cloud drift
+        color: "#575738"
+        symbol: s
+        iuse: "1"
+  - kx: 257
     details:
       - var: uv
         abbreviation: SATWND
@@ -403,7 +373,7 @@ observations:
         color: "#dbdb8d"
         symbol: "*"
         iuse: "1"
-  - kx: "258"
+  - kx: 258
     details:
       - var: uv
         abbreviation: SATWND
@@ -411,7 +381,7 @@ observations:
         color: "#9edae5"
         symbol: p
         iuse: "1"
-  - kx: "259"
+  - kx: 259
     details:
       - var: uv
         abbreviation: SATWND
@@ -419,7 +389,7 @@ observations:
         color: "#108590"
         symbol: o
         iuse: "1"
-  - kx: "260"
+  - kx: 260
     details:
       - var: uv
         abbreviation: SATWND
@@ -427,7 +397,54 @@ observations:
         color: "#8BDEE7"
         symbol: o
         iuse: "-1"
-  - kx: "290"
+  - kx: 280
+    details:
+      - var: uv
+        abbreviation: SFCSHP
+        instrument: Boias e sensor navios
+        color: "#f7b6d2"
+        symbol: "*"
+        iuse: "1"
+      - var: t
+        abbreviation: ADPUPA
+        instrument: Dropssonda
+        color: "#ce6dbd"
+        symbol: p
+        iuse: "-1"
+  - kx: 281
+    details:
+      - var: uv
+        abbreviation: ADPSFC
+        instrument: Estação a superficie com pressao
+        color: "#5254a3"
+        symbol: "*"
+        iuse: "-1"
+  - kx: 282
+    details:
+      - var: uv
+        abbreviation: SFCSHP
+        instrument: Boias e sensor navios
+        color: "#7f7f7f"
+        symbol: "*"
+        iuse: "1"
+  - kx: 284
+    details:
+      - var: uv
+        abbreviation: ADPSFC SFCSHP
+        instrument: Boias number a estacoes sem pressao
+        color: "#773233"
+        symbol: "*"
+        iuse: "-1"
+  - kx: 287
+    details:
+      - var: uv
+        abbreviation: ADPSFC
+        instrument: Boias a estacoes sem pressao
+        color: "#437939"
+        symbol: "*"
+        iuse: "-1"
+  # RO GNSS data source list
+  - kx: 290
     details:
       - var: uv
         abbreviation: ASCATW
@@ -435,23 +452,63 @@ observations:
         color: "#e7ba52"
         symbol: x
         iuse: "-1"
-  - kx: "3"
+  - kx: 3
     details:
       - var: gps
         abbreviation: GPS
-        instrument: GPS-INFO
+        instrument: Sensor RO GRASS in the MetOp-B satellite
         color: "#297df1"
         symbol: "8"
         iuse: "-1"
-  - kx: "4"
+  - kx: 4
     details:
       - var: gps
         abbreviation: GPS
-        instrument: GPS-INFO
+        instrument: Sensor RO GRASS in the MetOp-A satellite
         color: "#fe6f22"
         symbol: s
         iuse: "-1"
-  - kx: "740"
+  - kx: 5
+    details:
+      - var: gps
+        abbreviation: GPS
+        instrument: Sensor RO GRASS in the MetOp-C satellite
+        color: "#fe6f22"
+        symbol: s
+        iuse: "-1"
+  - kx: 41
+    details:
+      - var: gps
+        abbreviation: GPS
+        instrument: RO data from CHAMP satellite
+        color: "#fe6f22"
+        symbol: s
+        iuse: "-1"
+  - kx: 42
+    details:
+      - var: gps
+        abbreviation: GPS
+        instrument: RO data from TerraSAR-X satellite
+        color: "#fe6f22"
+        symbol: s
+        iuse: "-1"
+  - kx: 43
+    details:
+      - var: gps
+        abbreviation: GPS
+        instrument: RO data from TanDEM-X satellite
+        color: "#fe6f22"
+        symbol: s
+        iuse: "-1"
+  - kx: 44
+    details:
+      - var: gps
+        abbreviation: GPS
+        instrument: RO Data from PAZ satellite
+        color: "#fe6f22"
+        symbol: s
+        iuse: "-1"
+  - kx: 66
     details:
       - var: gps
         abbreviation: GPS
@@ -459,7 +516,7 @@ observations:
         color: "#42b7a3"
         symbol: "*"
         iuse: "-1"
-  - kx: "745"
+  - kx: 265
     details:
       - var: gps
         abbreviation: GPS
@@ -467,28 +524,284 @@ observations:
         color: "#de57fb"
         symbol: o
         iuse: "-1"
-  - kx: "744"
+  - kx: 266
     details:
       - var: gps
         abbreviation: GPS
         instrument: GPS-INFO
-        color: "#f1d34d"
-        symbol: p
+        color: "#de57fb"
+        symbol: o
         iuse: "-1"
-  - kx: "741"
+  - kx: 267
     details:
       - var: gps
         abbreviation: GPS
         instrument: GPS-INFO
+        color: "#de57fb"
+        symbol: o
+        iuse: "-1"
+  - kx: 268
+    details:
+      - var: gps
+        abbreviation: GPS
+        instrument: GPS-INFO
+        color: "#de57fb"
+        symbol: o
+        iuse: "-1"
+  - kx: 269
+    details:
+      - var: gps
+        abbreviation: GPS
+        instrument: GPS-INFO
+        color: "#de57fb"
+        symbol: o
+        iuse: "-1"
+  - kx: 440
+    details:
+      - var: gps
+        abbreviation: GPS
+        instrument: RO Data from Megha-Tropiques satellite
         color: "#d61d14"
         symbol: P
         iuse: "-1"
-  - kx: "722"
+  - kx: 421
     details:
       - var: gps
         abbreviation: GPS
-        instrument: GPS-INFO
+        instrument: RO data from Oceansat-2 satellite
+        color: "#d61d14"
+        symbol: P
+        iuse: "-1"
+  - kx: 722
+    details:
+      - var: gps
+        abbreviation: GPS
+        instrument: Sensor RO Data from GRACE-A satellite
+        color: "#d61d14"
+        symbol: P
+        iuse: "-1"
+  - kx: 723
+    details:
+      - var: gps
+        abbreviation: GPS
+        instrument: Sensor RO data from GRACE-B satellite
+        color: "#d61d14"
+        symbol: P
+        iuse: "-1"
+  - kx: 724
+    details:
+      - var: gps
+        abbreviation: GPS
+        instrument: Constelation COSMIC-2A  Satelitte P1
+        color: "#d61d14"
+        symbol: P
+        iuse: "-1"
+  - kx: 725
+    details:
+      - var: gps
+        abbreviation: GPS
+        instrument: Constelation COSMIC-2A  Satelitte P2
+        color: "#d61d14"
+        symbol: P
+        iuse: "-1"
+  - kx: 726
+    details:
+      - var: gps
+        abbreviation: GPS
+        instrument: Constelation COSMIC-2A  Satelitte P3
+        color: "#d61d14"
+        symbol: P
+        iuse: "-1"
+  - kx: 727
+    details:
+      - var: gps
+        abbreviation: GPS
+        instrument: Constelation COSMIC-2A  Satelitte P4
+        color: "#d61d14"
+        symbol: P
+        iuse: "-1"
+  - kx: 728
+    details:
+      - var: gps
+        abbreviation: GPS
+        instrument: Constelation COSMIC-2A  Satelitte P5
+        color: "#d61d14"
+        symbol: P
+        iuse: "-1"
+  - kx: 729
+    details:
+      - var: gps
+        abbreviation: GPS
+        instrument: Constelation COSMIC-2A  Satelitte P6
+        color: "#d61d14"
+        symbol: P
+        iuse: "-1"
+  - kx: 740
+    details:
+      - var: gps
+        abbreviation: GPS
+        instrument: Constelation COSMIC-1  Satelitte FM1
+        color: "#d61d14"
+        symbol: P
+        iuse: "-1"
+  - kx: 741
+    details:
+      - var: gps
+        abbreviation: GPS
+        instrument: Constelation COSMIC-1  Satelitte FM2
+        color: "#d61d14"
+        symbol: P
+        iuse: "-1"
+  - kx: 742
+    details:
+      - var: gps
+        abbreviation: GPS
+        instrument: Constelation COSMIC-1  Satelitte FM3
+        color: "#d61d14"
+        symbol: P
+        iuse: "-1"
+  - kx: 743
+    details:
+      - var: gps
+        abbreviation: GPS
+        instrument: Constelation COSMIC-1  Satelitte FM4
+        color: "#d61d14"
+        symbol: P
+        iuse: "-1"
+  - kx: 744
+    details:
+      - var: gps
+        abbreviation: GPS
+        instrument: Constelation COSMIC-1  Satelitte FM5
+        color: "#f1d34d"
+        symbol: p
+        iuse: "-1"
+  - kx: 745
+    details:
+      - var: gps
+        abbreviation: GPS
+        instrument: Constelation COSMIC-1  Satelitte FM6
+        color: "#de57fb"
+        symbol: o
+        iuse: "-1"
+  - kx: 750
+    details:
+      - var: gps
+        abbreviation: GPS
+        instrument: Constelation COSMIC-2B  Satelitte E1
         color: "#2e8e24"
         symbol: x
         iuse: "-1"
-
+  - kx: 751
+    details:
+      - var: gps
+        abbreviation: GPS
+        instrument: Constelation COSMIC-2B  Satelitte E2
+        color: "#2e8e24"
+        symbol: x
+        iuse: "-1"
+  - kx: 752
+    details:
+      - var: gps
+        abbreviation: GPS
+        instrument: Constelation COSMIC-2B  Satelitte E3
+        color: "#2e8e24"
+        symbol: x
+        iuse: "-1"
+  - kx: 753
+    details:
+      - var: gps
+        abbreviation: GPS
+        instrument: Constelation COSMIC-2B  Satelitte E4
+        color: "#2e8e24"
+        symbol: x
+        iuse: "-1"
+  - kx: 754
+    details:
+      - var: gps
+        abbreviation: GPS
+        instrument: Constelation COSMIC-2B  Satelitte E5
+        color: "#2e8e24"
+        symbol: x
+        iuse: "-1"
+  - kx: 755
+    details:
+      - var: gps
+        abbreviation: GPS
+        instrument: Constelation COSMIC-2B  Satelitte E6
+        color: "#2e8e24"
+        symbol: x
+        iuse: "-1"
+  - kx: 820
+    details:
+      - var: gps
+        abbreviation: GPS
+        instrument: RO data from SAC-C satellite
+        color: "#2e8e24"
+        symbol: x
+        iuse: "-1"
+  - kx: 821
+    details:
+      - var: gps
+        abbreviation: GPS
+        instrument:  RO Data from SAC-D satellite
+        color: "#2e8e24"
+        symbol: x
+        iuse: "-1"
+  - kx: 825
+    details:
+      - var: gps
+        abbreviation: GPS
+        instrument: RO data from KOMPSAT-5 satellite
+        color: "#2e8e24"
+        symbol: x
+        iuse: "-1"
+  # Radiance data data source list      
+  - kx: "n15"
+    details:
+      - var: amsua
+        abbreviation: radiance
+        instrument: Radiance - AMSU-A - NOAA-15.    #Radiance data of the AMSU-A sensor from NOAA-15 sat.
+        color: "#2e8e24"
+        symbol: x
+        iuse: "1"
+  - kx: "n18"
+    details:
+      - var: amsua
+        abbreviation: radiance
+        instrument: Radiance - AMSU-A - NOAA-18.    #Radiance data of the AMSU-A sensor from NOAA-18 sat.
+        color: "#2e8e24"
+        symbol: x
+        iuse: "1"
+  - kx: "n19"
+    details:
+      - var: amsua
+        abbreviation: radiance
+        instrument: Radiance - AMSU-A - NOAA-19.    #Radiance data of the AMSU-A sensor from NOAA-18 sat.
+        color: "#2e8e24"
+        symbol: x
+        iuse: "1"
+  - kx: "metop-a"
+    details:
+      - var: amsua
+        abbreviation: radiance
+        instrument: Radiance - AMSU-A - MetOp-A.
+        color: "#2e8e24"
+        symbol: x
+        iuse: "1"
+  - kx: "metop-b"
+    details:
+      - var: amsua
+        abbreviation: radiance
+        instrument: Radiance - AMSU-A - MetOp-B.
+        color: "#2e8e24"
+        symbol: x
+        iuse: "1"
+  - kx: "metop-c"
+    details:
+      - var: amsua
+        abbreviation: radiance
+        instrument: Radiance - AMSU-A - MetOp-C.
+        color: "#2e8e24"
+        symbol: x
+        iuse: "1"

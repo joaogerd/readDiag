@@ -53,15 +53,48 @@
  252;      uv;         SATWND;                                     JMA IR e VIS acima de 850 Himawari; #6b6ecf;      8;    1
  253;      uv;         SATWND;                                         EUMETSAT IR e VIS acima de 850; #d6616b;      8;    1
  254;      uv;         SATWND;                          EUMETSAT WV todo níveis top e deep (METEOSAT); #575738;      s;    1
+ 255;      uv;         SATWND;                       WIND Report - NESDIS picture triplet cloud drift; #575738;      s;    1
  257;      uv;         SATWND;                        MODIS IR (onda longa) todos niveis (AQUA/TERRA); #dbdb8d;      *;    1
  258;      uv;         SATWND;                               MODIS WV (todos niveis) TOP (AQUA/TERRA); #9edae5;      p;    1
  259;      uv;         SATWND;                              MODIS WV (todos niveis) DEEP (AQUA/TERRA); #108590;      o;    1
  260;      uv;         SATWND;                                 VIIRS IR (longa onda) der. nuvem (NPP); #8BDEE7;      o;   -1
  290;      uv;         ASCATW;                   Non-superobed Scatterometer Winds Over Ocean (ASCAT); #e7ba52;      x;   -1
-   3;     gps;            GPS;                                                               GPS-INFO; #297df1;      8;   -1
-   4;     gps;            GPS;                                                               GPS-INFO; #fe6f22;      s;   -1
- 740;     gps;            GPS;                                                               GPS-INFO; #42b7a3;      *;   -1
- 745;     gps;            GPS;                                                               GPS-INFO; #de57fb;      o;   -1
- 744;     gps;            GPS;                                                               GPS-INFO; #f1d34d;      p;   -1
- 741;     gps;            GPS;                                                               GPS-INFO; #d61d14;      P;   -1
- 722;     gps;            GPS;                                                               GPS-INFO; #2e8e24;      x;   -1
+   3;     gps;            GPS;                               Sensor RO GRASS in the MetOp-B satellite; #297df1;      8;    1
+   4;     gps;            GPS;                               Sensor RO GRASS in the MetOp-A satellite; #fe6f22;      s;    1
+   5;     gps;            GPS;                               Sensor RO GRASS in the MetOp-C satellite; #fe6f22;      x;    1
+  41;     gps;            GPS;                                           RO data from CHAMP satellite; #fe6f22;      x;   -1
+  42;     gps;            GPS;                                      RO data from TerraSAR-X satellite; #fe6f22;      x;    1
+  43;     gps;            GPS;                                        RO data from TanDEM-X satellite; #fe6f22;      x;    1
+  44;     gps;            GPS;                                             RO Data from PAZ satellite; #575738;      s;    1
+  66;     gps;            GPS;                                                               GPS-INFO; #2e8e24;      x;   -1
+ 265;     gps;            GPS;                                                               GPS-INFO; #2e8e24;      x;    1
+ 266;     gps;            GPS;                                                               GPS-INFO; #2e8e24;      x;   -1
+ 267;     gps;            GPS;                                                               GPS-INFO; #2e8e24;      x;   -1
+ 268;     gps;            GPS;                                                               GPS-INFO; #2e8e24;      x;   -1
+ 269;     gps;            GPS;                                                               GPS-INFO; #2e8e24;      x;    1
+ 440;     gps;            GPS;                                 RO Data from Megha-Tropiques satellite; #fe6f22;      x;   -1
+ 421;     gps;            GPS;                                      RO data from Oceansat-2 satellite; #fe6f22;      x;   -1
+ 722;     gps;            GPS;                                  Sensor RO Data from GRACE-A satellite; #fe6f22;      x;    1
+ 723;     gps;            GPS;                                  Sensor RO data from GRACE-B satellite; #fe6f22;      x;    1
+ 724;     gps;            GPS;                                  Constelation COSMIC-2A  Satelitte: P1; #d6616b;      8;   -1
+ 725;     gps;            GPS;                                  Constelation COSMIC-2A  Satelitte: P2; #de57fb;      o;   -1
+ 726;     gps;            GPS;                                  Constelation COSMIC-2A  Satelitte: P3; #f1d34d;      p;   -1
+ 727;     gps;            GPS;                                  Constelation COSMIC-2A  Satelitte: P4; #d61d14;      P;   -1
+ 728;     gps;            GPS;                                  Constelation COSMIC-2A  Satelitte: P5; #2e8e24;      x;   -1
+ 729;     gps;            GPS;                                  Constelation COSMIC-2A  Satelitte: P6; #e7969c;      s;   -1
+ 740;     gps;            GPS;                                  Constelation COSMIC-1  Satelitte: FM1; #42b7a3;      *;    1
+ 741;     gps;            GPS;                                  Constelation COSMIC-1  Satelitte: FM2; #de57fb;      o;    1
+ 742;     gps;            GPS;                                  Constelation COSMIC-1  Satelitte: FM3; #f1d34d;      p;    1
+ 743;     gps;            GPS;                                  Constelation COSMIC-1  Satelitte: FM4; #d61d14;      P;    1
+ 744;     gps;            GPS;                                  Constelation COSMIC-1  Satelitte: FM5; #2e8e24;      x;    1
+ 745;     gps;            GPS;                                  Constelation COSMIC-1  Satelitte: FM6; #2e8e24;      x;    1
+ 750;     gps;            GPS;                                  Constelation COSMIC-2B  Satelitte: E1; #42b7a3;      *;    1
+ 751;     gps;            GPS;                                  Constelation COSMIC-2B  Satelitte: E2; #de57fb;      o;    1
+ 752;     gps;            GPS;                                  Constelation COSMIC-2B  Satelitte: E3; #f1d34d;      p;    1
+ 753;     gps;            GPS;                                  Constelation COSMIC-2B  Satelitte: E4; #d61d14;      s;    1
+ 754;     gps;            GPS;                                  Constelation COSMIC-2B  Satelitte: E4; #2e8e24;      x;    1
+ 755;     gps;            GPS;                                  Constelation COSMIC-2B  Satelitte: E5; #e7969c;      s;    1
+ 786;     gps;            GPS;                                          RO data from C/NOFS satellite; #875BAE;      s;    1
+ 820;     gps;            GPS;                                           RO data from SAC-C satellite; #297df1;      8;    1
+ 821;     gps;            GPS;                                           RO Data from SAC-D satellite; #297df1;      8;   -1
+ 825;     gps;            GPS;                                       RO data from KOMPSAT-5 satellite; #297df1;      8;    1
