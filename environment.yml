@@ -1,4 +1,4 @@
-name: readDiag
+name: readDiag.issuefix_27
 channels:
   - conda-forge
   - pyviz
