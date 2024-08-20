@@ -34,7 +34,7 @@ ext  = Extension(name='diag2python',
 if __name__ == "__main__":
     from numpy.distutils.core import setup
     setup(name='readDiag',
-          version='1.2.3',
+          version='1.3.0',
           long_description=open('README.md').read(),
           long_description_content_type='text/markdown',
           description='A Python class to read and plot the Gridpoint Statistical Interpolation diagnostics files.',
