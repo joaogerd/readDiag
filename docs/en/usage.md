@@ -1325,9 +1325,9 @@ The following cell sets these variables according to the values in the table abo
     ```bash linenums="1"
     cd readDiag/data
 
-    wget https://ftp1.cptec.inpe.br/pesquisa/das/testecase/SMNAexp19_amsua.tar.gz
-    wget https://ftp1.cptec.inpe.br/pesquisa/das/testecase/SMNAexp19_conv_0201.tar.gz
-    wget https://ftp1.cptec.inpe.br/pesquisa/das/testecase/SMNAexp19_conv_0202.tar.gz
+    wget https://dataserver.cptec.inpe.br/dataserver_dimnt/das/testecase/SMNAexp19_amsua.tar.gz
+    wget https://dataserver.cptec.inpe.br/dataserver_dimnt/das/testecase/SMNAexp19_conv_0201.tar.gz
+    wget https://dataserver.cptec.inpe.br/dataserver_dimnt/das/testecase/SMNAexp19_conv_0202.tar.gz
     
     tar -zxvf SMNAexp19_amsua.tar.gz 
     tar -zxvf SMNAexp19_conv_0201.tar.gz
@@ -1337,7 +1337,7 @@ The following cell sets these variables according to the values in the table abo
 === "Command"
 
     ```python linenums="1"
-    DIRdiag = os.path.join(os.getcwd(), '../data/ftp1.cptec.inpe.br/pesquisa/das/testecase/SMNAexp19/GSI/dataout')
+    DIRdiag = os.path.join(os.getcwd(), '../data/dataserver.cptec.inpe.br/dataserver_dimnt/das/testecase/SMNAexp19/GSI/dataout')
     
     varName = 'amsua'
     varType = 'n19'
@@ -1385,9 +1385,9 @@ Generating the `paths` and `pathsc` variables that will contain the full paths (
 === "Result"
 
     ```
-    ['/extra3/GitHub/readDiag.issuefix_27/notebooks/../data/ftp1.cptec.inpe.br/pesquisa/das/testecase/SMNAexp19/GSI/dataout/2024020100/diag_amsua_n19_01.2024020100', '/extra3/GitHub/readDiag.issuefix_27/notebooks/../data/ftp1.cptec.inpe.br/pesquisa/das/testecase/SMNAexp19/GSI/dataout/2024020106/diag_amsua_n19_01.2024020106', '/extra3/GitHub/readDiag.issuefix_27/notebooks/../data/ftp1.cptec.inpe.br/pesquisa/das/testecase/SMNAexp19/GSI/dataout/2024020112/diag_amsua_n19_01.2024020112', '/extra3/GitHub/readDiag.issuefix_27/notebooks/../data/ftp1.cptec.inpe.br/pesquisa/das/testecase/SMNAexp19/GSI/dataout/2024020118/diag_amsua_n19_01.2024020118', '/extra3/GitHub/readDiag.issuefix_27/notebooks/../data/ftp1.cptec.inpe.br/pesquisa/das/testecase/SMNAexp19/GSI/dataout/2024020200/diag_amsua_n19_01.2024020200', '/extra3/GitHub/readDiag.issuefix_27/notebooks/../data/ftp1.cptec.inpe.br/pesquisa/das/testecase/SMNAexp19/GSI/dataout/2024020206/diag_amsua_n19_01.2024020206', '/extra3/GitHub/readDiag.issuefix_27/notebooks/../data/ftp1.cptec.inpe.br/pesquisa/das/testecase/SMNAexp19/GSI/dataout/2024020212/diag_amsua_n19_01.2024020212', '/extra3/GitHub/readDiag.issuefix_27/notebooks/../data/ftp1.cptec.inpe.br/pesquisa/das/testecase/SMNAexp19/GSI/dataout/2024020218/diag_amsua_n19_01.2024020218']
+    ['/extra3/GitHub/readDiag.issuefix_27/notebooks/../data/dataserver.cptec.inpe.br/dataserver_dimnt/das/testecase/SMNAexp19/GSI/dataout/2024020100/diag_amsua_n19_01.2024020100', '/extra3/GitHub/readDiag.issuefix_27/notebooks/../data/dataserver.cptec.inpe.br/dataserver_dimnt/das/testecase/SMNAexp19/GSI/dataout/2024020106/diag_amsua_n19_01.2024020106', '/extra3/GitHub/readDiag.issuefix_27/notebooks/../data/dataserver.cptec.inpe.br/dataserver_dimnt/das/testecase/SMNAexp19/GSI/dataout/2024020112/diag_amsua_n19_01.2024020112', '/extra3/GitHub/readDiag.issuefix_27/notebooks/../data/dataserver.cptec.inpe.br/dataserver_dimnt/das/testecase/SMNAexp19/GSI/dataout/2024020118/diag_amsua_n19_01.2024020118', '/extra3/GitHub/readDiag.issuefix_27/notebooks/../data/dataserver.cptec.inpe.br/dataserver_dimnt/das/testecase/SMNAexp19/GSI/dataout/2024020200/diag_amsua_n19_01.2024020200', '/extra3/GitHub/readDiag.issuefix_27/notebooks/../data/dataserver.cptec.inpe.br/dataserver_dimnt/das/testecase/SMNAexp19/GSI/dataout/2024020206/diag_amsua_n19_01.2024020206', '/extra3/GitHub/readDiag.issuefix_27/notebooks/../data/dataserver.cptec.inpe.br/dataserver_dimnt/das/testecase/SMNAexp19/GSI/dataout/2024020212/diag_amsua_n19_01.2024020212', '/extra3/GitHub/readDiag.issuefix_27/notebooks/../data/dataserver.cptec.inpe.br/dataserver_dimnt/das/testecase/SMNAexp19/GSI/dataout/2024020218/diag_amsua_n19_01.2024020218']
     
-    ['/extra3/GitHub/readDiag.issuefix_27/notebooks/../data/ftp1.cptec.inpe.br/pesquisa/das/testecase/SMNAexp19/GSI/dataout/2024020100/diag_amsua_n19_03.2024020100', '/extra3/GitHub/readDiag.issuefix_27/notebooks/../data/ftp1.cptec.inpe.br/pesquisa/das/testecase/SMNAexp19/GSI/dataout/2024020106/diag_amsua_n19_03.2024020106', '/extra3/GitHub/readDiag.issuefix_27/notebooks/../data/ftp1.cptec.inpe.br/pesquisa/das/testecase/SMNAexp19/GSI/dataout/2024020112/diag_amsua_n19_03.2024020112', '/extra3/GitHub/readDiag.issuefix_27/notebooks/../data/ftp1.cptec.inpe.br/pesquisa/das/testecase/SMNAexp19/GSI/dataout/2024020118/diag_amsua_n19_03.2024020118', '/extra3/GitHub/readDiag.issuefix_27/notebooks/../data/ftp1.cptec.inpe.br/pesquisa/das/testecase/SMNAexp19/GSI/dataout/2024020200/diag_amsua_n19_03.2024020200', '/extra3/GitHub/readDiag.issuefix_27/notebooks/../data/ftp1.cptec.inpe.br/pesquisa/das/testecase/SMNAexp19/GSI/dataout/2024020206/diag_amsua_n19_03.2024020206', '/extra3/GitHub/readDiag.issuefix_27/notebooks/../data/ftp1.cptec.inpe.br/pesquisa/das/testecase/SMNAexp19/GSI/dataout/2024020212/diag_amsua_n19_03.2024020212', '/extra3/GitHub/readDiag.issuefix_27/notebooks/../data/ftp1.cptec.inpe.br/pesquisa/das/testecase/SMNAexp19/GSI/dataout/2024020218/diag_amsua_n19_03.2024020218']
+    ['/extra3/GitHub/readDiag.issuefix_27/notebooks/../data/dataserver.cptec.inpe.br/dataserver_dimnt/das/testecase/SMNAexp19/GSI/dataout/2024020100/diag_amsua_n19_03.2024020100', '/extra3/GitHub/readDiag.issuefix_27/notebooks/../data/dataserver.cptec.inpe.br/dataserver_dimnt/das/testecase/SMNAexp19/GSI/dataout/2024020106/diag_amsua_n19_03.2024020106', '/extra3/GitHub/readDiag.issuefix_27/notebooks/../data/dataserver.cptec.inpe.br/dataserver_dimnt/das/testecase/SMNAexp19/GSI/dataout/2024020112/diag_amsua_n19_03.2024020112', '/extra3/GitHub/readDiag.issuefix_27/notebooks/../data/dataserver.cptec.inpe.br/dataserver_dimnt/das/testecase/SMNAexp19/GSI/dataout/2024020118/diag_amsua_n19_03.2024020118', '/extra3/GitHub/readDiag.issuefix_27/notebooks/../data/dataserver.cptec.inpe.br/dataserver_dimnt/das/testecase/SMNAexp19/GSI/dataout/2024020200/diag_amsua_n19_03.2024020200', '/extra3/GitHub/readDiag.issuefix_27/notebooks/../data/dataserver.cptec.inpe.br/dataserver_dimnt/das/testecase/SMNAexp19/GSI/dataout/2024020206/diag_amsua_n19_03.2024020206', '/extra3/GitHub/readDiag.issuefix_27/notebooks/../data/dataserver.cptec.inpe.br/dataserver_dimnt/das/testecase/SMNAexp19/GSI/dataout/2024020212/diag_amsua_n19_03.2024020212', '/extra3/GitHub/readDiag.issuefix_27/notebooks/../data/dataserver.cptec.inpe.br/dataserver_dimnt/das/testecase/SMNAexp19/GSI/dataout/2024020218/diag_amsua_n19_03.2024020218']
     ```
 
 #### Reading Diagnostic Files
@@ -1424,35 +1424,35 @@ Reading the radiance diagnostic files using the `read_diag()` function from the 
     ```
     Please wait, the estimated total time to read the files is 2 minutes and 40 seconds.
     
-    Reading /extra3/GitHub/readDiag.issuefix_27/notebooks/../data/ftp1.cptec.inpe.br/pesquisa/das/testecase/SMNAexp19/GSI/dataout/2024020100/diag_amsua_n19_01.2024020100
+    Reading /extra3/GitHub/readDiag.issuefix_27/notebooks/../data/dataserver.cptec.inpe.br/dataserver_dimnt/das/testecase/SMNAexp19/GSI/dataout/2024020100/diag_amsua_n19_01.2024020100
      
     >>> GSI DIAG <<<
      
-    Reading /extra3/GitHub/readDiag.issuefix_27/notebooks/../data/ftp1.cptec.inpe.br/pesquisa/das/testecase/SMNAexp19/GSI/dataout/2024020106/diag_amsua_n19_01.2024020106
+    Reading /extra3/GitHub/readDiag.issuefix_27/notebooks/../data/dataserver.cptec.inpe.br/dataserver_dimnt/das/testecase/SMNAexp19/GSI/dataout/2024020106/diag_amsua_n19_01.2024020106
      
     >>> GSI DIAG <<<
      
-    Reading /extra3/GitHub/readDiag.issuefix_27/notebooks/../data/ftp1.cptec.inpe.br/pesquisa/das/testecase/SMNAexp19/GSI/dataout/2024020112/diag_amsua_n19_01.2024020112
+    Reading /extra3/GitHub/readDiag.issuefix_27/notebooks/../data/dataserver.cptec.inpe.br/dataserver_dimnt/das/testecase/SMNAexp19/GSI/dataout/2024020112/diag_amsua_n19_01.2024020112
      
     >>> GSI DIAG <<<
      
-    Reading /extra3/GitHub/readDiag.issuefix_27/notebooks/../data/ftp1.cptec.inpe.br/pesquisa/das/testecase/SMNAexp19/GSI/dataout/2024020118/diag_amsua_n19_01.2024020118
+    Reading /extra3/GitHub/readDiag.issuefix_27/notebooks/../data/dataserver.cptec.inpe.br/dataserver_dimnt/das/testecase/SMNAexp19/GSI/dataout/2024020118/diag_amsua_n19_01.2024020118
      
     >>> GSI DIAG <<<
      
-    Reading /extra3/GitHub/readDiag.issuefix_27/notebooks/../data/ftp1.cptec.inpe.br/pesquisa/das/testecase/SMNAexp19/GSI/dataout/2024020200/diag_amsua_n19_01.2024020200
+    Reading /extra3/GitHub/readDiag.issuefix_27/notebooks/../data/dataserver.cptec.inpe.br/dataserver_dimnt/das/testecase/SMNAexp19/GSI/dataout/2024020200/diag_amsua_n19_01.2024020200
      
     >>> GSI DIAG <<<
      
-    Reading /extra3/GitHub/readDiag.issuefix_27/notebooks/../data/ftp1.cptec.inpe.br/pesquisa/das/testecase/SMNAexp19/GSI/dataout/2024020206/diag_amsua_n19_01.2024020206
+    Reading /extra3/GitHub/readDiag.issuefix_27/notebooks/../data/dataserver.cptec.inpe.br/dataserver_dimnt/das/testecase/SMNAexp19/GSI/dataout/2024020206/diag_amsua_n19_01.2024020206
      
     >>> GSI DIAG <<<
      
-    Reading /extra3/GitHub/readDiag.issuefix_27/notebooks/../data/ftp1.cptec.inpe.br/pesquisa/das/testecase/SMNAexp19/GSI/dataout/2024020212/diag_amsua_n19_01.2024020212
+    Reading /extra3/GitHub/readDiag.issuefix_27/notebooks/../data/dataserver.cptec.inpe.br/dataserver_dimnt/das/testecase/SMNAexp19/GSI/dataout/2024020212/diag_amsua_n19_01.2024020212
      
     >>> GSI DIAG <<<
      
-    Reading /extra3/GitHub/readDiag.issuefix_27/notebooks/../data/ftp1.cptec.inpe.br/pesquisa/das/testecase/SMNAexp19/GSI/dataout/2024020218/diag_amsua_n19_01.2024020218
+    Reading /extra3/GitHub/readDiag.issuefix_27/notebooks/../data/dataserver.cptec.inpe.br/dataserver_dimnt/das/testecase/SMNAexp19/GSI/dataout/2024020218/diag_amsua_n19_01.2024020218
      
     >>> GSI DIAG <<<
      
