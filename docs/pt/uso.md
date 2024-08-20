@@ -1210,4 +1210,932 @@ for file in gdf_list:
     file.close()
 ```
 
+## Radiância
+
+Nesta seção apresentam-se as funções do `readDiag` construídas e modificadas para acesso aos arquivos de diagnóstico da radiância gerados pelo GSI. 
+
+### A Classe `read_diag`
+
+A classe `read_diag` não foi alterada. Abaixo as ferramentas desta classe são utilizadas como exemplo para visualização do diagnóstico de dados de radiância.
+
+
+### A Classe `plot_diag`
+    
+Na classe `plot_diag` as funções abaixo foram construídas ou modificadas para leitura e análise dos dados de radiância:
+
+1. `plot(self, varName, varType, param, minVal=None, maxVal=None, mask=None, area=None, **kwargs)`: a função `plot` gera uma figura para a variável `varName` (ex: `amsua`), `varType` (ex: `n19` (satélite)) e `param`, que pode ser várias opções como: `param="obs"` para o valor da observação, `param="omf"` para observação menos background ou `param="oma"` para observação menos análise. Foram inseridas as variáveis opicionais `minVal` e `maxVal` para fixar o range de cores do colormap. Também é possível mascarar os dados com as variáveis `iuse` e `idqc`, que indicam se o dado de radiância foi (`iuse>=1 & idqc=0`) assimilado ou rejeitado (`iuse>=1 & idqc!=0`), ou ainda, se o dado é monitorado (`iuse=-1`). Utilizando o `mask` ainda é possível especificar o canal `nchan` (nº do canal). Abaixo há um exemplo executado para `varName="amsua"`, `varType="n19"`, `param="obs"` e `mask="(nchan==14) & (iuse >= 1 & idqc == 0)"`;
+
+    <img src=../../imgs/amsua_n19_obs_CH14_2024020100_plot_0.png style="width: 800px;">
+    <br>
+
+2. `time_series_radi(self, varName=None, varType=None, mask=None, dateIni=None, dateFin=None, nHour="06", vminOMA=None, vmaxOMA=None, vminSTD=0.0, vmaxSTD=14.0, channel=None, Clean=None)`: a função `time_series_radi` gera figuras que mostram a variação temporal das médias e desvios padrões dos parâmetros OmF e OmA dos dados de radiância. Essa função pode ser utilizada considerando-se três situações: quando `channel` é o nº de um canal (4 Figuras são geradas utilizando apenas as observações do canal espeificado), quando `channel` é uma lista de canais (6 diagramas de *Hovmoller* são criados considerando apenas os canais listados) e quando `channel` é `None` (são gerados 6 diagramas de *Hovmoller* considerando todos os canais disponíveis (1 à 15)). 
+
+    A seguir são apresentados os parâmetros de entrada na função.
+        
+    | Parâmetro       | Exemplo                                       | Descrição |
+    | :---            | :---:                                         | :--- |
+    | `self`          | `['/home/user/diag_amsua_n19_01.2024020100']` | Lista com todos os caminhos completos (`caminho/nome_do_arquivo`) de cada tempo da série temporal. |             
+    | `varName`       | `amsua`                                       | Nome da variável |   
+    | `varType`       | `n19`                                         | Tipo da variável |
+    | `dateIni`       | `2024020100`                                  | Data inicial da série temporal |
+    | `dateFin`       | `2024020218`                                  | Data final da série temporal |
+    | `nHour`         | `6`                                           | Intervalo de tempo em horas entre cada arquivo na lista `self` |
+    | `vminOMA`       | `-2.0`                                        | Valor mínimo da escala y (ordenada) para OmF e OmA |
+    | `vmaxOMA`       | `2.0`                                         | Valor máximo da escala y (ordenada) para OmF e OmA |
+    | `vminSTD`       | `0.0`                                         | Valor mínimo da escala y (ordenada) para o desvio-padrão |
+    | `vmaxSTD`       | `14.0`                                        | Valor máximo da escala y (ordenada) para o desvio-padrão |
+    | `channel`       | `14`                                          | Valor(es) do canal a ser feita a série temporal, opções: valor numérico referente ao canal, ex.: `14` para plotar um canal; `[6, 9, 10, 13, 14]` para plotar uma lista de canais específica; `None` para plotar todos os canais. |
+    | `Clean`         | `True` ou `False`                             | Se `True`, após gerar e salvar a figura, a janela da figura é reiniciada (`plt.clf()`) ou fechada (`plt.close()`), se `False`, este procedimento é eliminado e a figura continua disponível para visualização com `plt.show()`. |
+
+3. `statcount(self, varName=None, varType=None, noiqc=False, dateIni=None, dateFin=None, nHour="06", channel=None, figTS=False, figMap=False, **kwargs)`: a função `statcount` gera dois tipos de figuras. Se `figTS` é `True` uma figura com a série temporal da quantidade de dados assimilados, rejeitados e monitorados é gerada. Se `figMap` é `True` uma sequência temporal de figuras indicando no mapa a geolocalização das observações assimiladas, rejeitadas e monitoradas são produzidas. Nesta função, quando os dados são de radiância, a variável `channel` recebe o número específico de um canal e quando se trata de dados convencionais a variável `channel` deve ser `None`. Quando `channel = nº canal` os dados monitorados (`iuse=-1`) são subclassificados em dois grupos: observações monitoradas que seriam assimiladas (monitorado-assimilado) pois, `idqc=0` e observações monitoradas que seriam rejeitadas (monitorado-rejeitado) pois, `idqc!=0`. Logo, para os dados de radiância, se `figMap=True` podem ser geradas duas figuras, uma com a geolocalização das observações assimiladas e rejeitadas e outra com a geolocalização das observações monitoradas-assimiladas e monitoradas-rejeitadas. A variável `noiqc` é um parâmetro da lista de nomes do GSI sendo utilizada na classificação dos dados convencionais e pode receber os valores `True` ou `False` (não interfere na classificação da radiância). Abaixo há um exemplo executado para `varName="amsua"`, `varType="n19"`, `noiqc=False`, `dateIni="2024020100"`, `dateFin="2024020218"`, `nHour="06"`, `channel=6`, `figTS=True`, `figMap=True`.
+
+
+`figMap=True`
+<br>
+<img src=../../imgs/Assim-Rejei_amsua-n19_CH6_2024020100.png style="width: 370px;"> <img src=../../imgs/Assim-Rejei_amsua-n19_CH6_2024020106.png style="width: 370px;"> 
+<img src=../../imgs/Assim-Rejei_amsua-n19_CH6_2024020112.png style="width: 370px;"> <img src=../../imgs/Assim-Rejei_amsua-n19_CH6_2024020118.png style="width: 370px;"> 
+<img src=../../imgs/Assim-Rejei_amsua-n19_CH6_2024020200.png style="width: 370px;"> <img src=../../imgs/Assim-Rejei_amsua-n19_CH6_2024020206.png style="width: 370px;"> 
+<img src=../../imgs/Assim-Rejei_amsua-n19_CH6_2024020212.png style="width: 370px;"> <img src=../../imgs/Assim-Rejei_amsua-n19_CH6_2024020218.png style="width: 370px;"> 
+<br>
+
+`figTS=True`
+<br>
+<img src=../../imgs/time_series_amsua-n19_CH6__TotalObs.png style="width: 370px;">
+<br> 
+
+No decorrer deste notebook são mostrados exemplos com recortes de código para exemplificar o uso das funções acima elencadas.
+
+### Utilização da classe `read_diag`
+
+#### Bibliotecas necessárias
+
+Para iniciar a utilização do `readDiag`, carregue primeiro as bibliotecas necessárias para a sua utilização:
+
+* `gsidiag`: é a biblioteca que contém as classes `read_diag` e `plot_diag`;
+* `pandas`: é a biblioteca que fornece as estruturas de dados tabulados utilizadas pelo `readDiag`;
+* `matplotlib`: é a biblioteca a partir da qual são confeccionadas as figuras;
+* `datetime`: é a biblioteca utilizada para manipular datas;
+* `datasources`: é a biblioteca utilizada para analisar e armazenar informações de um arquivo contendo dados de observações;
+* `os`: é a biblioteca que fornece diversas interfaces do sistema operacional.
+
+
+A instrução `%matplotlib inline` é um comando mágico do Jupyter e apenas ajusta o ambiente para que não seja necessário utilizar o comando `plt.show()` sempre que figuras forem mostradas dentro do notebook. Se você estiver utilizando o `readDiag` dentro de um script Python, esta diretiva pode ser suprimida e o comando `plt.show()` deve ser utilizado, a depender da situação.
+
+```python linenums="1"
+import gsidiag as gd
+
+import pandas as pd
+import matplotlib.pyplot as plt
+from datetime import datetime, timedelta
+from gsidiag.datasources import getVarInfo
+
+import os
+
+%matplotlib inline
+```
+
+#### Variáveis principais
+
+Na tabela a seguir, estão relacionadas os valores padrão das variáveis utilizadas ao longo deste tutorial. Observe que as variáveis possuem diferentes tipos e que algumas podem ser declaradas como `None`.
+
+| Variáveis |     | Valores          | Tipo              |
+| :---:     |:---:| :---             | :---              |
+| `DIRdiag` | =   | `/pesq/share/das/dist/joao.gerd/EXP18/GSI/dataout` | string |
+|`varName`  | =   | `amsua`          | string            |  
+|`varType`  | =   | `n19`            | <span style="color:red">**string**</span> |        
+|`dateIni`  | =   | `2024021000`     | string            |
+|`dateFin`  | =   | `2024021018`     | string            |
+|`nHour`    | =   | `6`              | string            | 
+|`vminOMA`  | =   | `-2.0`           | float             |
+|`vmaxOMA`  | =   | `2.0`            | float             |
+|`vminSTD`  | =   | `0.0`            | float             |
+|`vmaxSTD`  | =   | `14.0`           | float             |
+|`channel`  | =   | `6`              | integer ou `None` |
+                          
+Dessa forma, na célula a seguir são ajustadas as variáveis seguindo os valores da tabela acima. Além disso, são ajustados também os valores das datas para compor o caminho e os nomes dos arquivos de diagnóstico do GSI:
+
+!!! tip "Dica"
+
+    Para testar as funcionalidades do readDiag relacionadas com as radiâncias, baixe os arquivos a seguir dentro do diretório `data` da sua instalação do readDiag:
+
+    ```bash linenums="1"
+    cd readDiag/data
+
+    wget https://ftp1.cptec.inpe.br/pesquisa/das/testecase/SMNAexp19_amsua.tar.gz
+    wget https://ftp1.cptec.inpe.br/pesquisa/das/testecase/SMNAexp19_conv_0201.tar.gz
+    wget https://ftp1.cptec.inpe.br/pesquisa/das/testecase/SMNAexp19_conv_0202.tar.gz
+    
+    tar -zxvf SMNAexp19_amsua.tar.gz 
+    tar -zxvf SMNAexp19_conv_0201.tar.gz
+    tar -zxvf SMNAexp19_conv_0202.tar.gz 
+    ```
+
+=== "Comando"
+
+    ```python linenums="1"
+    DIRdiag = os.path.join(os.getcwd(), '../data/ftp1.cptec.inpe.br/pesquisa/das/testecase/SMNAexp19/GSI/dataout')
+    
+    varName = 'amsua'
+    varType = 'n19'
+    dateIni = '2024020100' 
+    dateFin = '2024020218'
+    nHour = '6'          
+    vminOMA = -2.0       
+    vmaxOMA = 2.0        
+    vminSTD = 0.0        
+    vmaxSTD = 14.0       
+    channel = 6
+    
+    datei = datetime.strptime(str(dateIni), '%Y%m%d%H')
+    datef = datetime.strptime(str(dateFin), '%Y%m%d%H')
+    dates = [dates.strftime('%Y%m%d%H') for dates in pd.date_range(datei, datef,freq='6H').tolist()]
+    
+    print(dates)
+    ``` 
+
+
+=== "Resultado"
+
+    ```
+    ['2024020100', '2024020106', '2024020112', '2024020118', '2024020200', '2024020206', '2024020212', '2024020218']
+    ```
+
+Gerando as variáveis `path` e `pathc` onde estarão os caminhos completos (incluindo nome do arquivo) dos arquivos diagnósticos do primeiro (OmF) e último (OmA) outer loop dos dados de radiância:
+
+=== "Comando"
+
+    ```python linenums="1"
+    paths, pathsc = [], []
+    
+    OuterL = '01'        
+    [paths.append(DIRdiag + '/' + dt + '/diag_' + varName +'_'+ varType +'_' + OuterL + '.' + dt) for dt in dates]
+        
+    OuterLc = '03'
+    [pathsc.append(DIRdiag + '/' + dt + '/diag_' + varName +'_'+ varType +'_' + OuterLc + '.' + dt) for dt in dates]
+    
+    print(paths)
+    print('')
+    print(pathsc)
+    ```
+
+=== "Resultado"
+
+    ```
+    ['/extra3/GitHub/readDiag.issuefix_27/notebooks/../data/ftp1.cptec.inpe.br/pesquisa/das/testecase/SMNAexp19/GSI/dataout/2024020100/diag_amsua_n19_01.2024020100', '/extra3/GitHub/readDiag.issuefix_27/notebooks/../data/ftp1.cptec.inpe.br/pesquisa/das/testecase/SMNAexp19/GSI/dataout/2024020106/diag_amsua_n19_01.2024020106', '/extra3/GitHub/readDiag.issuefix_27/notebooks/../data/ftp1.cptec.inpe.br/pesquisa/das/testecase/SMNAexp19/GSI/dataout/2024020112/diag_amsua_n19_01.2024020112', '/extra3/GitHub/readDiag.issuefix_27/notebooks/../data/ftp1.cptec.inpe.br/pesquisa/das/testecase/SMNAexp19/GSI/dataout/2024020118/diag_amsua_n19_01.2024020118', '/extra3/GitHub/readDiag.issuefix_27/notebooks/../data/ftp1.cptec.inpe.br/pesquisa/das/testecase/SMNAexp19/GSI/dataout/2024020200/diag_amsua_n19_01.2024020200', '/extra3/GitHub/readDiag.issuefix_27/notebooks/../data/ftp1.cptec.inpe.br/pesquisa/das/testecase/SMNAexp19/GSI/dataout/2024020206/diag_amsua_n19_01.2024020206', '/extra3/GitHub/readDiag.issuefix_27/notebooks/../data/ftp1.cptec.inpe.br/pesquisa/das/testecase/SMNAexp19/GSI/dataout/2024020212/diag_amsua_n19_01.2024020212', '/extra3/GitHub/readDiag.issuefix_27/notebooks/../data/ftp1.cptec.inpe.br/pesquisa/das/testecase/SMNAexp19/GSI/dataout/2024020218/diag_amsua_n19_01.2024020218']
+    
+    ['/extra3/GitHub/readDiag.issuefix_27/notebooks/../data/ftp1.cptec.inpe.br/pesquisa/das/testecase/SMNAexp19/GSI/dataout/2024020100/diag_amsua_n19_03.2024020100', '/extra3/GitHub/readDiag.issuefix_27/notebooks/../data/ftp1.cptec.inpe.br/pesquisa/das/testecase/SMNAexp19/GSI/dataout/2024020106/diag_amsua_n19_03.2024020106', '/extra3/GitHub/readDiag.issuefix_27/notebooks/../data/ftp1.cptec.inpe.br/pesquisa/das/testecase/SMNAexp19/GSI/dataout/2024020112/diag_amsua_n19_03.2024020112', '/extra3/GitHub/readDiag.issuefix_27/notebooks/../data/ftp1.cptec.inpe.br/pesquisa/das/testecase/SMNAexp19/GSI/dataout/2024020118/diag_amsua_n19_03.2024020118', '/extra3/GitHub/readDiag.issuefix_27/notebooks/../data/ftp1.cptec.inpe.br/pesquisa/das/testecase/SMNAexp19/GSI/dataout/2024020200/diag_amsua_n19_03.2024020200', '/extra3/GitHub/readDiag.issuefix_27/notebooks/../data/ftp1.cptec.inpe.br/pesquisa/das/testecase/SMNAexp19/GSI/dataout/2024020206/diag_amsua_n19_03.2024020206', '/extra3/GitHub/readDiag.issuefix_27/notebooks/../data/ftp1.cptec.inpe.br/pesquisa/das/testecase/SMNAexp19/GSI/dataout/2024020212/diag_amsua_n19_03.2024020212', '/extra3/GitHub/readDiag.issuefix_27/notebooks/../data/ftp1.cptec.inpe.br/pesquisa/das/testecase/SMNAexp19/GSI/dataout/2024020218/diag_amsua_n19_03.2024020218']
+    ```
+
+#### Leitura dos arquivos de diagnósticos
+
+Lendo os arquivos diagnósticos de radiância com a função `read_diag()` do pacote `readDiag`. No trecho de código a seguir, observe que a função `read_diag()` é utilizada dentro de um loop que varia sobre todos os arquivos das listas `paths` e `pathsc` definidas no passo anterior. No final do loop, é gerada a lista `gdf_list` que conterá todos os arquivos lidos pelo `readDiag`:
+
+
+=== "Comando"
+
+    ```python linenums="1"
+    read = True
+    
+    if read:        
+        gdf_list = []
+        print('')
+        
+        print('Aguarde, o tempo total estimado para a leitura dos arquivos é de ' +
+              str(int((float(len(paths))*20)/60)) + ' minutos e ' +
+              str(int((float(len(paths))*20)%60)) + ' segundos.')
+        
+        print('')
+        
+        for path, pathc in zip(paths, pathsc):
+            print('Reading ' + path)
+            
+            gdf = gd.read_diag(path, pathc)
+            
+            gdf_list.append(gdf)
+            
+        print('Pronto!')  
+    ```
+
+=== "Resultado"
+
+    ```
+    Aguarde, o tempo total estimado para a leitura dos arquivos é de 2 minutos e 40 segundos.
+    
+    Reading /extra3/GitHub/readDiag.issuefix_27/notebooks/../data/ftp1.cptec.inpe.br/pesquisa/das/testecase/SMNAexp19/GSI/dataout/2024020100/diag_amsua_n19_01.2024020100
+     
+    >>> GSI DIAG <<<
+     
+    Reading /extra3/GitHub/readDiag.issuefix_27/notebooks/../data/ftp1.cptec.inpe.br/pesquisa/das/testecase/SMNAexp19/GSI/dataout/2024020106/diag_amsua_n19_01.2024020106
+     
+    >>> GSI DIAG <<<
+     
+    Reading /extra3/GitHub/readDiag.issuefix_27/notebooks/../data/ftp1.cptec.inpe.br/pesquisa/das/testecase/SMNAexp19/GSI/dataout/2024020112/diag_amsua_n19_01.2024020112
+     
+    >>> GSI DIAG <<<
+     
+    Reading /extra3/GitHub/readDiag.issuefix_27/notebooks/../data/ftp1.cptec.inpe.br/pesquisa/das/testecase/SMNAexp19/GSI/dataout/2024020118/diag_amsua_n19_01.2024020118
+     
+    >>> GSI DIAG <<<
+     
+    Reading /extra3/GitHub/readDiag.issuefix_27/notebooks/../data/ftp1.cptec.inpe.br/pesquisa/das/testecase/SMNAexp19/GSI/dataout/2024020200/diag_amsua_n19_01.2024020200
+     
+    >>> GSI DIAG <<<
+     
+    Reading /extra3/GitHub/readDiag.issuefix_27/notebooks/../data/ftp1.cptec.inpe.br/pesquisa/das/testecase/SMNAexp19/GSI/dataout/2024020206/diag_amsua_n19_01.2024020206
+     
+    >>> GSI DIAG <<<
+     
+    Reading /extra3/GitHub/readDiag.issuefix_27/notebooks/../data/ftp1.cptec.inpe.br/pesquisa/das/testecase/SMNAexp19/GSI/dataout/2024020212/diag_amsua_n19_01.2024020212
+     
+    >>> GSI DIAG <<<
+     
+    Reading /extra3/GitHub/readDiag.issuefix_27/notebooks/../data/ftp1.cptec.inpe.br/pesquisa/das/testecase/SMNAexp19/GSI/dataout/2024020218/diag_amsua_n19_01.2024020218
+     
+    >>> GSI DIAG <<<
+     
+    Pronto!    
+    ```
+
+A variável `gdf_list` é uma lista de dataframes contendo os dados de cada arquivo diagnóstico. Para trabalhar com um único tempo basta informar a lista com o índice fixo, por exemplo: `gdf_list[0]`:
+
+=== "Comando"
+
+    ```python linenums="1"
+    gdf_list
+    ```
+
+=== "Resultado"
+
+    ```
+    [<gsidiag.__main__.read_diag at 0x7e85a4f46e20>,
+     <gsidiag.__main__.read_diag at 0x7e85e73735e0>,
+     <gsidiag.__main__.read_diag at 0x7e85a4f46d90>,
+     <gsidiag.__main__.read_diag at 0x7e85a5fbe340>,
+     <gsidiag.__main__.read_diag at 0x7e85a4f2a280>,
+     <gsidiag.__main__.read_diag at 0x7e85a4f46c70>,
+     <gsidiag.__main__.read_diag at 0x7e85a4f1d640>,
+     <gsidiag.__main__.read_diag at 0x7e85a4f2ab80>]
+    ```
+
+Fazendo `tidx = 0`, obtemos o primeiro objeto da lista `gdf_list`:
+
+=== "Comando"
+
+    ```python linenums="1"
+    tidx = 0
+    gdf_list[tidx]
+    ```
+
+=== "Resultado"
+
+    ```
+    <gsidiag.__main__.read_diag at 0x7e85a4f46e20>
+    ```
+
+#### Obtendo informações dos arquivos
+
+Utilize a função `pfileinfo()` para obter informação como o tipo de sensor e seu respectivo satélite (`n19`) que estão contidos dentro do arquivo:
+
+=== "Comando"
+
+    ```python linenums="1"
+    gdf_list[tidx].pfileinfo()
+    ```
+
+=== "Resultado"
+
+    ```
+    Variable Name : amsua
+                  └── kx => n19
+    ```    
+
+Além do método `pfileinfo()`, outros métodos e funções também podem ser utilizados para acessar as informações sobre os arquivos abertos. Para obter uma lista dos métodos e funções disponíveis, digite `gdf_list[tidx].` e pressione a tecla `<TAB>` duas vezes no teclado:
+
+```python linenums="1"
+>>> gdf_list[tidx].
+gdf_list[tidx].close(      gdf_list[tidx].obsInfo     gdf_list[tidx].pfileinfo(  gdf_list[tidx].zlevs       
+gdf_list[tidx].tocsv(      gdf_list[tidx].overview(   gdf_list[tidx].varNames    
+gdf_list[tidx].obs
+```
+
+Para obter um dicionário com todas as informações sobre as variáveis e tipos contidos no arquivo, utilize o método `obsInfo`:
+
+=== "Comando"
+
+    ```python linenums="1"
+    gdf_list[tidx].obsInfo
+    ```
+
+=== "Resultado"
+
+```
+{'amsua':                     lat         lon         elev  nchan      time  iuse  idqc  \
+ SatId points                                                                    
+ n19   0      -87.446198    6.644900  2647.032227    1.0  2.885000   1.0   8.0   
+       1      -87.446198    6.644900  2647.032227    2.0  2.885000   1.0   8.0   
+       2      -87.446198    6.644900  2647.032227    3.0  2.885000   1.0   8.0   
+       3      -87.446198    6.644900  2647.032227    4.0  2.885000   1.0   8.0   
+       4      -87.446198    6.644900  2647.032227    5.0  2.885000   1.0   8.0   
+ ...                 ...         ...          ...    ...       ...   ...   ...   
+       137830  56.754601  336.250885     0.055578   11.0 -1.522778   1.0   0.0   
+       137831  56.754601  336.250885     0.055578   12.0 -1.522778   1.0   0.0   
+       137832  56.754601  336.250885     0.055578   13.0 -1.522778   1.0   0.0   
+       137833  56.754601  336.250885     0.055578   14.0 -1.522778   4.0   0.0   
+       137834  56.754601  336.250885     0.055578   15.0 -1.522778   1.0  51.0   
+ 
+                 inverr       oer         obs        omf   omf_nobc     emiss  \
+ SatId points                                                                   
+ n19   0       0.000000       NaN  187.330002   2.591137  -7.817700  0.813564   
+       1       0.000000       NaN  189.190002   4.114823  -3.598879  0.801515   
+       2       0.000000       NaN  211.460007  -1.666820   2.795111  0.791668   
+       3       0.000000       NaN  225.820007   0.495127  -0.318058  0.791438   
+       4       0.000000       NaN  229.089996   0.241357  -1.846274  0.790830   
+ ...                ...       ...         ...        ...        ...       ...   
+       137830  2.499857  0.400023  219.949997   0.632804  -0.609745  0.856901   
+       137831  1.817697  0.550150  219.039993   0.488474  -0.474023  0.856901   
+       137832  1.248405  0.801043  217.449997  -1.116789  -1.843264  0.856901   
+       137833  0.248456  4.025372  219.979996  -0.762485  -0.762485  0.856901   
+       137834  0.000000       NaN  229.039993 -23.291994 -41.154434  0.950000   
+ 
+                     oma   oma_nobc       imp       dfs  \
+ SatId points                                             
+ n19   0        2.803686  -7.640147       NaN       NaN   
+       1        4.388880  -3.414203       NaN       NaN   
+       2       -1.364057   3.049402       NaN       NaN   
+       3        0.594996  -0.230114       NaN       NaN   
+       4        0.297319  -1.806047       NaN       NaN   
+ ...                 ...        ...       ...       ...   
+       137830   0.451392  -0.792813 -0.491687 -0.286979   
+       137831   0.409210  -0.554484 -0.129336 -0.070378   
+       137832  -0.789088  -1.543222 -0.779681 -0.456870   
+       137833   0.452604   0.452604 -0.093540 -0.230162   
+       137834 -23.673958 -41.430882       NaN       NaN   
+ 
+                                 geometry  
+ SatId points                              
+ n19   0        POINT (6.64490 -87.44620)  
+       1        POINT (6.64490 -87.44620)  
+       2        POINT (6.64490 -87.44620)  
+       3        POINT (6.64490 -87.44620)  
+       4        POINT (6.64490 -87.44620)  
+ ...                                  ...  
+       137830  POINT (-23.74915 56.75460)  
+       137831  POINT (-23.74915 56.75460)  
+       137832  POINT (-23.74915 56.75460)  
+       137833  POINT (-23.74915 56.75460)  
+       137834  POINT (-23.74915 56.75460)  
+ 
+ [137835 rows x 18 columns]}
+```
+
+Para acessar uma variável específica (ex: `amsua`), faça:
+
+=== "Comando"
+
+    ```python linenums="1"
+    print('Variável: ', varName)
+    
+    gdf_list[tidx].obsInfo[varName]
+    ```
+
+=== "Resultado"
+
+    Variável:  amsua
+
+    |     |       |lat        |lon        |elev        |nchan|time       |iuse|idqc |   inverr|oer      |obs        |omf        |omf_nobc   |emiss    |oma        |oma_nobc   |imp       |dfs       |geometry                   |
+    |     |       |           |           |            |     |           |    |     |         |         |           |           |           |         |           |           |          |          |                           |
+    |**SatId**|	**points**|	          |           |            |     |           |    |     |         |         |           |           |           |         |           |           |          |          |                           |
+    |  n19|	     0| -87.446198|	  6.644900|	2647.032227| 1.0 |   2.885000| 1.0|	 8.0| 0.000000|      NaN| 187.330002|   2.591137|  -7.817700| 0.813564|	  2.803686|  -7.640147|	      NaN|       NaN|  POINT (6.64490 -87.44620)|
+    |     |      1| -87.446198|   6.644900|	2647.032227| 2.0 |   2.885000| 1.0|  8.0| 0.000000|      NaN| 189.190002|   4.114823|  -3.598879| 0.801515|	  4.388880|  -3.414203|       NaN|       NaN|  POINT (6.64490 -87.44620)|
+    |     |      2| -87.446198|   6.644900|	2647.032227| 3.0 |   2.885000| 1.0|  8.0| 0.000000|      NaN| 211.460007|  -1.666820|   2.795111| 0.791668|	 -1.364057|   3.049402|	      NaN|       NaN|  POINT (6.64490 -87.44620)|
+    |     |      3| -87.446198|   6.644900|	2647.032227| 4.0 |   2.885000| 1.0|  8.0| 0.000000|      NaN| 225.820007|   0.495127|  -0.318058| 0.791438|	  0.594996|  -0.230114|       NaN|       NaN|  POINT (6.64490 -87.44620)|
+    |...  |       |           |           |            |     |           |    |     |         |         |           |           |           |         |           |           |          |          |                           |
+    |     | 137832|	 56.754601|	336.250885|    0.055578| 13.0|	-1.522778| 1.0|  0.0| 1.248405|	0.801043| 217.449997|  -1.116789|  -1.843264| 0.856901|  -0.789088|  -1.543222| -0.779681| -0.456870| POINT (-23.74915 56.75460)|
+    |     | 137833|	 56.754601|	336.250885|    0.055578| 14.0|	-1.522778| 4.0|  0.0| 0.248456|	4.025372| 219.979996|  -0.762485|  -0.762485| 0.856901|   0.452604|   0.452604| -0.093540| -0.230162| POINT (-23.74915 56.75460)|
+    |     | 137834|	 56.754601|	336.250885|    0.055578| 15.0|	-1.522778| 1.0|	51.0| 0.000000|	     NaN| 229.039993| -23.291994| -41.154434| 0.950000| -23.673958| -41.430882|       NaN|    	 NaN| POINT (-23.74915 56.75460)|
+    
+    137835 rows × 18 columns
+
+
+Para acessar variável e tipo específicos (ex: `amsua` do tipo `n19`), faça:
+
+=== "Comando"
+
+    ```python linenums="1"
+    print('Variável: ', varName, ' e Tipo: ', varType)
+    
+    gdf_list[tidx].obsInfo[varName].loc[varType]
+    ```
+
+
+=== "Resultado"
+
+    |       |lat        |lon        |elev        |nchan|time       |iuse|idqc |   inverr|oer      |obs        |omf        |omf_nobc   |emiss    |oma        |oma_nobc   |imp       |dfs       |geometry                   |
+    |       |           |           |            |     |           |    |     |         |         |           |           |           |         |           |           |          |          |                           |
+    | **points**|	          |           |            |     |           |    |     |         |         |           |           |           |         |           |           |          |          |                           |
+    |      0| -87.446198|	  6.644900|	2647.032227| 1.0 |   2.885000| 1.0|	 8.0| 0.000000|      NaN| 187.330002|   2.591137|  -7.817700| 0.813564|	  2.803686|  -7.640147|	      NaN|       NaN|  POINT (6.64490 -87.44620)|
+    |      1| -87.446198|   6.644900|	2647.032227| 2.0 |   2.885000| 1.0|  8.0| 0.000000|      NaN| 189.190002|   4.114823|  -3.598879| 0.801515|	  4.388880|  -3.414203|       NaN|       NaN|  POINT (6.64490 -87.44620)|
+    |      2| -87.446198|   6.644900|	2647.032227| 3.0 |   2.885000| 1.0|  8.0| 0.000000|      NaN| 211.460007|  -1.666820|   2.795111| 0.791668|	 -1.364057|   3.049402|	      NaN|       NaN|  POINT (6.64490 -87.44620)|
+    |      3| -87.446198|   6.644900|	2647.032227| 4.0 |   2.885000| 1.0|  8.0| 0.000000|      NaN| 225.820007|   0.495127|  -0.318058| 0.791438|	  0.594996|  -0.230114|       NaN|       NaN|  POINT (6.64490 -87.44620)|
+    |...    |           |           |            |     |           |    |     |         |         |           |           |           |         |           |           |          |          |                           |
+    | 137832|	 56.754601|	336.250885|    0.055578| 13.0|	-1.522778| 1.0|  0.0| 1.248405|	0.801043| 217.449997|  -1.116789|  -1.843264| 0.856901|  -0.789088|  -1.543222| -0.779681| -0.456870| POINT (-23.74915 56.75460)|
+    | 137833|	 56.754601|	336.250885|    0.055578| 14.0|	-1.522778| 4.0|  0.0| 0.248456|	4.025372| 219.979996|  -0.762485|  -0.762485| 0.856901|   0.452604|   0.452604| -0.093540| -0.230162| POINT (-23.74915 56.75460)|
+    | 137834|	 56.754601|	336.250885|    0.055578| 15.0|	-1.522778| 1.0|	51.0| 0.000000|	     NaN| 229.039993| -23.291994| -41.154434| 0.950000| -23.673958| -41.430882|       NaN|    	 NaN| POINT (-23.74915 56.75460)|
+    
+    137835 rows × 18 columns
+
+Para acessar o valor da observação, utilize o método `obs`:
+
+=== "Comando"
+
+    ```python linenums="1"
+    print('Variável: ', varName, ' e Tipo: ', varType)
+    
+    gdf_list[tidx].obsInfo[varName].loc[varType].obs
+    ```
+
+=== "Resultado"
+
+    ```
+    Variável:  amsua  e Tipo:  n19
+    [13]:
+    points
+    0         187.330002
+    1         189.190002
+    2         211.460007
+    3         225.820007
+    4         229.089996
+                 ...    
+    137830    219.949997
+    137831    219.039993
+    137832    217.449997
+    137833    219.979996
+    137834    229.039993
+    Name: obs, Length: 137835, dtype: float32
+    ```
+
+Para acessar o valor do controle de qualidade da observação em um canal específico, utilize o método idqc com a instrução `mask` na função query:
+
+=== "Comando"
+
+    ```python linenums="1"
+    mask = 'nchan == 2'
+    gdf_list[tidx].obsInfo[varName].query(mask).loc[varType].idqc
+    ```
+
+=== "Resultado"
+
+    ```
+    points
+    1          8.0
+    16         8.0
+    31        51.0
+    46        51.0
+    61        51.0
+              ... 
+    137761    51.0
+    137776    51.0
+    137791    51.0
+    137806    51.0
+    137821    51.0
+    Name: idqc, Length: 9189, dtype: float32
+    ```
+
+### Utilização da classe `plot_diag`
+
+#### Distribuição espacial
+
+A utilização das funções da classe `plot_diag` que foram alteradas/construídas para diagnóstico de dados de **radiância** é apresentada abaixo, junto com os comandos para gerar diversos tipos de figuras.
+
+Gerando uma figura com os valores das observações (`param='obs'`) para a variável e tipo selecionados:
+
+=== "Comando"
+
+    ```python linenums="1"
+    param = 'obs'
+    
+    gd.plot_diag.plot(gdf_list[tidx], 
+                      varName=varName, 
+                      varType=varType, 
+                      param=param,  
+                      mask="(nchan=="+str(channel)+") & (iuse >= 1 & idqc == 0)", 
+                      markersize=4.80, 
+                      legend='true')
+    ```
+
+=== "Resultado"
+
+    ![png](../imgs/amsua_n19_obs_CH14_2024020100_plot_0.png)
+
+
+#### Histograma
+
+As funções `pcount()` e `vcount()` da classe `plot_diag` também podem ser utilizadas para obter um histograma com a contagem do número de observações para a variável, porém, no caso da **radiância**, como há apenas os dados de uma variável (sensor) e um tipo (satélite) nos arquivos, ambas as funções geram o mesmo histograma com uma única coluna:
+
+=== "Comando"
+
+    ```python linenums="1"
+    gd.plot_diag.pcount(gdf_list[tidx], varName)
+    ```
+
+=== "Resultado"
+
+    ![png](../imgs/pcount.png)
+
+Utilize a função `vcount()` da classe `plot_diag` para obter um histograma com a contagem do número de observações para todos os tipos de variáveis:
+
+=== "Comando"
+
+    ```python linenums="1"
+    gd.plot_diag.vcount(gdf_list[tidx])
+    ```
+
+=== "Resultado"
+
+    ![png](../imgs/vcount2.png)
+
+
+#### Série temporal
+
+<a id='time_series'></a>
+A seguir são apresentadas as opções de figuras com a função `time_series_radi()` (nova função), incluída na classe `plot_diag`. Inicialmente é gerada uma figura com os parâmetros já fixados nesta seção. Em seguida são apresentadas figuras alterando o parâmetro `channel`.
+
+Plotando uma série temporal do OmA e OmF para os dados do canal setado na célula de definição das variáveis:
+
+=== "Comando"
+
+    ```python linenums="1"
+    gd.plot_diag.time_series_radi(gdf_list,
+                                 varName=varName, 
+                                 varType=varType, 
+                                 mask='idqc==0 & iuse>=1', 
+                                 dateIni=dateIni, 
+                                 dateFin=dateFin, 
+                                 nHour=nHour, 
+                                 vminOMA=vminOMA, 
+                                 vmaxOMA=vmaxOMA, 
+                                 vminSTD=vminSTD, 
+                                 vmaxSTD=vmaxSTD, 
+                                 channel=channel, 
+                                 Clean=False)
+    ```
+
+=== "Resultado"
+
+    ```
+     =============================================================================================================
+     Variable: amsua  ||  type: n19  ||  Radiance - AMSU-A - NOAA-19.  ||  check: OmF
+     =============================================================================================================
+    
+     Preparing data for: 2024-02-01:00  - Channel de radiancia:  6
+     Preparing data for: 2024-02-01:06  - Channel de radiancia:  6
+     Preparing data for: 2024-02-01:12  - Channel de radiancia:  6
+     Preparing data for: 2024-02-01:18  - Channel de radiancia:  6
+     Preparing data for: 2024-02-02:00  - Channel de radiancia:  6
+     Preparing data for: 2024-02-02:06  - Channel de radiancia:  6
+     Preparing data for: 2024-02-02:12  - Channel de radiancia:  6
+     Preparing data for: 2024-02-02:18  - Channel de radiancia:  6
+    
+     =============================================================================================================
+    
+    channels =  [6]
+     Calculating for 2024-02-01:00
+     Calculating for 2024-02-01:06
+     Calculating for 2024-02-01:12
+     Calculating for 2024-02-01:18
+     Calculating for 2024-02-02:00
+     Calculating for 2024-02-02:06
+     Calculating for 2024-02-02:12
+     Calculating for 2024-02-02:18
+    
+     =============================================================================================================
+    
+     Making Graphics...
+     Done!
+    ```
+
+    ![png](../imgs/ts1.png)
+    ![png](../imgs/ts2.png)
+    ![png](../imgs/ts3.png)
+    ![png](../imgs/ts4.png)
+
+
+No caso anterior, o parâmetro `channel` estava fixo no canal 6. Os valores de vminOMA, vmaxOMA, vminSTD e vmaxSTD, fixados inicialmente, são alterados para melhorar a visualização da série temporal. 
+
+=== "Comando"
+
+    ```python linenums="1"
+    vminOMA = -0.5 
+    vmaxOMA = 0.5 
+    vminSTD = 0.0
+    vmaxSTD = 1.0
+    
+    gd.plot_diag.time_series_radi(gdf_list,
+                                 varName=varName, 
+                                 varType=varType, 
+                                 mask='idqc==0 & iuse>=1', 
+                                 dateIni=dateIni, 
+                                 dateFin=dateFin, 
+                                 nHour=nHour, 
+                                 vminOMA=vminOMA, 
+                                 vmaxOMA=vmaxOMA, 
+                                 vminSTD=vminSTD, 
+                                 vmaxSTD=vmaxSTD, 
+                                 channel=channel, 
+                                 Clean=False)
+    ```
+
+=== "Resultado"
+
+    ```
+     =============================================================================================================
+     Variable: amsua  ||  type: n19  ||  Radiance - AMSU-A - NOAA-19.  ||  check: OmF
+     =============================================================================================================
+    
+     Preparing data for: 2024-02-01:00  - Channel de radiancia:  6
+     Preparing data for: 2024-02-01:06  - Channel de radiancia:  6
+     Preparing data for: 2024-02-01:12  - Channel de radiancia:  6
+     Preparing data for: 2024-02-01:18  - Channel de radiancia:  6
+     Preparing data for: 2024-02-02:00  - Channel de radiancia:  6
+     Preparing data for: 2024-02-02:06  - Channel de radiancia:  6
+     Preparing data for: 2024-02-02:12  - Channel de radiancia:  6
+     Preparing data for: 2024-02-02:18  - Channel de radiancia:  6
+    
+     =============================================================================================================
+    
+    channels =  [6]
+     Calculating for 2024-02-01:00
+     Calculating for 2024-02-01:06
+     Calculating for 2024-02-01:12
+     Calculating for 2024-02-01:18
+     Calculating for 2024-02-02:00
+     Calculating for 2024-02-02:06
+     Calculating for 2024-02-02:12
+     Calculating for 2024-02-02:18
+    
+     =============================================================================================================
+    
+     Making Graphics...
+     Done!
+    ```
+
+    ![png](../imgs/ts5.png)
+    ![png](../imgs/ts6.png)
+    ![png](../imgs/ts7.png)
+    ![png](../imgs/ts8.png)
+
+Agora, a variável `channel` é alterada para considerar mais de um canal. A opção `channel = None` busca os dados em cada canal existente nos arquivos e faz um diagrama de *Hovmoller* com as médias, desvios padrão e quantidade de dados assimilados em todos os canais (observe que os valores no eixo y (ordenada) identifica todos os canais de 1 à 15). Quando `channel` é uma lista específica de canais, indicada pelo usuário, o diagrama de *Hovmoller* é construído apenas com os canais indicados pelo usuário.
+
+Dessa forma, pode-se utilizar o parâmetro `channels=[6,10,11,12,13,14]` para produzir uma série temporal para mais de um canal:
+
+=== "Comando"
+
+    ```python linenums="1"
+    channels = [6, 10, 11, 12, 13, 14]
+    
+    gd.plot_diag.time_series_radi(gdf_list,
+                                 varName=varName, 
+                                 varType=varType, 
+                                 mask='idqc==0 & iuse>=1', 
+                                 dateIni=dateIni, 
+                                 dateFin=dateFin, 
+                                 nHour=nHour, 
+                                 vminOMA=vminOMA, 
+                                 vmaxOMA=vmaxOMA, 
+                                 vminSTD=vminSTD, 
+                                 vmaxSTD=vmaxSTD, 
+                                 channel=channels, 
+                                 Clean=False)
+    ```
+
+=== "Resultado"
+
+    ```
+     =============================================================================================================
+     Variable: amsua  ||  type: n19  ||  Radiance - AMSU-A - NOAA-19.  ||  check: OmF
+     =============================================================================================================
+    
+     Preparing data for: Canais de radiancia2024-02-01:00
+     Channels:  [6, 10, 11, 12, 13, 14]
+    
+     Preparing data for: Canais de radiancia2024-02-01:06
+     Channels:  [6, 10, 11, 12, 13, 14]
+    
+     Preparing data for: Canais de radiancia2024-02-01:12
+     Channels:  [6, 10, 11, 12, 13, 14]
+    
+     Preparing data for: Canais de radiancia2024-02-01:18
+     Channels:  [6, 10, 11, 12, 13, 14]
+    
+     Preparing data for: Canais de radiancia2024-02-02:00
+     Channels:  [6, 10, 11, 12, 13, 14]
+    
+     Preparing data for: Canais de radiancia2024-02-02:06
+     Channels:  [6, 10, 11, 12, 13, 14]
+    
+     Preparing data for: Canais de radiancia2024-02-02:12
+     Channels:  [6, 10, 11, 12, 13, 14]
+    
+     Preparing data for: Canais de radiancia2024-02-02:18
+     Channels:  [6, 10, 11, 12, 13, 14]
+    
+    
+     =============================================================================================================
+    
+    channels =  [6, 10, 11, 12, 13, 14]
+     Calculating for 2024-02-01:00
+     Calculating for 2024-02-01:06
+     Calculating for 2024-02-01:12
+     Calculating for 2024-02-01:18
+     Calculating for 2024-02-02:00
+     Calculating for 2024-02-02:06
+     Calculating for 2024-02-02:12
+     Calculating for 2024-02-02:18
+    
+     =============================================================================================================
+    
+     Making Graphics...
+     Done!
+    ```
+
+    ![png](../imgs/hov1.png)
+    ![png](../imgs/hov2.png)
+    ![png](../imgs/hov3.png)
+    ![png](../imgs/hov4.png)
+
+Considerando todos os canais, ou seja, `channel = None`:
+
+=== "Comando"
+
+    ```python linenums="1"
+    channel = None
+    
+    gd.plot_diag.time_series_radi(gdf_list,
+                                 varName=varName, 
+                                 varType=varType, 
+                                 mask='idqc==0 & iuse>=1', 
+                                 dateIni=dateIni, 
+                                 dateFin=dateFin, 
+                                 nHour=nHour, 
+                                 vminOMA=vminOMA, 
+                                 vmaxOMA=vmaxOMA, 
+                                 vminSTD=vminSTD, 
+                                 vmaxSTD=vmaxSTD, 
+                                 channel=channel, 
+                                 Clean=False)
+    ```
+
+=== "Resultado"
+
+    ```
+     =============================================================================================================
+     Variable: amsua  ||  type: n19  ||  Radiance - AMSU-A - NOAA-19.  ||  check: OmF
+     =============================================================================================================
+    
+     Preparing data for: Canais de radiancia2024-02-01:00
+     Channels:  [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+    
+     Preparing data for: Canais de radiancia2024-02-01:06
+     Channels:  [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+    
+     Preparing data for: Canais de radiancia2024-02-01:12
+     Channels:  [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+    
+     Preparing data for: Canais de radiancia2024-02-01:18
+     Channels:  [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+    
+     Preparing data for: Canais de radiancia2024-02-02:00
+     Channels:  [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+    
+     Preparing data for: Canais de radiancia2024-02-02:06
+     Channels:  [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+    
+     Preparing data for: Canais de radiancia2024-02-02:12
+     Channels:  [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+    
+     Preparing data for: Canais de radiancia2024-02-02:18
+     Channels:  [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+    
+    
+     =============================================================================================================
+    
+    channels =  [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+     Calculating for 2024-02-01:00
+     Calculating for 2024-02-01:06
+     Calculating for 2024-02-01:12
+     Calculating for 2024-02-01:18
+     Calculating for 2024-02-02:00
+     Calculating for 2024-02-02:06
+     Calculating for 2024-02-02:12
+     Calculating for 2024-02-02:18
+    
+     =============================================================================================================
+    
+     Making Graphics...
+     Done!
+    ```
+
+    ![png](../imgs/hov5.png)
+    ![png](../imgs/hov6.png)
+    ![png](../imgs/hov7.png)
+
+#### STATCOUNT
+
+A seguir são apresentadas as opções de figuras obtidas pela função `statcount()`. A função `statcount()` fornece dois tipos de figuras: com `figMap=True` é possível gerar uma sequência de imagens com os pontos geográficos das observações assimiladas, rejeitadas e monitoradas em um período de tempo `dateIni` à `dateFin` com intervalo de tempo `nHour`. Uma outra figura contendo uma série temporal da quantidade de dados assimilados, rejeitados e monitorados é gerada se `figTS=True`. Quando os arquivos utilizados são de **radiância**, deve-se atribuir a variável `channel` o número do canal desejado (`channel=6`), enquanto que, se os dados analisados forem convencionais a variável `channel` deve receber `None` (`channel=None`).
+
+Nos dados de **radiância** a classificação dos dados em assimilado, rejeitado e monitorado é realizada considerando dois tipos de observações monitoradas:
+
+1. monitorado-assimilado: observações que são monitoradas, `iuse = -1`, que poderiam ser assimiladas pois `idqc = 0`.
+2. monitorado-rejeitado: observações que são monitoradas, `iuse = -1`, que poderiam ser rejeitadas pois `idqc != 0`.
+
+A tabela abaixo detalha como a classificação dos dados de **radiância** é realizada.
+
+
+
+|                         |   idqc      |        iuse        |
+| :---                    |:---:        | :---               |
+| Assimilated             |   == 0      |   >= 1             |
+| Monitored-assimilated   |   == 0      |   >= -1 and < 1    |
+| Monitored-rejected      |   != 0      |   >= -1 and < 1    |
+| Rejected                |   != 0      |   >= 1             |
+
+
+A seguir um exemplo que gera uma sequência de figuras com a geolocalização dos dados de **radiância** assimilados, rejeitados e monitorados (`figMap=True`) em um intervalo de tempo dentro do período de dados carregado no início do notebook.
+
+=== "Comando"
+
+    ```python linenums="1"
+    channel = 6
+    dateIni = '2024020100'
+    dateFin = '2024020118'
+    
+    gd.plot_diag.statcount(gdf_list, 
+                            varName=varName, 
+                            varType=varType, 
+                            noiqc=False, 
+                            dateIni=dateIni, 
+                            dateFin=dateFin, 
+                            nHour=nHour, 
+                            channel=channel, 
+                            figTS=False, 
+                            figMap=True, 
+                            markersize=4.80)
+    ```
+
+=== "Resultado"
+
+    ![png](../imgs/statc1.png)
+    ![png](../imgs/statc2.png)
+    ![png](../imgs/statc3.png)
+    ![png](../imgs/statc4.png)
+
+
+Quando `figTS=True` apenas uma figura com a série temporal da quantidade de dados assimilados, rejeitados e monitorados é retornada.
+
+=== "Comando"
+
+    ```python linenums="1"
+    channel = 6
+    dateIni = '2024020100'
+    dateFin = '2024020218'
+    
+    gd.plot_diag.statcount(gdf_list, 
+                            varName=varName, 
+                            varType=varType, 
+                            noiqc=False, 
+                            dateIni=dateIni, 
+                            dateFin=dateFin, 
+                            nHour=nHour, 
+                            channel=channel, 
+                            figTS=True, 
+                            figMap=False, 
+                            markersize=4.80)
+    
+    channel = 8
+    gd.plot_diag.statcount(gdf_list, 
+                            varName=varName, 
+                            varType=varType, 
+                            noiqc=False, 
+                            dateIni=dateIni, 
+                            dateFin=dateFin, 
+                            nHour=nHour, 
+                            channel=channel, 
+                            figTS=True, 
+                            figMap=False, 
+                            markersize=4.80)
+    ```
+
+=== "Resultado"
+
+    ![png](../imgs/statc5.png)
+    ![png](../imgs/statc6.png)
+
+Finalizado o uso dos arquivos, feche-os para liberar a memória utilizada:
+
+```python linenums="1"
+for file in gdf_list:
+    if file._FNumber != None:
+            file.close()
+```
+
 O `readDiag` é um pacote em desenvolvimento e em constante atualização. Novas funcionalidades serão adicionadas e demonstradas por meio deste notebook.
