@@ -1,7 +1,5 @@
 # readDiag
 
-[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/GAD-DIMNT-CPTEC/readDiag/HEAD)
-
 To facilitate access to the contents of the [Gridpoint Statistical Interpolation (GSI)](https://dtcenter.org/community-code/gridpoint-statistical-interpolation-gsi) diagnostic files, the [readDiag](https://github.com/GAD-DIMNT-CPTEC/readDiag) package was developed. It is a Fortran/Python interface designed to read GSI's binary diagnostic files and create appropriate data structures for manipulation.
 
 The following figure was generated using the readDiag package and illustrates the spatial distribution of wind observations from different types and sources. All presented information originates from GSI's diagnostic files.

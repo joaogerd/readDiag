@@ -1,5 +1,15 @@
 # Application - Usage
 
+!!! info "Info"
+
+    A version of this page for the Juptyter Notebook can be found at [https://github.com/GAD-DIMNT-CPTEC/readDiag/blob/master/notebooks/readDiag_Radiance_tutorial_complete-en_us.ipynb](https://github.com/GAD-DIMNT-CPTEC/readDiag/blob/master/notebooks/readDiag_Radiance_tutorial_complete-en_us.ipynb).
+
+    If you want to interact with the notebook, click on the button below to open Google Colab.
+
+    <a target="_blank" href="https://colab.research.google.com/github/GAD-DIMNT-CPTEC/readDiag/blob/master/notebooks/readDiag_Radiance_tutorial_complete-en_us.ipynb">
+      <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/>
+    </a>
+
 ## Using the `read_diag` Class
 
 ### Required Libraries
