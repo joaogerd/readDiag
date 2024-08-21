@@ -1,5 +1,15 @@
 # Aplicação - Uso
 
+!!! info "Informação"
+
+    Uma versão desta página para o Jupyter Notebook pode ser encontrada em [https://github.com/GAD-DIMNT-CPTEC/readDiag/blob/master/notebooks/readDiag_Radiancia_tutorial_completo-pt_br.ipynb](https://github.com/GAD-DIMNT-CPTEC/readDiag/blob/master/notebooks/readDiag_Radiancia_tutorial_completo-pt_br.ipynb). 
+
+    Se preferir interagir com o notebook, clique no botão abaixo para utilizar o Google Colab.
+
+    <a target="_blank" href="https://colab.research.google.com/github/GAD-DIMNT-CPTEC/readDiag/blob/master/notebooks/readDiag_Radiancia_tutorial_completo-pt_br.ipynb">
+      <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/>
+    </a>
+
 ## Utilização da classe `read_diag`
 
 ### Bibliotecas necessárias
