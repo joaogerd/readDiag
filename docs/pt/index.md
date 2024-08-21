@@ -6,7 +6,7 @@ Para facilitar o acesso ao conteúdo dos arquivos de diagnóstico do [Gridpoint 
 
 A figura a seguir foi criada com o uso do pacote readDiag e mostra a distribuição espacial das observações de vento a partir de diferentes tipo e fontes. Todas as informações apresentadas são provenientes dos arquivos de diagnóstico do GSI.
 
-![image](https://user-images.githubusercontent.com/6088258/183511751-21032794-b38c-44c0-8719-103ed1b98547.png)
+![image](../imgs/uv_GSI_3_7.png)
 
 Utilize o Binder para abrir uma [seção iterativa de demonstração do readDiag](https://mybinder.org/v2/gh/GAD-DIMNT-CPTEC/readDiag/HEAD). Nesta seção, escolha o notebook `readDiag_tutorial_simples-pt_br.ipynb`. Caso possua mais arquivos de diagnósticos a serem verificados, utilize o notebook `readDiag_tutorial_completo-pt_br.ipynb` com exemplos mais avançados.
 
