@@ -6,7 +6,7 @@ To facilitate access to the contents of the [Gridpoint Statistical Interpolation
 
 The following figure was generated using the readDiag package and illustrates the spatial distribution of wind observations from different types and sources. All presented information originates from GSI's diagnostic files.
 
-![image](https://user-images.githubusercontent.com/6088258/183511751-21032794-b38c-44c0-8719-103ed1b98547.png)
+![image](imgs/uv_GSI_3_7.png)
 
 Use Binder to open an [interactive readDiag demonstration session](https://mybinder.org/v2/gh/GAD-DIMNT-CPTEC/readDiag/HEAD). In this session, choose the notebook `readDiag_tutorial_simple-en_us.ipynb`. If you have more diagnostic files to check, use the notebook `readDiag_tutorial_complete-en_us.ipynb` with more advanced examples.
 

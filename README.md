@@ -3,7 +3,7 @@
 
 readDiag is a Python package that provides a class to read and plot the [Gridpoint Statistical Interpolation](https://dtcenter.org/community-code/gridpoint-statistical-interpolation-gsi) diagnostics files. It can be used to retrieve and investigate important information from the data assimilation process:
 
-![uv_GSI_3 7](https://github.com/viezelc/readDiag/assets/105943057/a4b19dca-2012-4a27-991c-e326185c39a6)
+![uv_GSI_3 7](docs/imgs/uv_GSI_3_7.png)
 
 ## Installation
 
