@@ -854,6 +854,103 @@ class plot_diag(object):
         plt.xlabel('KX')
         plt.title('Variable Name : '+varName)
  
+    def impConv(self,varName):
+
+        """
+        Plots the impacts of observations of the total average of each variable.
+
+        Usage: impConv(fileopen,var) var='t','p','q','uv','gps'
+        """
+
+        try:
+           import matplotlib.pyplot as plt
+           import seaborn as sb
+
+        except ImportError:
+           pass # module doesn't exist, deal with it.
+        #
+        df0 = self.obsInfo[varName].drop(columns='geometry')
+        df = df0.groupby(level=0).mean().reset_index()
+
+        sb.barplot(data=df, x='imp', y='kx', orient='h', errorbar=None, color = "darkseagreen")
+
+        plt.ylabel('Mnemonics')
+        plt.xlabel('Impact of observations')
+        plt.title('Variable Name : '+varName)
+
+
+    def impRad(self,varName):
+
+        """
+        Plots the impacts of observations of the total average of radiances.
+
+        Usage: impRad(fileopen,var) var='amsua'
+        """
+
+        try:
+           import matplotlib.pyplot as plt
+           import seaborn as sb
+
+        except ImportError:
+           pass
+        #
+        df0 = self.obsInfo[varName].drop(columns='geometry')
+        df = df0.groupby(level=0).mean().reset_index()
+
+        sb.barplot(data=df, x='imp', y='SatId', orient='h', errorbar=None, color = "darkcyan")
+        plt.ylabel('Satellite_ID')
+        plt.xlabel('Impact of observations')
+        plt.title('Variable Name : '+varName)
+
+    def ibfConv(self,varName):
+
+        """
+        Plots the impacts beneficial fractional of observations of the total average of each variable (impact < 0).
+
+        Usage: ibfConv(fileopen,var) var='t','p','q','uv','gps'
+        """
+
+        try:
+           import matplotlib.pyplot as plt
+           import seaborn as sb
+
+        except ImportError:
+           pass # module doesn't exist, deal with it.
+        #
+        df0 = self.obsInfo[varName].drop(columns='geometry')
+        df = ((df0.query('imp<0').groupby('kx').size()/df0.groupby('kx').size())*100).reset_index(name='ibf')
+
+        sb.barplot(data=df, x='ibf', y='kx', orient='h', errorbar=None, color = "aqua")
+
+        plt.ylabel('Mnemonics')
+        plt.xlabel('Fractional beneficial impact')
+        plt.title('Variable Name : '+varName)
+
+
+    def ibfRad(self,varName):
+
+        """
+        Plots the impacts beneficial fractional of observations  of the total average of radiances (impact < 0).
+
+        Usage: ibfRad(fileopen,var) var='amsua'
+        """
+
+        try:
+           import matplotlib.pyplot as plt
+           import seaborn as sb
+
+        except ImportError:
+           pass
+        #
+        df0 = self.obsInfo[varName].drop(columns='geometry')
+        df = ((df0.query('imp<0').groupby('SatId').size()/df0.groupby('SatId').size())*100).reset_index(name='ibf')
+
+        sb.barplot(data=df, x='ibf', y='SatId', orient='h', errorbar=None, color = "aqua")
+
+        plt.ylabel('Satellite_ID')
+        plt.xlabel('Fractional beneficial impact')
+        plt.title('Variable Name : '+varName)
+
     def vcount(self,**kwargs):
 
         """
