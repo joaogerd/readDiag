@@ -1,28 +1,50 @@
+# 📦 readDiag
 
-# readDiag 
+[![CI](https://github.com/joaogerd/readDiag/actions/workflows/ci.yml/badge.svg)](https://github.com/joaogerd/readDiag/actions/workflows/ci.yml)
+[![License: LGPL v3](https://img.shields.io/badge/License-LGPL%20v3-blue.svg)](https://opensource.org/licenses/LGPL-3.0)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 
-readDiag is a Python package that provides a class to read and plot the [Gridpoint Statistical Interpolation](https://dtcenter.org/community-code/gridpoint-statistical-interpolation-gsi) diagnostics files. It can be used to retrieve and investigate important information from the data assimilation process:
 
-![uv_GSI_3 7](https://raw.githubusercontent.com/GAD-DIMNT-CPTEC/readDiag/master/docs/imgs/uv_GSI_3_7.png)
+**readDiag** é um pacote Python para leitura, análise e visualização de arquivos diagnósticos do GSI (Gridpoint Statistical Interpolation), tanto de dados convencionais quanto radiância.
 
-## Installation
+## 🚀 Instalação
 
-Use either `conda` or `python -m venv` to setup a virtual environment to install readDiag:
-
-```
-conda create -n readDiag python=3.9.18
-conda activate readDiag
-pip install readDiag
-```
-
-or
-
-```
-python -m venv readDiag
-source readDiag/bin/activate
-pip install readDiag
+```bash
+git clone https://github.com/joaogerd/readDiag
+cd readDiag
+pip install -e .[dev]
 ```
 
-**Note:** When using `python -m venv` make sure to have Python >=3.9.18 installed on your system. For more information on how to use readDiag, take a look at the project's [documentation](https://gad-dimnt-cptec.github.io/readDiag/).
+## 📚 Exemplo de uso
 
-<a href="https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode" target="_blank"><img src="https://mirrors.creativecommons.org/presskit/buttons/88x31/png/by-nc-sa.png" alt="CC-BY-NC-SA" width="100"/></a>
+```python
+from readDiag import diagAccess, diagPlotter
+
+diag = diagAccess("data/diag_conv_01.2020010100")
+plotter = diagPlotter(diag)
+plotter.plot()
+```
+
+## 🧪 Testes
+
+Execute os testes com:
+
+```bash
+make test
+```
+
+Rode os benchmarks:
+
+```bash
+make benchmark
+```
+
+Verifique estilo com lint:
+
+```bash
+make lint
+```
+
+## 📄 Licença
+
+Distribuído sob a licença [LGPL-3.0-or-later](https://opensource.org/licenses/LGPL-3.0).

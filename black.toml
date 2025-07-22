@@ -1,0 +1,14 @@
+# pyproject.toml (trecho já incluído se necessário, ou usado como black.toml alternativo)
+[tool.black]
+line-length = 88
+target-version = ['py310']
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+  | \.mypy_cache
+  | \.ruff_cache
+  | build
+  | dist
+)/
+'''

@@ -1,0 +1,5 @@
+# ruff.toml
+line-length = 88
+select = ["E", "F", "I"]
+target-version = "py310"
+exclude = ["build", "dist", ".venv", "__pycache__"]
