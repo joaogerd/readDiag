@@ -1,0 +1,12 @@
+# Dados e resultados que não devem ser versionados
+dataout/
+outputs/
+*.csv
+*.log
+*.swp
+*.swo
+*.yml
+*.tmp
+.DS_Store
+*.png
+

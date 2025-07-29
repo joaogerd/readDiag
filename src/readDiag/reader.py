@@ -2,8 +2,40 @@
 Module for reading and processing GSI diagnostic files.
 Supports conventional (conv) and satellite radiance (rad) formats.
 Includes optional memory-mapped reads, detailed logging, and parallel time-series reading.
+   * kx      : observation type
+   * lat     : observation latitude (degrees)
+   * lon     : observation longitude (degrees)
+   * lev     : observation level reference
+   * elev    : station elevation (meters)
+   * prs     : observation pressure (hPa)
+   * dhgt    : observation heigth (meters)
+   * time    : obs time (minutes relative to analysis time)
+   * pbqc    : input prepbufr qc or event mark
+   * iusev   : analysis usage flag ( value )
+   * iuse    : analysis usage flag (1=use, -1=monitoring )
+   * wpbqc   : nonlinear qc relative weight
+   * inp_err : prepbufr inverse obs error (unit**-1)
+   * adj_err : read_prepbufr inverse obs error (unit**-1)
+   * end_err : final inverse observation error (unit**-1)
+   * obs     : observation
+   * omf     : obs-ges used in analysis
+   * oma     : obs-anl used in analysis
+   * error   : final observation error (unit)
+   * imp     : observation impact
+   * dfs     : degrees of freedom for signal
+   * rmod    : model
+   * qsges   : guess saturation specific humidity (only for q)
+   * factw   : 10m wind reduction factor (only for wind)
+   * pof     : data pof (kind of fligth - ascending, descending, only for aircraft)
+   * wvv     : data vertical velocoty (only for aircraft)
+   * tref    : sst Tr (adiative transfer model)
+   * dtw     : sst dt_warm at zob
+   * dtc     : sst dt_cool at zob
+   * tz      : sst d(tz)/d(tr) at zob 
+
 """
 import os
+from pathlib import Path
 import struct
 import numpy as np
 import pandas as pd
@@ -206,8 +238,8 @@ class diagAccess:
             List[str]: List of column names.
         """
         return [
-            'ks','lat','lon','elev','prs','dhgt','time','pbqc','emark',
-            'iusev','iuse','wpbqc','inp_err','adj_err','end_err','robs'
+            'kx','lat','lon','elev','prs','dhgt','time','pbqc','emark',
+            'iusev','iuse','wpbqc','inp_err','adj_err','end_err','obs'
         ]
 
     def _get_columns(self, var: str, ninfo: int) -> List[str]:
@@ -226,7 +258,7 @@ class diagAccess:
             'q': ['omf','omf_wob','qsges'],
             't': ['omf','omf_wob'],
             'sst': ['omf'],
-            'uv': ['robs_u','omf_u','omf_wob_u','robs_v','omf_v','omf_wob_v','factw'],
+            'uv': ['obs_u','omf_u','omf_wob_u','obs_v','omf_v','omf_wob_v','factw'],
             'ps': ['omf','omf_wob'],
             'gps': ['inc_ba','imp_height','zsges','trefges','hob','gps_ref','qrefges']
         }
@@ -236,9 +268,9 @@ class diagAccess:
             map_cols['t'] = ['pof','wvv']
         if var == 'gps':
             return [
-                'ks','lat','lon','inc_ba','prs','imp_height','time','zsges',
+                'kx','lat','lon','inc_ba','prs','imp_height','time','zsges',
                 'pbqc','iusev','iuse','wpbqc','inp_err','adj_err','end_err',
-                'robs','trefges','hob','gps_ref','qrefges'
+                'obs','trefges','hob','gps_ref','qrefges'
             ]
         spec: List[str] = map_cols.get(var, [])
         return base[:-1] + spec if var == 'uv' else base + spec
@@ -385,10 +417,12 @@ class diagAccess:
         chdf = self._read_channel_info(f, hdr['nchanl'])
         diag = self._read_diagnostic_data(f, size, hdr)
         df1, df_list, df2 = self._extract_dataframes(diag, hdr)
+        idate = hdr['idate']
+        self._idate = datetime.strptime(str(idate), "%Y%m%d%H")
         f.close()
         return {
-            'obstype': hdr['obstype'],
-            'dplat': hdr['dplat'],
+            'sensor': hdr['obstype'],
+            'kx': hdr['dplat'],
             'dataframes': {
                 'channel_df': chdf,
                 'diagbuf_df': df1,
@@ -540,6 +574,245 @@ class diagAccess:
             return pd.concat(results, ignore_index=True)
         return results
 
-# backward compatibility alias
+# --- Utils ---
+    def get_variables(self) -> List[str]:
+        """
+        List available variables in a conventional diagnostic file.
+
+        Returns
+        -------
+        List[str]
+            A list of variable identifiers, e.g., ['t', 'q', 'uv'].
+
+        Raises
+        ------
+        ValueError
+            If called on a radiance file.
+        """
+        if self._data_type != 1:
+            raise ValueError("get_variables is only available for conventional data.")
+        return list(self._data_frame.keys())
+
+    def get_kx_list(self, var: str) -> List[int]:
+        """
+        List all data source indices (kx) for a given variable.
+
+        Parameters
+        ----------
+        var : str
+            The observation variable name (e.g., 't', 'q', 'uv').
+
+        Returns
+        -------
+        List[int]
+            A sorted list of kx values (data source identifiers).
+
+        Raises
+        ------
+        ValueError
+            If called on a radiance file or if the variable is not found.
+        """
+        if self._data_type != 1:
+            raise ValueError("get_kx_list is only available for conventional data.")
+        if var not in self._data_frame:
+            raise ValueError(f"Variable '{var}' not found.")
+        return sorted(self._data_frame[var].keys())
+
+    def get_channels(self) -> List[int]:
+        """
+        Get the list of available radiance channel indices.
+
+        Returns
+        -------
+        List[int]
+            A list of channel indices (e.g., [0, 1, ..., 14]).
+
+        Raises
+        ------
+        ValueError
+            If called on a conventional file.
+        """
+        if self._data_type != 2:
+            raise ValueError("get_channels is only available for radiance data.")
+        df_list = self._data_frame["dataframes"]["diagbufchan_df"]
+        return list(range(len(df_list)))
+
+    def get_metadata(self) -> Dict[str, Any]:
+        """
+        Retrieve a dictionary with summary metadata about the file.
+
+        Returns
+        -------
+        Dict[str, Any]
+            Dictionary with metadata fields like:
+            - file_name : str
+            - data_type : str ('conv' or 'rad')
+            - date : datetime
+            - sensor : str (if radiance)
+            - kx : str (if radiance)
+
+        Raises
+        ------
+        AttributeError
+            If the internal date is not set.
+        """
+        meta = {
+            "file_name": self.file_name,
+            "data_type": "conv" if self._data_type == 1 else "rad",
+            "date": self.get_date()
+        }
+        if self._data_type == 2:
+            meta["sensor"] = self._data_frame.get("sensor")
+            meta["kx"] = self._data_frame.get("kx")
+        return meta
+
+    def get_dataframe(self, var: str, kx: int) -> pd.DataFrame:
+        """
+        Return a DataFrame for a specific variable and kx from a conventional file.
+
+        Parameters
+        ----------
+        var : str
+            Variable name (e.g., 't', 'q', 'uv').
+        kx : int
+            Data source index corresponding to the observation type.
+
+        Returns
+        -------
+        pd.DataFrame
+            The DataFrame containing the diagnostic data.
+
+        Raises
+        ------
+        ValueError
+            If called on a radiance file.
+        """
+        if self._data_type != 1:
+            raise ValueError("get_dataframe only valid for conventional diagnostics.")
+        return self._data_frame[var][kx]
+
+
+
+
+    def get_overview(self) -> str:
+        """
+        Return a string summary of the diagnostic file.
+
+        Returns
+        -------
+        str
+            Summary text including file type, date, available variables or channels.
+        """
+        lines = [f"File: {self.file_name}",
+                 f"Type: {'Radiance' if self._data_type == 2 else 'Conventional'}",
+                 f"Date: {self.get_date()}"]
+        if self._data_type == 1:
+            vars_ = self.get_variables()
+            lines.append(f"Variables: {', '.join(vars_)}")
+            for v in vars_:
+                kx_list = self.get_kx_list(v)
+                lines.append(f"  {v}: {len(kx_list)} kx types")
+        elif self._data_type == 2:
+            lines.append(f"Sensor: {self._data_frame.get('sensor')}")
+            lines.append(f"Platform: {self._data_frame.get('kx')}")
+            ch = self._data_frame["dataframes"]["channel_df"]
+            lines.append(f"Channels: {ch.shape[0]}")
+        return "\n".join(lines)
+
+    def get_file_info(self) -> dict:
+        """
+        Return technical information extracted from the diagnostic file.
+
+        Returns
+        -------
+        dict
+            Dictionary with key metadata: file name, date, type, sensor/platform if present.
+        """
+        info = {
+            "file_name": self.file_name,
+            "data_type": "rad" if self._data_type == 2 else "conv",
+            "date": self.get_date()
+        }
+        if self._data_type == 2:
+            info.update({
+                "sensor": self._data_frame.get("sensor"),
+                "platform": self._data_frame.get("kx"),
+                "n_channels": self._data_frame["dataframes"]["channel_df"].shape[0],
+                "n_obs": self._data_frame["dataframes"]["diagbuf_df"].shape[0]
+            })
+        return info
+
+    def export_to_csv(self, path: str | Path, var: str = None, kx: int = None, channel: int = None):
+        """
+        Export data to CSV for either conventional or radiance files.
+
+        Parameters
+        ----------
+        path : str or Path
+            Path to save the CSV file.
+        var : str, optional
+            Variable name (for conventional only).
+        kx : int, optional
+            Data source index (for conventional).
+        channel : int, optional
+            Channel index (for radiance).
+        """
+        path = Path(path)
+        if self._data_type == 1:
+            if var is None or kx is None:
+                raise ValueError("For conventional files, both var and kx must be provided.")
+            df = self.get_dataframe(var, kx)
+        else:
+            if channel is None:
+                raise ValueError("For radiance files, channel index must be provided.")
+            df = self._data_frame["dataframes"]["diagbufchan_df"][channel]
+        df.to_csv(path, index=False)
+
+    def get_kx_counts(self, var: str) -> Dict[int, int]:
+        """
+        Return the number of observations for each kx of a given variable.
+    
+        Parameters
+        ----------
+        var : str
+            The observation variable name (e.g., 't', 'q', 'uv').
+    
+        Returns
+        -------
+        Dict[int, int]
+            A dictionary mapping each kx to the number of observations.
+    
+        Raises
+        ------
+        ValueError
+            If called on a radiance file or if the variable is not found.
+        """
+        if self._data_type != 1:
+            raise ValueError("get_kx_counts is only available for conventional data.")
+        if var not in self._data_frame:
+            raise ValueError(f"Variable '{var}' not found.")
+        
+        return {kx: len(df) for kx, df in self._data_frame[var].items()}
+    
+    
+    
+        # Deprecated aliases for compatibility
+        def overview(self):
+            import warnings
+            warnings.warn("overview() is deprecated, use get_overview() instead", DeprecationWarning, stacklevel=2)
+            return self.get_overview()
+    
+        def pfileinfo(self):
+            import warnings
+            warnings.warn("pfileinfo() is deprecated, use get_file_info() instead", DeprecationWarning, stacklevel=2)
+            return self.get_file_info()
+    
+        def tocsv(self, *args, **kwargs):
+            import warnings
+            warnings.warn("tocsv() is deprecated, use export_to_csv() instead", DeprecationWarning, stacklevel=2)
+            return self.export_to_csv(*args, **kwargs)
+
+
+    # backward compatibility alias
 DiagAccess = diagAccess
 
