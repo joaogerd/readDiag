@@ -9,8 +9,12 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
-# importa a classe legacy
+import os
+import pytest
+import pandas as pd
+from datetime import datetime
 from readDiag import diagAccess
+
 
 TEST_FILES = [
     "data/diag_conv_01.2020010100",
@@ -25,30 +29,29 @@ def test_read_baseline(relpath):
     diag = diagAccess(path)
     df_dict = diag.get_data_frame()
 
-    # 1) sempre um dict não‐vazio
-    assert isinstance(df_dict, dict)
-    assert df_dict, "o dicionário de dataframes não pode ser vazio"
+    # [1] Estrutura básica
+    assert isinstance(df_dict, dict), f"O retorno de get_data_frame() deve ser um dict, veio {type(df_dict)}"
+    assert df_dict, "O dicionário retornado está vazio"
+
+    # [2] Data deve estar presente e correta
+    dt = diag.get_date()
+    assert isinstance(dt, datetime), "get_date() deve retornar um datetime"
+    assert dt == datetime(2020, 1, 1, 0), f"Data incorreta: esperava 2020-01-01 00:00, veio {dt}"
 
     if "diag_conv" in relpath:
-        # 2) para conv: cada entrada deve ser DataFrame ou dict de DataFrames não‐vazios
-        for var, blk in df_dict.items():
-            if isinstance(blk, dict):
-                for chan, df in blk.items():
-                    assert isinstance(df, pd.DataFrame), f"{var}[{chan}] não é DataFrame"
-                    assert not df.empty, f"{var}[{chan}] retornou vazio"
-            else:
-                assert isinstance(blk, pd.DataFrame), f"{var} não é DataFrame"
-                assert not blk.empty, f"{var} retornou vazio"
-
-        # 3) date ok para conv
-        dt = diag.get_date()
-        assert isinstance(dt, datetime)
-        assert dt == datetime(2020, 1, 1, 0), f"esperava 2020-01-01 00:00, veio {dt}"
+        # [3] Estrutura convencional: var → kx → DataFrame
+        for var, kx_block in df_dict.items():
+            assert isinstance(kx_block, dict), f"Esperado dict para '{var}', veio {type(kx_block)}"
+            for kx, df in kx_block.items():
+                assert isinstance(df, pd.DataFrame), f"{var}[{kx}] não é DataFrame"
+                assert not df.empty, f"{var}[{kx}] está vazio"
 
     else:
-        # apenas garantimos que radiância (_amsua_) infelizmente não inicializa data
-        with pytest.raises(AttributeError):
-            diag.get_date()
-        # e que o dict retornado tem ao menos uma chave
-        assert len(df_dict) > 0
+        # [4] Estrutura radiância: sensor/kx/dataframes
+        assert "sensor" in df_dict, "'sensor' ausente em dados de radiância"
+        assert "kx" in df_dict, "'kx' ausente em dados de radiância"
+        assert "dataframes" in df_dict, "'dataframes' ausente em dados de radiância"
+        dfs = df_dict["dataframes"]
+        assert isinstance(dfs, dict), "'dataframes' deve ser um dicionário"
+        assert any(isinstance(df, pd.DataFrame) for df in dfs.values()), "Nenhum DataFrame encontrado"
 
