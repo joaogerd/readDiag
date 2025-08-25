@@ -1,22 +1,33 @@
-# Makefile para readDiag
+# Basic test/bench workflow for readDiag
 
-# Roda todos os testes
+.PHONY: help test test-fast test-slow bench clean
+
+PYTEST ?= pytest
+PYTEST_OPTS ?=
+DATA ?= $(PWD)/data
+DATATEST ?= $(PWD)/dataTest/exp20
+
+export READDIAG_DATA := $(DATA)
+export READDIAG_DATA_TEST := $(DATATEST)
+export MPLBACKEND := Agg
+export PYTHONWARNINGS := default
+
+help:
+	@echo "Targets:"
+	@echo "  make test        - run full test suite"
+	@echo "  make test-fast   - run fast tests (exclude benchmark)"
+	@echo "  make bench       - run only benchmark tests"
+	@echo "  make clean       - remove caches"
+
 test:
-	pytest tests/
+	$(PYTEST) $(PYTEST_OPTS)
 
-# Roda somente benchmarks
-benchmark:
-	pytest tests/test_benchmark.py --benchmark-only
+test-fast:
+	$(PYTEST) -m "not benchmark" $(PYTEST_OPTS)
 
-# Lint com ruff e verificação com black
-lint:
-	ruff src/ tests/
-	black --check src/ tests/
+bench:
+	$(PYTEST) -m benchmark $(PYTEST_OPTS)
 
-# Formata código com black
-format:
-	black src/ tests/
+clean:
+	rm -rf .pytest_cache .benchmarks
 
-# Instala ambiente de desenvolvimento
-install-dev:
-	pip install -e .[dev]

@@ -1,14 +1,12 @@
 # ---------------------------------------------------------------------------
-# Plotting utilities for GSI diagnostics
+# Plotting utilities for GSI diagnostics (NumPy-style docstrings)
 # ---------------------------------------------------------------------------
 from __future__ import annotations
 
-import sys
 from pathlib import Path
-from dataclasses import dataclass, field
-from typing import Optional, Iterable, List, Dict, Any
-from collections import Counter, defaultdict
-import warnings
+from typing import Optional, Iterable, List, Dict, Any, Tuple
+from collections import defaultdict
+
 import matplotlib as mpl
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
@@ -18,86 +16,106 @@ import pandas as pd
 
 from .reader import diagAccess
 from .style import PlotConfig
+from .utils import deprecated
+
 
 def _check_kind(kind: str):
-    """Decorator to ensure a plotting method is only called for a specific diagnostic kind.
+    """Decorator ensuring a plotting method is only called for a specific
+    diagnostic kind.
 
-    Args:
-        kind (str): Diagnostic type, either 'conv' (conventional) or 'rad' (radiance).
+    Parameters
+    ----------
+    kind : {"conv", "rad"}
+        The diagnostic type required by the decorated method.
     """
+
     def decorator(func):
         def wrapper(self, *args, **kwargs):
             if self.kind != kind:
                 raise ValueError(f"{func.__name__} only valid for {kind} diagnostics")
             return func(self, *args, **kwargs)
+
         return wrapper
+
     return decorator
 
 
-# apply global config
+# ---------------------------------------------------------------------------
+# Apply a global/default plotting configuration at import time
+# (keeps figures visually consistent unless the user provides their own config)
+# ---------------------------------------------------------------------------
 _default_config = PlotConfig()
 plt.style.use(_default_config.style)
 mpl.rcParams.update(_default_config.rc_params)
 
+
 class diagPlotter:
+    """Helper to generate Matplotlib figures from ``diagAccess`` objects.
 
-    """Matplotlib-based plotting helper for diagAccess output.
+    The plotter automatically detects whether the diagnostic is **conventional**
+    or **radiance** and exposes convenience methods for common visualizations
+    (histograms, counts, per-channel stats, etc.). Styling is centralized via a
+    :class:`~readDiag.style.PlotConfig`, and per-plot overrides can be provided
+    through keyword arguments.
 
-    This class inspects the diagnostic type (conventional vs radiance)
-    and provides methods to generate highly customizable figures using Matplotlib.
+    Parameters
+    ----------
+    diag : diagAccess
+        A diagnostic object already loaded by :class:`~readDiag.reader.diagAccess`.
+    config : PlotConfig, optional
+        Custom plotting style. If omitted, a global default is used.
 
-    The configuration is centralized through a `PlotConfig` object, which allows global control of plot appearance
-    (e.g., font sizes, styles, grid, and reference lines).
+    Raises
+    ------
+    TypeError
+        If ``diag`` is not an instance of :class:`~readDiag.reader.diagAccess`.
 
-    Most styling attributes such as titles and labels can be passed using keyword arguments. 
-    **Matplotlib-native arguments like `color`, `linewidth`, `marker`, etc. should be passed directly as keyword arguments**, 
-    and are applied internally during the plot call.
+    Notes
+    -----
+    - **Graphical kwargs** (e.g., ``color``, ``alpha``, ``marker``, ``linewidth``)
+      are forwarded directly to Matplotlib calls.
+    - **Style kwargs** (``title``, ``xlabel``, ``ylabel``, ``rotation``,
+      ``fontsize``, ``zero_line``) are handled by :meth:`_apply_plot_kwargs`.
+    - All methods return the Matplotlib :class:`~matplotlib.axes.Axes` instance
+      for further customization or testing.
 
-    Note:
-        The `color` argument is NOT part of the style configuration and must be passed directly to the plot function.
-
-    Example:
-        >>> from mypackage.reader import diagAccess
-        >>> from mypackage.plotting import diagPlotter
-        >>> diag = diagAccess('path/to/diag_file')
-        >>> plotter = diagPlotter(diag)
-        >>> # Histogram with custom color and title
-        >>> ax = plotter.plot_hist_conv('t', 120, bins=40, color='blue', title='Temp Histogram')
-        >>> # Total observations per KX, styled
-        >>> plotter.plot_kx_count(color='red', xlabel='Sensor', ylabel='Count', title='Obs per KX')
+    Examples
+    --------
+    >>> from readDiag.reader import diagAccess
+    >>> from readDiag.plotting import diagPlotter
+    >>> d = diagAccess("path/to/diag_conv_01.2020010100")
+    >>> p = diagPlotter(d)
+    >>> ax = p.plot_hist_conv("t", 120, bins=40, color="blue", title="Temp Histogram")
+    >>> ax = p.plot_kx_count(title="Observations by KX")
     """
-    
-    STYLE_KEYS = {'title', 'xlabel', 'ylabel', 'rotation', 'fontsize'}
 
-    def __init__(self,
-                 diag: diagAccess,
-                 config: Optional[PlotConfig] = None):
-        """Initialize the plotter with a diagAccess instance.
+    # Keys that are *style* (handled by _apply_plot_kwargs) and not forwarded
+    # to Matplotlib plotting functions directly.
+    STYLE_KEYS = {"title", "xlabel", "ylabel", "rotation", "fontsize", "zero_line"}
 
-        Args:
-            diag (diagAccess): A loaded diagnostic object from diagAccess.
-            config (Optional[PlotConfig]): Plotting style configuration. If None, uses default settings.
-
-        Raises:
-            TypeError: If `diag` is not an instance of diagAccess.
-        """
-        
+    def __init__(self, diag: diagAccess, config: Optional[PlotConfig] = None):
         if not isinstance(diag, diagAccess):
             raise TypeError("`diag` must be an instance of diagAccess")
         self.diag = diag
         self.kind = "conv" if diag.get_data_type() == 1 else "rad"
         self.config = config or _default_config
 
-
+    # ------------------------------------------------------------------
+    # Internal utilities
+    # ------------------------------------------------------------------
     @staticmethod
     def _ensure_ax(ax: Optional[plt.Axes]) -> plt.Axes:
-        """Return existing Axes or create a new one.
+        """Return an existing ``Axes`` or create a fresh one.
 
-        Args:
-            ax (Optional[plt.Axes]): Existing axes or None.
+        Parameters
+        ----------
+        ax : matplotlib.axes.Axes, optional
+            Target axes. If ``None``, a new figure and axes are created.
 
-        Returns:
-            plt.Axes: Matplotlib Axes.
+        Returns
+        -------
+        matplotlib.axes.Axes
+            The provided or newly created axes.
         """
         if ax is None:
             fig, ax = plt.subplots()
@@ -105,11 +123,14 @@ class diagPlotter:
 
     @staticmethod
     def _save(ax: plt.Axes, savepath: Optional[str]) -> None:
-        """Save the figure to disk if a save path is provided.
+        """Save the figure to disk if a path is provided.
 
-        Args:
-            ax (plt.Axes): The axes containing the figure.
-            savepath (Optional[str]): File path to save the figure.
+        Parameters
+        ----------
+        ax : matplotlib.axes.Axes
+            Axes containing the figure.
+        savepath : str, optional
+            Destination file path. If ``None``, nothing is saved.
         """
         if not savepath:
             return
@@ -118,86 +139,135 @@ class diagPlotter:
         ax.get_figure().savefig(p, dpi=150, bbox_inches="tight")
 
     def _apply_plot_kwargs(self, ax: plt.Axes, style_kwargs: Dict[str, Any]) -> plt.Axes:
-        """Apply common styling keyword arguments to the axes (titles, labels, font sizes).
-    
-        Args:
-            ax (plt.Axes): The axes to style.
-            style_kwargs (Dict[str, Any]): Styling options such as:
-                - title (str): Title of the plot
-                - xlabel (str): X-axis label
-                - ylabel (str): Y-axis label
-                - rotation (int): Rotation angle for x-tick labels
-                - fontsize (int): Font size for labels and titles
-    
-        Note:
-            This function does NOT apply graphical properties like color, marker, alpha, or linewidth.
-            These should be passed directly to the plotting method and are handled separately.
-    
-        Returns:
-            plt.Axes: The styled axes.
+        """Apply axis-level styling (titles, labels, ticks, reference lines).
+
+        Only cosmetic kwargs are handled here. Graphical properties should be
+        passed directly to the plotting calls (e.g., ``color``, ``alpha``, ``bins``).
+
+        Parameters
+        ----------
+        ax : matplotlib.axes.Axes
+            Target axes to style.
+        style_kwargs : dict
+            Supported keys are:
+
+            ``title`` : str
+                Plot title.
+            ``xlabel`` / ``ylabel`` : str
+                Axis labels.
+            ``rotation`` : int, default: 0
+                Rotation for x tick labels.
+            ``fontsize`` : int, default: 10
+                Font size for labels and titles.
+            ``zero_line`` : bool, default: True
+                Draw a thin horizontal line at y=0.
+
+        Returns
+        -------
+        matplotlib.axes.Axes
+            The styled axes.
         """
+        # Defensive copy so callers can reuse their dicts
+        style_kwargs = dict(style_kwargs)
+
         title = style_kwargs.get("title")
         xlabel = style_kwargs.get("xlabel")
         ylabel = style_kwargs.get("ylabel")
         rotation = style_kwargs.get("rotation", 0)
         fontsize = style_kwargs.get("fontsize", 10)
-        
+        zero_line = style_kwargs.get("zero_line", True)
+
+        # Apply global style (grid, spines, facecolor, etc.)
         self.config.apply_to_axes(ax)
 
-        if title:
-            ax.set_title(title, fontsize=fontsize)
-        if xlabel:
+        # Labels
+        if isinstance(xlabel, str):
             ax.set_xlabel(xlabel, fontsize=fontsize)
-        if ylabel:
+        if isinstance(ylabel, str):
             ax.set_ylabel(ylabel, fontsize=fontsize)
-        for label in ax.get_xticklabels():
-            label.set_rotation(rotation)
-            label.set_fontsize(fontsize)
-        # ------------------------------------------------------------
-        # Desenha a linha y=0 conforme _default_config.zero_line_kwargs
-        ax.axhline(**self.config.zero_line_kwargs)
-        
+
+        # Tick label cosmetics
+        for lbl in ax.get_xticklabels():
+            lbl.set_rotation(rotation)
+            lbl.set_fontsize(fontsize)
+
+        # Optional reference line at y = 0
+        if zero_line:
+            ax.axhline(**self.config.zero_line_kwargs)
+
+        # Title last (explicitly centered so tests using get_title() work
+        # regardless of rcParams like axes.titlelocation)
+        if isinstance(title, str) and title.strip():
+            ax.set_title(title, fontsize=fontsize, loc="center")
+            # Safety net: if another hook cleared the title, re-apply it
+            if not ax.get_title():
+                ax.set_title(title, fontsize=fontsize, loc="center")
+
         return ax
 
-    def _split_kwargs(self, kwargs: Dict[str, Any]) -> (Dict[str, Any], Dict[str, Any]):
-        """Split kwargs into data-related and style-related keyword arguments.
-    
-        This function separates the arguments intended for plotting appearance
-        (such as title, xlabel, ylabel, fontsize, etc.) from the ones that should be
-        passed directly to the Matplotlib plotting functions (like color, alpha, bins, etc.).
-    
-        Returns:
-            Tuple of:
-                - data_kwargs (dict): Passed directly to plotting functions (e.g., `color`, `bins`, `alpha`).
-                - style_kwargs (dict): Used for applying axis labels and titles (`title`, `xlabel`, etc.).
-        """
+    def _split_kwargs(self, kwargs: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        """Split kwargs into *data* vs *style* dictionaries.
 
+        Parameters
+        ----------
+        kwargs : dict
+            Arbitrary keyword arguments passed to a plotting method.
+
+        Returns
+        -------
+        data_kwargs : dict
+            Forwarded directly to Matplotlib plot calls (e.g., ``color``, ``alpha``, ``bins``).
+        style_kwargs : dict
+            Consumed by :meth:`_apply_plot_kwargs` (``title``, ``xlabel``, etc.).
+        """
         data_kwargs = {k: v for k, v in kwargs.items() if k not in self.STYLE_KEYS}
         style_kwargs = {k: v for k, v in kwargs.items() if k in self.STYLE_KEYS}
         return data_kwargs, style_kwargs
 
+    # ------------------------------------------------------------------
+    # Conventional diagnostics plots
+    # ------------------------------------------------------------------
     @_check_kind("conv")
-    def plot_hist_conv(self,
-                       var: str,
-                       kx: int,
-                       col: str = "omf",
-                       bins: int = 50,
-                       ax: Optional[plt.Axes] = None,
-                       savepath: Optional[str] = None,
-                       **kwargs) -> plt.Axes:
-        """Plot a histogram of a conventional diagnostic column.
+    def plot_hist_conv(
+        self,
+        var: str,
+        kx: int,
+        col: str = "omf",
+        bins: int = 50,
+        ax: Optional[plt.Axes] = None,
+        savepath: Optional[str] = None,
+        **kwargs,
+    ) -> plt.Axes:
+        """Histogram of a conventional diagnostic column.
 
-        Args:
-            var (str): Variable name (e.g., 't', 'q', 'uv').
-            kx (int): Sensor index within the variable dict.
-            col (str): Column from the dataframe to histogram. Defaults to 'omf'.
-            bins (int): Number of histogram bins. Defaults to 50.
-            ax (Optional[plt.Axes]): Existing axes or None.
-            savepath (Optional[str]): Path to save the figure as PNG.
-            **kwargs: Additional keyword arguments for `Axes.hist` and styling keys.
+        Parameters
+        ----------
+        var : str
+            Variable name (e.g., ``'t'``, ``'q'``, ``'uv'``).
+        kx : int
+            Sensor (data source) index inside the variable dictionary.
+        col : str, default: "omf"
+            Column in the DataFrame to histogram.
+        bins : int, default: 50
+            Number of bins.
+        ax : matplotlib.axes.Axes, optional
+            Existing axes. If ``None``, a new one is created.
+        savepath : str, optional
+            If provided, the figure is saved to this path.
+        **kwargs
+            Extra arguments forwarded to :meth:`matplotlib.axes.Axes.hist` (e.g.,
+            ``color``, ``alpha``), plus style keys (``title``, ``xlabel``, ``ylabel``,
+            ``fontsize``, ``zero_line``).
 
-        Returns:
-            plt.Axes: The axes with the histogram.
+        Returns
+        -------
+        matplotlib.axes.Axes
+            The axes containing the histogram.
+
+        Raises
+        ------
+        ValueError
+            If the variable/kx/column does not exist in the diagnostics.
         """
         df_dict = self.diag.get_data_frame()
         if var not in df_dict or kx not in df_dict[var]:
@@ -205,56 +275,70 @@ class diagPlotter:
         df = df_dict[var][kx]
         if col not in df.columns:
             raise ValueError(f"Column '{col}' not in data frame.")
-    
+
         values = df[col].dropna().to_numpy()
         ax = self._ensure_ax(ax)
-    
-        # --- Separe kwargs em dados vs. estilo, mas mantenha color/alpha em dados ---
+
+        # Separate kwargs into data-vs-style; ensure color/alpha stay with data
         data_kwargs, style_kwargs = self._split_kwargs(kwargs)
-        # garanta que color/alpha estejam em data_kwargs
         for key in ("color", "alpha"):
             if key in style_kwargs:
                 data_kwargs[key] = style_kwargs.pop(key)
-    
-        # --- Plota e captura patches ---
+
+        # Plot and capture patches to enforce uniform facecolor/alpha (when given)
         _, _, patches = ax.hist(values, bins=bins, **data_kwargs)
-    
-        # redundância segura: se color/alpha foram passados, força nos patches
-        color = data_kwargs.get("color", None)
-        alpha = data_kwargs.get("alpha", None)
+        color = data_kwargs.get("color")
+        alpha = data_kwargs.get("alpha")
         if color is not None or alpha is not None:
-            rgba = mcolors.to_rgba(color if color is not None else patches[0].get_facecolor(),
-                                   alpha if alpha is not None else patches[0].get_facecolor()[3])
+            base = patches[0].get_facecolor()
+            rgba = mcolors.to_rgba(color if color is not None else base, alpha if alpha is not None else base[3])
             for p in patches:
                 p.set_facecolor(rgba)
-    
-        # --- Defaults de títulos/labels ---
+
+        # Default style
         style_kwargs.setdefault("title", f"Histogram of {col} for {var} (kx {kx})")
         style_kwargs.setdefault("xlabel", col)
         style_kwargs.setdefault("ylabel", "Frequency")
-    
-        self._apply_plot_kwargs(ax, style_kwargs)
+
+        ax = self._apply_plot_kwargs(ax, style_kwargs)
         self._save(ax, savepath)
         return ax
 
     @_check_kind("conv")
-    def plot_boxplot_kxs_conv(self,
-                               var: str,
-                               col: str = "omf",
-                               ax: Optional[plt.Axes] = None,
-                               savepath: Optional[str] = None,
-                               **kwargs) -> plt.Axes:
-        """Plot a boxplot of a column across all KX for a conventional variable.
+    def plot_boxplot_kxs_conv(
+        self,
+        var: str,
+        col: str = "omf",
+        ax: Optional[plt.Axes] = None,
+        savepath: Optional[str] = None,
+        **kwargs,
+    ) -> plt.Axes:
+        """Boxplots of a column across all KX for a conventional variable.
 
-        Args:
-            var (str): Variable name.
-            col (str): Column from each kx frame. Defaults to 'omf'.
-            ax (Optional[plt.Axes]): Existing axes or None.
-            savepath (Optional[str]): Path to save figure.
-            **kwargs: Additional keyword arguments for `Axes.boxplot` and styling keys.
+        Parameters
+        ----------
+        var : str
+            Variable name.
+        col : str, default: "omf"
+            Column to extract from each KX frame.
+        ax : matplotlib.axes.Axes, optional
+            Existing axes or ``None``.
+        savepath : str, optional
+            If provided, the figure is saved to this path.
+        **kwargs
+            Extra arguments forwarded to :meth:`matplotlib.axes.Axes.boxplot`.
+            You may pass ``color`` to recolor box/whisker/caps/median uniformly,
+            plus style keys (``title``, ``xlabel``, ``ylabel``, ``fontsize``, etc.).
 
-        Returns:
-            plt.Axes: The axes with the boxplot.
+        Returns
+        -------
+        matplotlib.axes.Axes
+            The axes with the boxplots.
+
+        Raises
+        ------
+        ValueError
+            If the variable or column is not available.
         """
         data_dict = self.diag.get_data_frame()
         if var not in data_dict:
@@ -270,82 +354,108 @@ class diagPlotter:
 
         ax = self._ensure_ax(ax)
         data_kwargs, style_kwargs = self._split_kwargs(kwargs)
+
+        # Allow a single "color" to color all box components
+        if "color" in data_kwargs:
+            c = data_kwargs.pop("color")
+            data_kwargs.setdefault("boxprops", dict(color=c))
+            data_kwargs.setdefault("whiskerprops", dict(color=c))
+            data_kwargs.setdefault("capprops", dict(color=c))
+            data_kwargs.setdefault("medianprops", dict(color=c))
+
         ax.boxplot(series_list, **data_kwargs)
-        ax.set_xticks(range(1, len(kxs)+1))
+        ax.set_xticks(range(1, len(kxs) + 1))
         ax.set_xticklabels(kxs)
+
         style_kwargs.setdefault("title", f"Boxplot of {col} for {var} across kxs")
         style_kwargs.setdefault("xlabel", "KX")
         style_kwargs.setdefault("ylabel", col)
-        self._apply_plot_kwargs(ax, style_kwargs)
+
+        ax = self._apply_plot_kwargs(ax, style_kwargs)
         self._save(ax, savepath)
         return ax
 
-
     @_check_kind("conv")
-    def plot_observation_counts(self,
-                                varName: str,
-                                ax: Optional[plt.Axes] = None,
-                                savepath: Optional[str] = None,
-                                **kwargs) -> plt.Axes:
-        """Plot bar chart of the number of observations per KX (data source index).
-    
-        Args:
-            varName (str): Variable name (e.g., 't', 'q', 'uv').
-            ax (Optional[plt.Axes]): Existing axes or None.
-            savepath (Optional[str]): Path to save the figure as PNG.
-            **kwargs: Additional keyword arguments for `Axes.bar` and styling keys.
-    
-        Returns:
-            plt.Axes: The axes with the bar chart.
+    def plot_observation_counts(
+        self,
+        varName: str,
+        ax: Optional[plt.Axes] = None,
+        savepath: Optional[str] = None,
+        **kwargs,
+    ) -> plt.Axes:
+        """Number of observations per KX for a given variable (bars).
+
+        Parameters
+        ----------
+        varName : str
+            Variable name (e.g., ``'t'``, ``'q'``, ``'uv'``).
+        ax : matplotlib.axes.Axes, optional
+            Existing axes or ``None``.
+        savepath : str, optional
+            If provided, the figure is saved to this path.
+        **kwargs
+            Extra arguments forwarded to :meth:`matplotlib.axes.Axes.bar` (e.g.,
+            ``color``), plus style keys. If ``color`` is not provided, a discrete
+            colormap (``Set3``) is used to generate bar colors.
+
+        Returns
+        -------
+        matplotlib.axes.Axes
+            The axes with the bar chart.
         """
         ax = self._ensure_ax(ax)
         data = self.diag.get_data_frame()
         if varName not in data:
             raise ValueError(f"Variable '{varName}' not found in diagnostic data.")
-    
+
         counts = [(k, df.shape[0]) for k, df in data[varName].items()]
         kx, y = zip(*sorted(counts))
         x = list(range(len(kx)))
 
-        # Use custom colormap or default to Set3
-        if 'color' not in kwargs:
-           cmap = kwargs.pop("colormap", cm.Set3)
-           kwargs['color'] = [cmap(i % cmap.N) for i in range(len(kx))]
-    
-        # Separate plot kwargs
+        # Auto color per bar if not provided
+        if "color" not in kwargs:
+            cmap = kwargs.pop("colormap", cm.Set3)
+            kwargs["color"] = [cmap(i % cmap.N) for i in range(len(kx))]
+
         data_kwargs, style_kwargs = self._split_kwargs(kwargs)
         ax.bar(x, y, **data_kwargs)
 
-        # force xticks to each KX
         ax.set_xticks(x)
         ax.set_xticklabels([str(k) for k in kx])
 
-        # Default labels and titles
         style_kwargs.setdefault("title", f"Counts for {varName}")
         style_kwargs.setdefault("xlabel", "KX")
         style_kwargs.setdefault("ylabel", "Number of Observations")
         style_kwargs.setdefault("rotation", 45)
-    
-        self._apply_plot_kwargs(ax, style_kwargs)
+
+        ax = self._apply_plot_kwargs(ax, style_kwargs)
         self._save(ax, savepath)
         return ax
 
-
     @_check_kind("conv")
-    def plot_kx_count(self,
-                      ax: Optional[plt.Axes] = None,
-                      savepath: Optional[str] = None,
-                      **kwargs) -> plt.Axes:
-        """Plot bar chart of total observations per KX across all variables.
+    def plot_kx_count(
+        self,
+        ax: Optional[plt.Axes] = None,
+        savepath: Optional[str] = None,
+        **kwargs,
+    ) -> plt.Axes:
+        """Total observations per KX across all variables (bars).
 
-        Args:
-            ax (Optional[plt.Axes]): Existing matplotlib axes or None.
-            savepath (Optional[str]): Path to save the figure as PNG.
-            **kwargs: Additional keyword arguments for `Axes.bar` and styling keys
-                      like title, xlabel, ylabel, rotation, fontsize, color, etc.
+        Parameters
+        ----------
+        ax : matplotlib.axes.Axes, optional
+            Existing axes or ``None``.
+        savepath : str, optional
+            If provided, the figure is saved to this path.
+        **kwargs
+            Extra args to :meth:`matplotlib.axes.Axes.bar` (e.g., ``color``), plus
+            style keys (``title``, ``xlabel``, ``ylabel``, etc.). If ``color`` is
+            not passed, a categorical colormap (``Set3``) is used.
 
-        Returns:
-            plt.Axes: The axes with the bar chart.
+        Returns
+        -------
+        matplotlib.axes.Axes
+            The axes with the bar chart.
         """
         from collections import Counter
 
@@ -359,10 +469,9 @@ class diagPlotter:
         ks, counts = zip(*sorted(counter.items()))
         x = list(range(len(ks)))
 
-        # Handle colors: either from kwargs or generated from colormap
-        if 'color' not in kwargs:
+        if "color" not in kwargs:
             cmap = kwargs.pop("colormap", cm.Set3)
-            kwargs['color'] = [cmap(i % cmap.N) for i in range(len(ks))]
+            kwargs["color"] = [cmap(i % cmap.N) for i in range(len(ks))]
 
         data_kwargs, style_kwargs = self._split_kwargs(kwargs)
         ax.bar(x, counts, **data_kwargs)
@@ -370,268 +479,328 @@ class diagPlotter:
         ax.set_xticks(x)
         ax.set_xticklabels([str(k) for k in ks])
 
-        # Default styling
         style_kwargs.setdefault("title", "Total Observations by KX")
         style_kwargs.setdefault("xlabel", "KX")
         style_kwargs.setdefault("ylabel", "Observations")
         style_kwargs.setdefault("rotation", 45)
 
-        self._apply_plot_kwargs(ax, style_kwargs)
-
+        ax = self._apply_plot_kwargs(ax, style_kwargs)
         self._save(ax, savepath)
         return ax
 
     @_check_kind("conv")
-    def plot_variable_count(self,
-                             ax: Optional[plt.Axes] = None,
-                             savepath: Optional[str] = None,
-                             **kwargs) -> plt.Axes:
-        """Plot bar chart of total observations per variable.
+    def plot_variable_count(
+        self,
+        ax: Optional[plt.Axes] = None,
+        savepath: Optional[str] = None,
+        **kwargs,
+    ) -> plt.Axes:
+        """Total observations per variable (bars).
 
-        Args:
-            ax (Optional[plt.Axes]): Existing axes or None.
-            savepath (Optional[str]): Path to save figure.
-            **kwargs: Additional keyword args for `Axes.bar` and styling keys.
+        Parameters
+        ----------
+        ax : matplotlib.axes.Axes, optional
+            Existing axes or ``None``.
+        savepath : str, optional
+            If provided, the figure is saved to this path.
+        **kwargs
+            Extra args to :meth:`matplotlib.axes.Axes.bar` and style keys.
 
-        Returns:
-            plt.Axes: The axes with the bar chart.
+        Returns
+        -------
+        matplotlib.axes.Axes
+            The axes with the bar chart.
         """
         ax = self._ensure_ax(ax)
-        var_counts = {var: sum(df.shape[0] for df in data.values()) for var, data in self.diag.get_data_frame().items()}
+        var_counts = {
+            var: sum(df.shape[0] for df in data.values())
+            for var, data in self.diag.get_data_frame().items()
+        }
         ks, ys = zip(*var_counts.items())
 
         data_kwargs, style_kwargs = self._split_kwargs(kwargs)
         ax.bar(ks, ys, **data_kwargs)
+
         style_kwargs.setdefault("title", "Total observations per variable")
         style_kwargs.setdefault("xlabel", "Variable")
         style_kwargs.setdefault("ylabel", "Count")
-        self._apply_plot_kwargs(ax, style_kwargs)
+
+        ax = self._apply_plot_kwargs(ax, style_kwargs)
         self._save(ax, savepath)
         return ax
-        
+
     @_check_kind("conv")
-    def plot_kx_count_stacked(self,
-                              vars: Optional[List[str]] = None,
-                              ax: Optional[plt.Axes] = None,
-                              savepath: Optional[str] = None,
-                              **kwargs) -> plt.Axes:
-        """Plot stacked bar chart of observations per KX, split by variable.
+    def plot_kx_count_stacked(
+        self,
+        vars: Optional[List[str]] = None,
+        ax: Optional[plt.Axes] = None,
+        savepath: Optional[str] = None,
+        **kwargs,
+    ) -> plt.Axes:
+        """Stacked bar chart of observations per KX, split by variable.
 
-        Args:
-            vars (Optional[List[str]]): List of variables to include (e.g., ['t', 'q', 'ps']).
-                                        If None, uses all variables available.
-            ax (Optional[plt.Axes]): Existing matplotlib axes or None.
-            savepath (Optional[str]): Path to save the figure as PNG.
-            **kwargs: Additional keyword arguments for `Axes.bar` and style (e.g., title, color, fontsize).
+        Parameters
+        ----------
+        vars : list of str, optional
+            Variables to include (e.g., ``['t', 'q', 'ps']``). If ``None``,
+            all variables found in the diagnostic are used.
+        ax : matplotlib.axes.Axes, optional
+            Existing axes or ``None``.
+        savepath : str, optional
+            If provided, the figure is saved to this path.
+        **kwargs
+            Extra args to :meth:`matplotlib.axes.Axes.bar` and style keys.
 
-        Returns:
-            plt.Axes: The axes with the stacked bar chart.
+        Returns
+        -------
+        matplotlib.axes.Axes
+            The axes with the stacked bars.
         """
-
         ax = self._ensure_ax(ax)
 
-        # Descobre variáveis se não forem fornecidas
         all_data = self.diag.get_data_frame()
         if vars is None:
             vars = list(all_data.keys())
 
-        # Coleta contagem por (kx, var)
-        kx_counts = defaultdict(dict)
+        # Gather counts per (kx, var)
+        kx_counts: Dict[int, Dict[str, int]] = defaultdict(dict)
         for var in vars:
             var_data = all_data.get(var, {})
             for kx, df in var_data.items():
                 kx_counts[kx][var] = len(df)
 
-        # Converte para DataFrame para facilitar o empilhamento
-        df = pd.DataFrame.from_dict(kx_counts, orient='index').fillna(0).astype(int)
-        df = df[sorted(df.columns)]  # ordena variáveis
+        # Wide DataFrame indexed by kx, columns = variables
+        df = pd.DataFrame.from_dict(kx_counts, orient="index").fillna(0).astype(int)
+        df = df[sorted(df.columns)]  # stable column order
+        df = df.sort_index()         # sort by KX
 
-        # Ordena por KX
-        df = df.sort_index()
         ks = list(df.index)
         x = np.arange(len(ks))
 
-        # Colormap padrão
+        # Default discrete colors for each variable
         cmap = kwargs.pop("colormap", cm.Set3)
         colors = [cmap(i % cmap.N) for i in range(len(df.columns))]
 
-        # Plot empilhado
-        bottoms = np.zeros(len(df))
         data_kwargs, style_kwargs = self._split_kwargs(kwargs)
+
+        # Stack bars per variable
+        bottoms = np.zeros(len(df))
         for idx, var in enumerate(df.columns):
             heights = df[var].values
             ax.bar(x, heights, bottom=bottoms, label=var, color=colors[idx], **data_kwargs)
             bottoms += heights
 
-        # Rótulos no eixo X
         ax.set_xticks(x)
         ax.set_xticklabels([str(k) for k in ks])
+        ax.legend(title="Variable", fontsize=10)
 
-        # Estilo padrão
         style_kwargs.setdefault("title", "Stacked Observations by KX and Variable")
         style_kwargs.setdefault("xlabel", "KX")
         style_kwargs.setdefault("ylabel", "Total Observations")
         style_kwargs.setdefault("rotation", 45)
 
-        self._apply_plot_kwargs(ax, style_kwargs)
-
-        ax.legend(title="Variable", fontsize=10)
-
+        ax = self._apply_plot_kwargs(ax, style_kwargs)
         self._save(ax, savepath)
         return ax
-        
+
     @_check_kind("conv")
-    def plot_spatial_conv(self,
-                          var: str,
-                          kx: int,
-                          param: str = "omf",
-                          mask: Optional[str] = None,
-                          area: Optional[List[float]] = None,
-                          ax: Optional[plt.Axes] = None,
-                          savepath: Optional[str] = None,
-                          **kwargs) -> plt.Axes:
-        """Plot spatial distribution of a diagnostic parameter for a given variable and kx.
+    def plot_spatial_conv(
+        self,
+        var: str,
+        kx: int,
+        param: str = "omf",
+        mask: Optional[str] = None,
+        area: Optional[List[float]] = None,
+        ax: Optional[plt.Axes] = None,
+        savepath: Optional[str] = None,
+        **kwargs,
+    ) -> plt.Axes:
+        """Spatial scatter of a parameter for a given variable/KX.
 
-        Args:
-            var (str): Variable name (e.g., 't', 'q', 'uv').
-            kx (int): Data source index.
-            param (str): Column to plot (e.g., 'omf', 'obs'). Default is 'omf'.
-            mask (Optional[str]): Pandas query string to filter data (e.g., "iuse == 1").
-            area (Optional[List[float]]): Bounding box [lon_min, lat_min, lon_max, lat_max].
-            ax (Optional[plt.Axes]): Existing axes or None.
-            savepath (Optional[str]): Path to save the figure.
-            **kwargs: Additional keyword arguments for `scatter` and styling keys.
+        Requires ``cartopy`` to draw coastlines/borders.
 
-        Returns:
-            plt.Axes: The axes with the spatial scatter plot.
+        Parameters
+        ----------
+        var : str
+            Variable name (e.g., ``'t'``, ``'q'``, ``'uv'``).
+        kx : int
+            Data source index within the variable.
+        param : str, default: "omf"
+            Column to use for coloring the points (e.g., ``'omf'``, ``'obs'``).
+        mask : str, optional
+            Pandas query expression to filter the DataFrame (e.g., ``"iuse == 1"``).
+        area : list of float, optional
+            Bounding box ``[lon_min, lat_min, lon_max, lat_max]``.
+        ax : matplotlib.axes.Axes (cartopy), optional
+            Existing GeoAxes. If ``None``, a new figure/axes in PlateCarree is created.
+        savepath : str, optional
+            If provided, the figure is saved to this path.
+        **kwargs
+            Extra args to :meth:`matplotlib.axes.Axes.scatter` and style keys.
+
+        Returns
+        -------
+        matplotlib.axes.Axes
+            The GeoAxes with the scatter plot.
         """
         import cartopy.crs as ccrs
         import cartopy.feature as cfeature
 
         df = self.diag.get_dataframe(var, kx)
 
-        # Apply mask if needed
+        # Optional query to select a subset
         if mask:
             try:
                 df = df.query(mask)
             except Exception as e:
                 raise ValueError(f"Invalid mask expression: {mask}") from e
 
-        # Check required columns
+        # Required columns
         for col in ["lat", "lon", param]:
             if col not in df.columns:
                 raise ValueError(f"Column '{col}' not found in the DataFrame.")
 
-        # Area filtering
+        # Optional geographic clip
         if area:
             lon1, lat1, lon2, lat2 = area
-            df = df[(df["lon"] >= lon1) & (df["lon"] <= lon2) &
-                    (df["lat"] >= lat1) & (df["lat"] <= lat2)]
+            df = df[(df["lon"] >= lon1) & (df["lon"] <= lon2) & (df["lat"] >= lat1) & (df["lat"] <= lat2)]
 
         lats = df["lat"].to_numpy()
         lons = df["lon"].to_numpy()
         values = df[param].to_numpy()
 
-        # Prepare map
-        fig = None
         if ax is None:
-            fig = plt.figure(figsize=(12, 6))
+            plt.figure(figsize=(12, 6))
             ax = plt.axes(projection=ccrs.PlateCarree())
 
+        # Basic map features
         ax.add_feature(cfeature.COASTLINE, linewidth=0.5)
         ax.add_feature(cfeature.BORDERS, linewidth=0.4)
-        ax.add_feature(cfeature.LAND, facecolor='lightgray', zorder=0)
+        ax.add_feature(cfeature.LAND, facecolor="lightgray", zorder=0)
         ax.gridlines(draw_labels=True, linewidth=0.3, linestyle="--", color="gray")
 
         data_kwargs, style_kwargs = self._split_kwargs(kwargs)
-
-        # Colormap padrão
         cmap = data_kwargs.pop("cmap", "jet")
-        norm = kwargs.pop("norm", None)
-        sc = ax.scatter(lons, lats, c=values, cmap=cmap,
-                        s=20, edgecolor='k', linewidth=0.2,
-                        norm=norm, **data_kwargs)
+        norm = data_kwargs.pop("norm", None)
+
+        sc = ax.scatter(
+            lons,
+            lats,
+            c=values,
+            cmap=cmap,
+            s=20,
+            edgecolor="k",
+            linewidth=0.2,
+            norm=norm,
+            **data_kwargs,
+        )
 
         # Colorbar
         cbar = plt.colorbar(sc, ax=ax, orientation="vertical", shrink=0.8)
         cbar.set_label(param)
 
-        # Default labels
         style_kwargs.setdefault("title", f"Spatial plot of {param} ({var}, kx={kx})")
         style_kwargs.setdefault("xlabel", "Longitude")
         style_kwargs.setdefault("ylabel", "Latitude")
-        ax.set_title(style_kwargs["title"])
+
+        ax = self._apply_plot_kwargs(ax, style_kwargs)
 
         if area:
             ax.set_extent([lon1, lon2, lat1, lat2], crs=ccrs.PlateCarree())
 
-        if savepath:
-            self._save(ax, savepath)
+        self._save(ax, savepath)
         return ax
 
+    # ------------------------------------------------------------------
+    # Radiance diagnostics plots
+    # ------------------------------------------------------------------
     @_check_kind("rad")
-    def plot_channel_stats_rad(self,
-                               metric: str = "omf",
-                               agg: str = "mean",
-                               ax: Optional[plt.Axes] = None,
-                               savepath: Optional[str] = None,
-                               **kwargs) -> plt.Axes:
-        """Aggregate and plot a radiance metric across all channels.
+    def plot_channel_stats_rad(
+        self,
+        metric: str = "omf",
+        agg: str = "mean",
+        ax: Optional[plt.Axes] = None,
+        savepath: Optional[str] = None,
+        **kwargs,
+    ) -> plt.Axes:
+        """Aggregate and plot a radiance metric across channels.
 
-        Args:
-            metric (str): Column in per-channel data (e.g., 'omf').
-            agg (str): Aggregation method ('mean', 'std', ...).
-            ax (Optional[plt.Axes]): Existing axes or None.
-            savepath (Optional[str]): Path to save figure.
-            **kwargs: Additional keyword args for `Axes.plot` and styling keys.
+        Parameters
+        ----------
+        metric : str, default: "omf"
+            Column present in each per-channel DataFrame (e.g., ``'omf'``).
+        agg : {"mean", "std", "median", ...}, default: "mean"
+            Aggregation method applied to the selected column.
+        ax : matplotlib.axes.Axes, optional
+            Existing axes or ``None``.
+        savepath : str, optional
+            If provided, the figure is saved to this path.
+        **kwargs
+            Extra args to :meth:`matplotlib.axes.Axes.plot` and style keys. The
+            marker defaults to ``'o'`` if not provided.
 
-        Returns:
-            plt.Axes: The axes with the plot.
+        Returns
+        -------
+        matplotlib.axes.Axes
+            The axes with the line plot.
         """
         chan_list = self.diag.get_data_frame().get("dataframes", {}).get("diagbufchan_df", [])
         if not chan_list:
             raise ValueError("No radiance channel data available.")
 
         stats = [getattr(df[metric].dropna(), agg)() for df in chan_list if metric in df.columns]
-        ax = self._ensure_ax(ax)
 
+        ax = self._ensure_ax(ax)
         data_kwargs, style_kwargs = self._split_kwargs(kwargs)
-        # Default marker
         data_kwargs.setdefault("marker", "o")
-        ax.plot(range(1, len(stats)+1), stats, **data_kwargs)
+        ax.plot(range(1, len(stats) + 1), stats, **data_kwargs)
 
         style_kwargs.setdefault("title", f"Radiance channel {agg} of {metric}")
         style_kwargs.setdefault("xlabel", "Channel")
         style_kwargs.setdefault("ylabel", f"{agg}({metric})")
-        self._apply_plot_kwargs(ax, style_kwargs)
+        style_kwargs.setdefault("zero_line", False)
+
+        ax = self._apply_plot_kwargs(ax, style_kwargs)
         self._save(ax, savepath)
         return ax
 
     @_check_kind("rad")
-    def plot_omf_distribution_rad(self,
-                                   channel_index: int,
-                                   corrected: bool = False,
-                                   bins: int = 50,
-                                   ax: Optional[plt.Axes] = None,
-                                   savepath: Optional[str] = None,
-                                   **kwargs) -> plt.Axes:
-        """Plot histogram of O-F values for a single radiance channel.
+    def plot_omf_distribution_rad(
+        self,
+        channel_index: int,
+        corrected: bool = False,
+        bins: int = 50,
+        ax: Optional[plt.Axes] = None,
+        savepath: Optional[str] = None,
+        **kwargs,
+    ) -> plt.Axes:
+        """Histogram of O–F values for a single radiance channel.
 
-        Args:
-            channel_index (int): Index in the channel list.
-            corrected (bool): If True, use 'omf_nbc' if available.
-            bins (int): Number of bins.
-            ax (Optional[plt.Axes]): Existing axes or None.
-            savepath (Optional[str]): Path to save figure.
-            **kwargs: Additional keyword args for `Axes.hist` and styling keys.
+        Parameters
+        ----------
+        channel_index : int
+            Index of the channel within the channel list.
+        corrected : bool, default: False
+            If ``True`` and the column ``'omf_nbc'`` exists, use it instead of ``'omf'``.
+        bins : int, default: 50
+            Number of histogram bins.
+        ax : matplotlib.axes.Axes, optional
+            Existing axes or ``None``.
+        savepath : str, optional
+            If provided, the figure is saved to this path.
+        **kwargs
+            Extra args to :meth:`matplotlib.axes.Axes.hist` and style keys.
 
-        Returns:
-            plt.Axes: The axes with the histogram.
+        Returns
+        -------
+        matplotlib.axes.Axes
+            The axes with the histogram.
         """
         chan_list = self.diag.get_data_frame().get("dataframes", {}).get("diagbufchan_df", [])
         if channel_index < 0 or channel_index >= len(chan_list):
             raise IndexError("Channel index out of range.")
         df = chan_list[channel_index]
+
         key = "omf_nbc" if corrected and "omf_nbc" in df.columns else "omf"
         values = df[key].dropna().to_numpy()
 
@@ -642,22 +811,70 @@ class diagPlotter:
         style_kwargs.setdefault("title", f"O-F distribution for channel {channel_index}")
         style_kwargs.setdefault("xlabel", key)
         style_kwargs.setdefault("ylabel", "Frequency")
-        self._apply_plot_kwargs(ax, style_kwargs)
+        style_kwargs.setdefault("zero_line", False)
+
+        ax = self._apply_plot_kwargs(ax, style_kwargs)
         self._save(ax, savepath)
         return ax
 
+    # ------------------------------------------------------------------
+    # Backwards compatible aliases (deprecated)
+    # ------------------------------------------------------------------
     def pcount(self, *args, **kwargs):
-        """Legacy alias for plot_observation_counts (deprecated)."""
-        warnings.warn("pcount() is deprecated, use plot_observation_counts() instead", DeprecationWarning, stacklevel=2)
-        return self.plot_observation_counts(*args, **kwargs)
+        """Deprecated alias for :meth:`plot_observation_counts`.
+
+        Notes
+        -----
+        Accepts positional or keyword variable names for smoother compatibility.
+        """
+        deprecated("pcount() is deprecated; use plot_observation_counts().")
+        if args:
+            return self.plot_observation_counts(*args, **kwargs)
+        var = kwargs.pop("var", None) or kwargs.pop("varName", None)
+        if var is None:
+            try:
+                var = self.diag.get_variables()[0]
+            except Exception as e:
+                raise TypeError("pcount requires a variable, e.g., pcount('t')") from e
+        return self.plot_observation_counts(var, **kwargs)
 
     def kxcount(self, *args, **kwargs):
-        """Legacy alias for plot_kx_count (deprecated)."""
-        warnings.warn("kxcount() is deprecated, use plot_kx_count() instead", DeprecationWarning, stacklevel=2)
+        """Deprecated alias for :meth:`plot_kx_count`."""
+        deprecated("kxcount() is deprecated; use plot_kx_count().")
         return self.plot_kx_count(*args, **kwargs)
 
     def vcount(self, *args, **kwargs):
-        """Legacy alias for plot_variable_count (deprecated)."""
-        warnings.warn("vcount() is deprecated, use plot_variable_count() instead", DeprecationWarning, stacklevel=2)
+        """Deprecated alias for a conventional histogram (use :meth:`plot_hist_conv`).
+
+        Notes
+        -----
+        Accepts legacy patterns like ``vcount('t', kx=187, column='omf', bins=50)``.
+        """
+        deprecated("vcount() is deprecated; use plot_hist_conv().")
+
+        var = None
+        if args and isinstance(args[0], str):
+            var = args[0]
+        var = var or kwargs.pop("var", None) or kwargs.pop("varName", None)
+        if var is None:
+            try:
+                var = self.diag.get_variables()[0]
+            except Exception as e:
+                raise TypeError("vcount requires a variable (e.g., vcount('t', kx=...)).") from e
+
+        kx = kwargs.pop("kx", None)
+        if kx is None:
+            try:
+                kx = int(self.diag.get_kx_list(var)[0])
+            except Exception as e:
+                raise ValueError(f"No kx available for variable '{var}'.") from e
+
+        col = kwargs.pop("column", kwargs.pop("col", "omf"))
+        bins = kwargs.pop("bins", 50)
+        return self.plot_hist_conv(var, kx, col=col, bins=bins, **kwargs)
+
+    def plot_value_counts(self, *args, **kwargs):
+        """Deprecated alias for :meth:`plot_variable_count`."""
+        deprecated("plot_value_counts() is deprecated; use plot_variable_count() instead")
         return self.plot_variable_count(*args, **kwargs)
 

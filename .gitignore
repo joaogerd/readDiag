@@ -9,4 +9,15 @@ outputs/
 *.tmp
 .DS_Store
 *.png
-
+# Files e Paths
+log
+0001-radiance.patch
+__pycache__/
+dataTest/
+data_processed/
+readDiag.egg-info/
+conv_reader.py
+reader.py1
+reader.py2
+reader.py3
+reader_funcionando.py

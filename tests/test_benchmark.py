@@ -3,6 +3,7 @@ import sys
 import importlib.util
 from pathlib import Path
 import pytest
+pytest.importorskip("pytest_benchmark", reason="pytest-benchmark plugin not installed")
 
 # Ensure project root in sys.path
 ROOT = Path(__file__).resolve().parent.parent
