@@ -4,42 +4,47 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional, Iterable, List, Dict, Any, Tuple
+from typing import Optional, Iterable, List, Dict, Any, Tuple, Sequence
+import itertools
+import re
 from collections import defaultdict
 
 import matplotlib as mpl
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 from matplotlib import cm
+from matplotlib.colors import Normalize, to_hex
+
 import numpy as np
 import pandas as pd
+from textwrap import wrap
 
-from .reader import diagAccess
+try:
+    import cartopy.crs as ccrs
+    import cartopy.feature as cfeature
+    _HAS_CARTOPY = True
+except Exception:  # cartopy opcional
+    _HAS_CARTOPY = False
+
+from .adapters import AccessAdapter, LegacyCompatAdapter
+from .surface import DiagnosticAPI
+from .reader import diagAccess as _DiagAccess
 from .style import PlotConfig
-from .utils import deprecated
+from .utils import deprecated, check_kind
+from .utils import extract_int, mask_to_query, nice_label, guess_cycle_token
+from .utils_plotting import wrap_lon, cmap_hex, ensure_axes_gpd, ensure_axes_cartopy, make_axes, wrap_label
 
+def _get_conv_df(diag, var: str, kx: int) -> pd.DataFrame:
+    return diag.get_dataframe(var, kx) if hasattr(diag, "get_dataframe") else diag.get_data_frame()[var][kx]
 
-def _check_kind(kind: str):
-    """Decorator ensuring a plotting method is only called for a specific
-    diagnostic kind.
-
-    Parameters
-    ----------
-    kind : {"conv", "rad"}
-        The diagnostic type required by the decorated method.
-    """
-
-    def decorator(func):
-        def wrapper(self, *args, **kwargs):
-            if self.kind != kind:
-                raise ValueError(f"{func.__name__} only valid for {kind} diagnostics")
-            return func(self, *args, **kwargs)
-
-        return wrapper
-
-    return decorator
-
-
+def _available_kx(diag, var: str) -> list[int]:
+    """Lista de KX existentes para a variável."""
+    try:
+        return [int(k) for k in diag.get_kx_list(var)]
+    except Exception:
+        d = diag.get_data_frame().get(var, {})
+        return [int(k) for k in getattr(d, "keys", lambda: [])()]
+    
 # ---------------------------------------------------------------------------
 # Apply a global/default plotting configuration at import time
 # (keeps figures visually consistent unless the user provides their own config)
@@ -93,13 +98,33 @@ class diagPlotter:
     # to Matplotlib plotting functions directly.
     STYLE_KEYS = {"title", "xlabel", "ylabel", "rotation", "fontsize", "zero_line"}
 
-    def __init__(self, diag: diagAccess, config: Optional[PlotConfig] = None):
-        if not isinstance(diag, diagAccess):
-            raise TypeError("`diag` must be an instance of diagAccess")
-        self.diag = diag
-        self.kind = "conv" if diag.get_data_type() == 1 else "rad"
-        self.config = config or _default_config
+    def __init__(self, diag, config: Optional[PlotConfig] = None):
+        # 1) Se já expõe a surface completa, usa direto
+        _has_surface = all(
+            callable(getattr(diag, name, None))
+            for name in ("meta", "kind", "variables", "kx_list", "frame_conv",
+                         "channels", "frame_channel", "table")
+        )
+        if _has_surface:
+            self.diag = diag
+        else:
+            # 2) Se parece com o backend moderno COMPLETO (diagAccess real),
+            #    só então usa AccessAdapter. Exigimos também 'file_name'.
+            if isinstance(diag, _DiagAccess) and callable(getattr(diag, "get_file_info", None)) \
+               and hasattr(diag, "file_name"):
+                try:
+                    self.diag = AccessAdapter(diag)
+                except Exception:
+                    # Falhou? Adapta via legado.
+                    self.diag = LegacyCompatAdapter(diag)
+            else:
+                # 3) Fakes/mocks/legados → LegacyCompatAdapter
+                self.diag = LegacyCompatAdapter(diag)
 
+        # Após o embrulho, sempre temos .kind()
+        self.kind = self.diag.kind()
+
+        self.config = config or _default_config
     # ------------------------------------------------------------------
     # Internal utilities
     # ------------------------------------------------------------------
@@ -227,7 +252,7 @@ class diagPlotter:
     # ------------------------------------------------------------------
     # Conventional diagnostics plots
     # ------------------------------------------------------------------
-    @_check_kind("conv")
+    @check_kind("conv")
     def plot_hist_conv(
         self,
         var: str,
@@ -304,7 +329,7 @@ class diagPlotter:
         self._save(ax, savepath)
         return ax
 
-    @_check_kind("conv")
+    @check_kind("conv")
     def plot_boxplot_kxs_conv(
         self,
         var: str,
@@ -340,42 +365,36 @@ class diagPlotter:
         ValueError
             If the variable or column is not available.
         """
-        data_dict = self.diag.get_data_frame()
-        if var not in data_dict:
-            raise ValueError(f"Variable '{var}' not found.")
-
-        kxs = sorted(data_dict[var].keys())
-        series_list: List[Iterable[float]] = []
-        for k in kxs:
-            df = data_dict[var][k]
+        kxs = self.diag.kx_list(var)
+        if not kxs:
+            raise ValueError(f"Variable '{var}' not found or has no KX.")
+        series_list: List[np.ndarray] = []
+        for k in sorted(kxs):
+            df = self.diag.frame_conv(var, k)
             if col not in df.columns:
                 raise ValueError(f"Column '{col}' not in data for kx {k}.")
             series_list.append(df[col].dropna().to_numpy())
 
         ax = self._ensure_ax(ax)
         data_kwargs, style_kwargs = self._split_kwargs(kwargs)
-
-        # Allow a single "color" to color all box components
         if "color" in data_kwargs:
             c = data_kwargs.pop("color")
             data_kwargs.setdefault("boxprops", dict(color=c))
             data_kwargs.setdefault("whiskerprops", dict(color=c))
             data_kwargs.setdefault("capprops", dict(color=c))
             data_kwargs.setdefault("medianprops", dict(color=c))
-
         ax.boxplot(series_list, **data_kwargs)
         ax.set_xticks(range(1, len(kxs) + 1))
-        ax.set_xticklabels(kxs)
+        ax.set_xticklabels(sorted(kxs))
 
         style_kwargs.setdefault("title", f"Boxplot of {col} for {var} across kxs")
         style_kwargs.setdefault("xlabel", "KX")
         style_kwargs.setdefault("ylabel", col)
-
         ax = self._apply_plot_kwargs(ax, style_kwargs)
         self._save(ax, savepath)
         return ax
 
-    @_check_kind("conv")
+    @check_kind("conv")
     def plot_observation_counts(
         self,
         varName: str,
@@ -432,7 +451,7 @@ class diagPlotter:
         self._save(ax, savepath)
         return ax
 
-    @_check_kind("conv")
+    @check_kind("conv")
     def plot_kx_count(
         self,
         ax: Optional[plt.Axes] = None,
@@ -488,7 +507,7 @@ class diagPlotter:
         self._save(ax, savepath)
         return ax
 
-    @_check_kind("conv")
+    @check_kind("conv")
     def plot_variable_count(
         self,
         ax: Optional[plt.Axes] = None,
@@ -529,7 +548,7 @@ class diagPlotter:
         self._save(ax, savepath)
         return ax
 
-    @_check_kind("conv")
+    @check_kind("conv")
     def plot_kx_count_stacked(
         self,
         vars: Optional[List[str]] = None,
@@ -603,7 +622,7 @@ class diagPlotter:
         self._save(ax, savepath)
         return ax
 
-    @_check_kind("conv")
+    @check_kind("conv")
     def plot_spatial_conv(
         self,
         var: str,
@@ -611,6 +630,7 @@ class diagPlotter:
         param: str = "omf",
         mask: Optional[str] = None,
         area: Optional[List[float]] = None,
+        lon_wrap: str = "auto",
         ax: Optional[plt.Axes] = None,
         savepath: Optional[str] = None,
         **kwargs,
@@ -628,9 +648,11 @@ class diagPlotter:
         param : str, default: "omf"
             Column to use for coloring the points (e.g., ``'omf'``, ``'obs'``).
         mask : str, optional
-            Pandas query expression to filter the DataFrame (e.g., ``"iuse == 1"``).
+            Pandas query expression to filter the DataFrame (e.g., ``"iusev == 1"``).
         area : list of float, optional
             Bounding box ``[lon_min, lat_min, lon_max, lat_max]``.
+        lon_wrap : {"auto", "pm180", "360", "none"}, default: "auto"
+            Longitude wrapping mode.
         ax : matplotlib.axes.Axes (cartopy), optional
             Existing GeoAxes. If ``None``, a new figure/axes in PlateCarree is created.
         savepath : str, optional
@@ -666,7 +688,7 @@ class diagPlotter:
             df = df[(df["lon"] >= lon1) & (df["lon"] <= lon2) & (df["lat"] >= lat1) & (df["lat"] <= lat2)]
 
         lats = df["lat"].to_numpy()
-        lons = df["lon"].to_numpy()
+        lons = wrap_lon(df["lon"].to_numpy(dtype=float), mode=lon_wrap)
         values = df[param].to_numpy()
 
         if ax is None:
@@ -714,7 +736,7 @@ class diagPlotter:
     # ------------------------------------------------------------------
     # Radiance diagnostics plots
     # ------------------------------------------------------------------
-    @_check_kind("rad")
+    @check_kind("rad")
     def plot_channel_stats_rad(
         self,
         metric: str = "omf",
@@ -764,7 +786,7 @@ class diagPlotter:
         self._save(ax, savepath)
         return ax
 
-    @_check_kind("rad")
+    @check_kind("rad")
     def plot_omf_distribution_rad(
         self,
         channel_index: int,
@@ -878,3 +900,393 @@ class diagPlotter:
         deprecated("plot_value_counts() is deprecated; use plot_variable_count() instead")
         return self.plot_variable_count(*args, **kwargs)
 
+    def plot(
+        self,
+        varName: Optional[str] = None,
+        varType: Optional[str] = None,
+        param: str = "omf",
+        minVal: Optional[float] = None,
+        maxVal: Optional[float] = None,
+        mask: Optional[str] = None,
+        area: Optional[Tuple[float, float, float, float]] = None,
+        *,
+        channel: Optional[int] = None,
+        kx: Optional[int] = None,
+        basemap: bool = True,
+        resolution: str = "110m",
+        cmap: str = "jet",
+        s: float = 6.0,
+        **scatter_kwargs,
+    ):
+        """Unified legacy-style plot for both conventional and radiance diagnostics.
+
+        This method preserves the legacy signature while supporting modern kwargs.
+        It dispatches by data type and plots a global swath (rad) or point map (conv).
+
+        Args:
+            varName: For conventional, the variable key (e.g., "t", "uv", "ps").
+                For radiance, a label for the title (e.g., "amsua").
+            varType: Free text for title (e.g., "n19").
+            param: Column to color. For radiance accepts {"obs","omf","oma"} mapping to
+                {"tb_obs","omf","oma"}. For conventional, must exist in the DataFrame
+                (typical: "omf", "oma", "end_err", etc.).
+            minVal: Colormap min bound.
+            maxVal: Colormap max bound.
+            mask: Legacy-like expression, e.g. "(nchan==14) & (iuse >= 1 & idqc == 0)"
+                or "(kx==181) & (iuse >= 1)" for conventional. Parsed into pandas.query.
+            area: (lon_min, lon_max, lat_min, lat_max) to set extent.
+            channel: 1-based channel number (radiance). If None, will try parse from mask.
+            kx: KX code (conventional). If None, will try parse from mask.
+            basemap: Add Cartopy basemap (if available). Default True.
+            resolution: Cartopy NaturalEarth scale ("110m"/"50m"/"10m").
+            cmap: Matplotlib colormap.
+            s: Scatter marker size.
+            **scatter_kwargs: Forwarded to plt.scatter.
+
+        Returns:
+            matplotlib.axes.Axes: The axes used for the plot.
+
+        Raises:
+            ValueError: When required columns are missing or selection is invalid.
+        """
+        data_type = self.diag.get_data_type()  # 1=conv, else=rad (conforme teu reader)
+        # ------------------------------------------------------------------ RAD
+        if data_type != 1:
+            # Resolve channel (1-based)
+            ch = channel or extract_int(mask, r"nchan\s*==\s*(\d+)", default=1)
+            ch_idx = ch - 1
+
+            df_all = self.diag.get_data_frame()["dataframes"]
+            chan_list = df_all["diagbufchan_df"]
+            if ch_idx < 0 or ch_idx >= len(chan_list):
+                raise ValueError(f"Invalid channel {ch}; file has {len(chan_list)} channels.")
+
+            # Merge geometry (lat/lon) + selected channel (no replication in memory)
+            df_geo = df_all["diagbuf_df"][["lat", "lon"]].reset_index(drop=True)
+            df_ch = chan_list[ch_idx].reset_index(drop=True)
+            df = pd.concat([df_geo, df_ch], axis=1)
+
+            col_map = {"obs": "tb_obs", "omf": "omf", "oma": "oma"}
+            color_col = col_map.get(param.lower(), None)
+            if color_col is None or color_col not in df.columns:
+                raise ValueError(f"Unsupported param='{param}' for radiance.")
+
+            # Apply mask (remove nchan==N since already selected)
+            if mask:
+                q = mask_to_query(mask, drop_token="nchan")
+                df = df.query(q)
+
+            title_left = f"Radiance - {str(varName or '').upper()} - {str(varType or '').upper()}."
+            title_center = f"Channel ={ch}"
+            cycle = guess_cycle_token(self.diag.file_name)  # implementado abaixo
+
+        # --------------------------------------------------------------- CONV
+        else:
+            # Resolve variable/kx
+            var = varName or self.diag.get_variables()[0]
+            if kx is None:
+                kx = extract_int(mask, r"kx\s*==\s*(\d+)", default=None)
+            # Data is organized as {var: {kx: DataFrame}}
+            df_map = self.diag.get_data_frame()[var]
+            if kx is None:
+                # pick first non-empty
+                kx = next((int(k) for k, v in df_map.items() if hasattr(v, "empty") and not v.empty), None)
+            if kx is None or kx not in df_map:
+                raise ValueError(f"KX not found (var={var}, kx={kx}).")
+            df = df_map[kx]
+            if "lat" not in df.columns or "lon" not in df.columns:
+                raise ValueError("Conventional DF missing 'lat'/'lon' columns.")
+
+            # param must be a column in conv DF
+            color_col = param if param in df.columns else None
+            if color_col is None:
+                raise ValueError(f"param='{param}' not found in conventional columns: {list(df.columns)}")
+
+            if mask:
+                q = mask_to_query(mask, drop_token="kx")
+                df = df.query(q)
+
+            title_left = f"Conventional - {var.upper()} (kx={kx})"
+            title_center = color_col
+            cycle = guess_cycle_token(self.diag.file_name)
+
+        # --------------------------------------------------------------- PLOT
+        ax, transform = make_axes(basemap=basemap, resolution=resolution)
+        sc = ax.scatter(
+            df["lon"], df["lat"], c=df[color_col],
+            s=s, cmap=cmap, transform=transform, **scatter_kwargs
+        )
+        cb = plt.colorbar(sc, ax=ax, pad=0.02)
+        cb.set_label(nice_label(color_col))
+        if (minVal is not None) or (maxVal is not None):
+            sc.set_clim(vmin=minVal, vmax=maxVal)
+
+        if area:
+            lon_min, lon_max, lat_min, lat_max = area
+            if transform is not None:
+                ax.set_extent([lon_min, lon_max, lat_min, lat_max], crs=transform)
+            else:
+                ax.set_xlim(lon_min, lon_max); ax.set_ylim(lat_min, lat_max)
+
+        # Titles (left/center/right)
+        ax.set_title(title_center, loc="center", fontsize=11, fontweight="bold")
+        ax.set_title(title_left,   loc="left",   fontsize=9)
+        ax.set_title(cycle,        loc="right",  fontsize=9)
+
+        plt.tight_layout()
+        return ax
+    # ------------------------------------------------------------------
+    # ptmap (conv) — multi-KX, estilo legacy, rápido
+    # ------------------------------------------------------------------
+    def plot_ptmap(
+        self,
+        varName: str,
+        varType: int | list[int] | None = None,
+        *,
+        mask: str | None = None,
+        area: list[float] | None = None,
+        backend: str = "auto",
+        world_path: str | None = None,
+        style: str = "seaborn-v0_8",
+        legend: bool | None = None,
+        strict: bool = False,
+        verbose: bool = True,
+        ax: plt.Axes | None = None,
+        lon_wrap: str = "auto",
+        **kwargs,
+    ) -> plt.Axes:
+        """Point-map by KX for a conventional variable.
+
+        Parameters
+        ----------
+        varName : str
+            Variable key (e.g., ``"t"``, ``"q"``, ``"ps"``).
+        varType : int or list of int, optional
+            One or multiple KX codes. If ``None``, plot all available KX.
+        mask : str, optional
+            Pandas ``query`` expression to filter rows.
+        area : list of float, optional
+            Bounding box ``[lon_min, lat_min, lon_max, lat_max]``.
+        backend : {"auto", "gpd", "cartopy"}, default: "auto"
+            Preferred basemap engine.
+        world_path : str, optional
+            Path to world polygons (GeoPandas).
+        style : str, default: "seaborn-v0_8"
+            Matplotlib style to apply for this plot.
+        legend : bool, optional
+            If ``None``, auto-enable when multiple KX are plotted.
+        strict : bool, default: False
+            If ``True``, error on missing KX; otherwise skip.
+        verbose : bool, default: True
+            Print skips for missing/empty KX.
+        ax : matplotlib.axes.Axes, optional
+            Existing axes or ``None``.
+        lon_wrap : {"auto", "pm180", "360", "none"}, default: "auto"
+            Longitude wrapping mode.
+        **kwargs
+            Forwarded to the underlying ``Axes.plot`` (marker, alpha, etc.).
+
+        Returns
+        -------
+        matplotlib.axes.Axes
+            The axes with the point map.
+        """
+        # (1) estilo e defaults visuais (comentário PT-BR)
+        plt.style.use(style)
+        kwargs.setdefault("alpha", 0.5)
+        kwargs.setdefault("marker", "*")
+        kwargs.setdefault("markersize", 5)
+        kwargs.setdefault("linewidth", 1)
+        want_legend = True if legend is None else bool(legend)
+
+        # (2) resolve KX requeridos e disponíveis
+        def _available_kx(diag, var: str) -> list[int]:
+            try:
+                return [int(k) for k in diag.get_kx_list(var)]
+            except Exception:
+                d = diag.get_data_frame().get(var, {})
+                return [int(k) for k in getattr(d, "keys", lambda: [])()]
+
+        req = (
+            _available_kx(self.diag, varName)
+            if varType is None
+            else ([int(varType)] if isinstance(varType, int) else [int(k) for k in varType])
+        )
+        avail = set(_available_kx(self.diag, varName))
+        missing = [k for k in req if k not in avail]
+        kxs = [k for k in req if k in avail]
+        if missing and strict:
+            raise ValueError(f"[ptmap] missing KX for var={varName}: {missing}. Available: {sorted(avail)[:30]}")
+        if missing and verbose:
+            print(f"[ptmap] skipping missing KX for {varName}: {missing}")
+        if not kxs:
+            raise ValueError(f"[ptmap] no KX to plot for var={varName}. Available: {sorted(avail)[:30]}")
+
+        # (3) prepara basemap e função de plot
+        use = backend
+        if use == "auto":
+            try:
+                import geopandas  # noqa: F401
+                use = "gpd"
+            except Exception:
+                use = "cartopy"
+
+        if use == "gpd":
+            ax = ensure_axes_gpd(ax, area, world_path=world_path)
+
+            def scatter_fn(x, y, color):
+                ax.plot(x, y, linestyle="None", c=color, **kwargs)
+        else:
+            ax, _ = ensure_axes_cartopy(ax, area)
+
+            def scatter_fn(x, y, color):
+                ax.plot(x, y, linestyle="None", c=color, **kwargs)
+
+        # (4) itera KX, aplica mask e plota
+        patches: List = []
+        for i, kx in enumerate(kxs):
+            df = (
+                self.diag.get_dataframe(varName, kx)
+                if hasattr(self.diag, "get_dataframe")
+                else self.diag.get_data_frame()[varName][kx]
+            )
+            if mask:
+                try:
+                    df = df.query(mask)
+                except Exception:
+                    continue
+            if df.empty or not {"lat", "lon"}.issubset(df.columns):
+                continue
+
+            x = wrap_lon(df["lon"].to_numpy(dtype=float), mode=lon_wrap)
+            y = df["lat"].to_numpy(dtype=float)
+            color = cmap_hex(i, len(kxs), "Paired")
+            label = f"{varName}-{kx}"
+            from matplotlib.patches import Patch
+
+            patches.append(Patch(color=color, label=wrap_label(label, 30)))
+            scatter_fn(x, y, color)
+
+        if want_legend and patches:
+            plt.subplots_adjust(bottom=0.30)
+            ax.legend(
+                handles=patches,
+                loc="upper center",
+                bbox_to_anchor=(0.5, -0.08),
+                frameon=False,
+                ncol=4,
+                prop={"size": 9},
+                labelspacing=1.0,
+            )
+
+        ax.set_xlabel("Longitude")
+        ax.set_ylabel("Latitude")
+        return ax
+    # ------------------------------------------------------------------
+    # pvmap (conv) — por variável, com `mask` em todos os KX
+    # ------------------------------------------------------------------
+    @check_kind("conv")
+    def plot_pvmap(
+        self,
+        varName: list[str] | str | None = None,
+        *,
+        mask: str | None = None,
+        area: List[float] | None = None,
+        backend: str = "auto",
+        world_path: str | None = None,
+        style: str = "seaborn-v0_8",
+        legend: bool | None = None,
+        ax: plt.Axes | None = None,
+        lon_wrap: str = "auto",         # "auto" | "pm180" | "360" | "none"
+        verbose: bool = True,
+        **kwargs,
+    ) -> plt.Axes:
+        """Point-map por variável (soma todos os KX de cada variável)."""
+        plt.style.use(style)
+        # defaults do legado
+        kwargs.setdefault("alpha", 0.5)
+        kwargs.setdefault("marker", "*")
+        kwargs.setdefault("markersize", 5)
+        kwargs.setdefault("linewidth", 1)
+        want_legend = True if legend is None else bool(legend)
+    
+        # decidir backend e função de plot
+        use = backend
+        if use == "auto":
+            try:
+                import geopandas  # noqa: F401
+                use = "gpd"
+            except Exception:
+                use = "cartopy"
+    
+        if use == "gpd":
+            ax = _ensure_axes_gpd(ax, area, world_path=world_path)
+            def scatter_fn(x, y, color):
+                ax.plot(x, y, linestyle="None", c=color, **kwargs)
+        else:
+            ax, _ = _ensure_axes_cartopy(ax, area)
+            def scatter_fn(x, y, color):
+                ax.plot(x, y, linestyle="None", c=color, **kwargs)
+    
+        # resolver quais variáveis usar
+        if varName is None:
+            # ordena por contagem total usando a API de KX para cada var
+            vars_all: list[str] = list(getattr(self.diag, "get_variables", lambda: [])())
+            def _total(v: str) -> int:
+                cnt = 0
+                for kx in _available_kx(self.diag, v):
+                    try:
+                        cnt += len(_get_conv_df(self.diag, v, kx))
+                    except Exception:
+                        pass
+                return cnt
+            var_list = sorted(vars_all, key=_total, reverse=True)
+        else:
+            var_list = varName if isinstance(varName, list) else [varName]
+    
+        # paleta fixa (igual ao legacy)
+        colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
+                  '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22']
+    
+        patches: list = []
+        for i, var in enumerate(var_list):
+            # junta todos os KX existentes da variável
+            frames: list[pd.DataFrame] = []
+            for kx in _available_kx(self.diag, var):
+                try:
+                    df = _get_conv_df(self.diag, var, kx)
+                except Exception:
+                    continue
+                if mask:
+                    try:
+                        df = df.query(mask)
+                    except Exception:
+                        # máscara inválida para esta var → ignora este KX
+                        continue
+                if df.empty or not {"lat", "lon"}.issubset(df.columns):
+                    continue
+                frames.append(df[["lon", "lat"]])
+    
+            if not frames:
+                if verbose:
+                    print(f"[pvmap] nenhum ponto para var={var} (após mask/lon check)")
+                continue
+    
+            dfv = pd.concat(frames, ignore_index=True)
+            # wrap 0..360 → -180..180 se necessário
+            x = _wrap_lon(dfv["lon"].to_numpy(dtype=float), mode=lon_wrap)
+            y = dfv["lat"].to_numpy(dtype=float)
+    
+            color = colors[i % len(colors)]
+            patches.append(plt.matplotlib.patches.Patch(color=color, label=var))
+            scatter_fn(x, y, color)
+    
+        if want_legend and patches:
+            ax.legend(
+                handles=patches, numpoints=1, loc="best",
+                bbox_to_anchor=(1.1, 0.6), frameon=False, ncol=1, prop={"size": 10}
+            )
+    
+        ax.set_xlabel("Longitude")
+        ax.set_ylabel("Latitude")
+        return ax

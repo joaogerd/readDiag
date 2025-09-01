@@ -71,9 +71,11 @@ from .reader import diagAccess
 from .plotting import diagPlotter
 from .style import PlotConfig
 from .impact import ImpactAnalyzer, ExperimentComparator, ComparisonPlotter
-from .api import read_conv, read_rad, read_any
+from .api import read_conv, read_rad, read_any # legacy functional API
 from .legacy import read_diag  # deprecated wrapper for backward compatibility
-
+from .open import open_diagnostic            # NEW: stable factory (adapter-based)
+from .surface import DiagnosticAPI, Metadata # NEW: stable contract (Protocol + DTO)
+from .adapters import AccessAdapter, LegacyCompatAdapter  # opcional
 __all__ = [
     "diagAccess",
     "diagPlotter",
@@ -85,5 +87,10 @@ __all__ = [
     "read_rad",
     "read_any",
     "read_diag",  # deprecated
+    "open_diagnostic",  # NEW
+    "DiagnosticAPI",    # NEW
+    "Metadata",         # NEW
+    "AccessAdapter",
+    "LegacyCompatAdapter",
 ]
 

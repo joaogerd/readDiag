@@ -1,1 +1,3 @@
+data/diag_conv_01.2024013018 filter=lfs diff=lfs merge=lfs -text
+data/diag_conv_03.2024013018 filter=lfs diff=lfs merge=lfs -text
 data/** filter=lfs diff=lfs merge=lfs -text

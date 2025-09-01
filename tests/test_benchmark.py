@@ -21,8 +21,8 @@ LegacyDiagAccess = legacy_mod.diagAccess
 
 # Test data files
 DATA_DIR = ROOT / "data"
-CONV_FILE = str(DATA_DIR / "diag_conv_01.2020010100")
-RAD_FILE = str(DATA_DIR / "diag_amsua_n15_01.2020010100")
+CONV_FILE = str(DATA_DIR / "diag_conv_01.2024013018")
+RAD_FILE = str(DATA_DIR / "diag_amsua_n15_01.2024013018")
 
 # --- Conventional reads ---
 @pytest.mark.benchmark(group="conv_read_legacy")

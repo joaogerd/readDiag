@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 
 from readDiag import diagAccess, diagPlotter
 
-TEST_FILE = os.path.join(os.path.dirname(__file__), "../data/diag_conv_01.2020010100")
+TEST_FILE = os.path.join(os.path.dirname(__file__), "../data/diag_conv_01.2024013018")
 
 @pytest.fixture
 def plotter():

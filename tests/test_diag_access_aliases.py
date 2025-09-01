@@ -5,7 +5,7 @@ from datetime import datetime
 import warnings
 import pandas as pd
 
-TEST_FILE = os.path.join(os.path.dirname(__file__), "../data/diag_conv_01.2020010100")
+TEST_FILE = os.path.join(os.path.dirname(__file__), "../data/diag_conv_01.2024013018")
 
 def test_get_overview_and_alias():
     diag = diagAccess(TEST_FILE)

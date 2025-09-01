@@ -36,6 +36,7 @@ from .utils import (
     log_time,
     fix_endian,
     needs_swap_dtype,
+    replace_sentinels,
 )
 from .conv import read_conv_file, BASE20_COLS
 from .rad import (
@@ -119,8 +120,9 @@ class diagAccess:
 
         fmt = self._detect_format_file(file_name)
         if fmt == 'conv':
+            # Read conventional diagnostics
             self._data_type = 1
-            self._data_frame = read_conv_file(
+            raw_data = read_conv_file(
                 file_name,
                 var=var,
                 fast=fast,
@@ -131,7 +133,17 @@ class diagAccess:
                 compact=compact,
                 set_date_cb=lambda d: setattr(self, '_idate', d),
             )
+            
+            # Replace sentinel values with NaN for all DataFrames
+            if not raw_numpy:
+                for v in raw_data:
+                    for kx in raw_data[v]:
+                        raw_data[v][kx] = replace_sentinels(raw_data[v][kx])
+            
+            self._data_frame = raw_data
+
         else:
+            # Initialize radiance dtypes only once
             if not type(self)._rad_inited:
                 init_rad_dtypes()
                 type(self)._rad_inited = True
@@ -141,6 +153,12 @@ class diagAccess:
                 chdf = read_rad_channels(f, hdr['nchanl'])
                 diag = read_rad_payload(f, size, hdr, use_memmap)
                 df1, df_list, df2 = extract_rad_dataframes(diag, hdr)
+                
+            # Replace sentinel values in all radiance DataFrames
+            df1 = replace_sentinels(df1)
+            df2 = replace_sentinels(df2)
+            df_list = [replace_sentinels(df) for df in df_list]
+                
             self._idate = datetime.strptime(str(int(hdr['idate'])), "%Y%m%d%H")
             self._data_frame = {
                 'sensor': hdr['obstype'],

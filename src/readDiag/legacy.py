@@ -85,20 +85,20 @@ class read_diag:
         deprecated("plot() legacy; use diagPlotter(...).plot_observation_counts().")
         return self.plotter.plot_observation_counts(var, **kwargs)
 
-    def ptmap(self, varName: str, varType: Optional[int] = None, **kwargs):
+    def ptmap(self, varName: str, varType: Optional[int | List[int]] = None, **kwargs):
         """
         Point map (conv): encaminha para plot_spatial_conv.
         Mantém assinatura (varName, varType, ...).
         """
-        deprecated("ptmap() is deprecated; use plot_spatial_conv().")
-        return self.plotter.plot_spatial_conv(var=varName, kx=varType, **kwargs)
+        deprecated("ptmap() is deprecated; use plot_ptmap().")
+        return self.plotter.plot_ptmap(varName=varName, varType=varType, **kwargs)
 
-    def pvmap(self, varName: str, varType: Optional[int] = None, column: str = "omf", **kwargs):
+    def pvmap(self, varName: Optional[str | List[str]] = None, **kwargs):
         """
         Value map (conv): spatial colored by `column` (default=omf).
         """
-        deprecated("pvmap() is deprecated; use plot_spatial_conv(..., color_by=...).")
-        return self.plotter.plot_spatial_conv(var=varName, kx=varType, color_by=column, **kwargs)
+        deprecated("pvmap() is deprecated; use plot_pvmap().")
+        return self.plotter.plot_pvmap(varName=varName, **kwargs)
 
     def pcount(self, var: str, **kwargs):
         """

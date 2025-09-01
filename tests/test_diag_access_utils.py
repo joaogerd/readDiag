@@ -14,11 +14,11 @@ from readDiag import diagAccess
 
 @pytest.fixture
 def conv_diag():
-    return diagAccess("data/diag_conv_01.2020010100", var="t")
+    return diagAccess("data/diag_conv_01.2024013018", var="t")
 
 @pytest.fixture
 def rad_diag():
-    return diagAccess("data/diag_amsua_n15_01.2020010100", use_memmap=False)
+    return diagAccess("data/diag_amsua_n15_01.2024013018", use_memmap=False)
 
 def test_get_variables(conv_diag):
     vars = conv_diag.get_variables()

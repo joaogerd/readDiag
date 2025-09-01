@@ -178,3 +178,9 @@ def read_any(
     )
     return diag.get_data_frame()
 
+try:
+    from .open import open_diagnostic  # noqa: F401
+except Exception:
+    pass
+
+

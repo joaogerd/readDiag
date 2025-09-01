@@ -13,8 +13,8 @@ import matplotlib.colors as mcolors
 
 ROOT = os.path.dirname(os.path.dirname(__file__))
 
-CONV_FILE = os.path.join(ROOT, "data", "diag_conv_01.2020010100")
-RAD_FILE = os.path.join(ROOT, "data", "diag_amsua_n15_01.2020010100")
+CONV_FILE = os.path.join(ROOT, "data", "diag_conv_01.2024013018")
+RAD_FILE = os.path.join(ROOT, "data", "diag_amsua_n15_01.2024013018")
 
 
 def test_plot_conv_hist_and_box(tmp_path):
