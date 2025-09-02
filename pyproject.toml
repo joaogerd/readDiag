@@ -11,7 +11,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "readDiag"
-version = "2.0.0-rc1"
+version = "2.0.0rc1"
 description = "Package for reading and visualizing GSI diagnostic files (conventional and radiance)."
 authors = [
     {name = "João Gerd Zell de Mattos", email = "joao.gerd@inpe.br"}

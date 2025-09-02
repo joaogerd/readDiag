@@ -1,54 +1,48 @@
-# Changelog
+# 📑 Changelog
 
-Todas as mudanças notáveis neste projeto serão documentadas aqui.  
-O formato segue as recomendações do [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) e versionamento semântico (SemVer).
-
----
-
-## [2.0.0-rc.1] - 2025-09-02
-### ⚠️ Breaking changes
-- **API estável** introduzida via `readDiag.adapters`:
-  - `AccessAdapter` — camada estável sobre `diagAccess`.
-  - `LegacyCompatAdapter` — compatibilidade para backends legados e fakes de teste.
-- **Removido**: `src/readDiag/diagAccess_legacy.py`.
-- **Plotting**:
-  - Métodos decorados com `@check_kind("conv" | "rad")`.
-  - `diagPlotter` agora detecta automaticamente API nova vs legado e escolhe o adapter adequado.
-- **Utils**:
-  - `check_kind` aceita `kind()` callables.
-  - Helpers de endianness tornaram-se **idempotentes** (compatíveis com NumPy <2 e ≥2).
-
-### 🚀 Melhorias
-- `LegacyCompatAdapter` faz *best-effort* para inferir `kind`, `date`, `n_channels`, `n_obs`.
-- Shims de legado preservados: `get_variables`, `get_kx_list`, `get_dataframe(...)` etc.
-- Novos exemplos em `examples/`:
-  - `01_quickstart_conv.py`, `02_quickstart_rad.py`, `03_plots_conv.py`, `04_plots_rad.py`, …
-  - `07_legacy_compat.py` mostra migração a partir do legado.
-- Testes abrangentes para `AccessAdapter` e `LegacyCompatAdapter`.
-
-### 🛠 Refatorações
-- `readDiag/api.py` e `__init__.py` expõem a nova API.
-- `reader.py`: acessos mais seguros para fakes sem `_data_frame`.
-- `plotting.py`: melhor *fallback* para chamadas antigas sem quebrar imagens já geradas.
-
-### 🧹 Remoções
-- Exemplos/scritps antigos e material obsoleto no diretório `examples/old/` e correlatos.
+All notable changes to this project will be documented in this file.  
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),  
+and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [1.x] - Histórico
-### 1.0.0 – 1.9.x
-- Versões iniciais do `readDiag`, baseadas em `diagAccess` diretamente.
-- Suporte a arquivos convencionais (`conv`) e de radiância (`rad`).
-- Primeiras rotinas de *plotting* e *impact analysis*.
-- Estrutura de testes iniciais para garantir compatibilidade mínima.
+## [2.0.0-rc.1] - 2025-09-02 (Pre-release)
+
+### 🚨 Breaking changes
+- Introduced the new **stable API layer** with adapters:
+  - `AccessAdapter` for modern, stable access.
+  - `LegacyCompatAdapter` for legacy-like backends.
+- Removed `diagAccess_legacy.py` (now replaced by adapters).
+- Major refactor of `plotting.*` and `utils.*`:
+  - Plotting methods now use decorators (`check_kind`) instead of manual `if kind != ...`.
+  - Endianness helpers updated to be idempotent and NumPy 2.0+ compatible.
+- Changes in test suite structure to cover adapters and plotting compatibility.
+
+### ✨ Improvements
+- Added `check_kind` decorator with support for `.kind()` callables.
+- Enhanced **legacy compatibility**:
+  - Fakes and test backends now supported via `LegacyCompatAdapter`.
+  - Metadata inference (date, sensor, platform, n_channels, n_obs) more robust.
+- Extended plotting API:
+  - More consistent kwargs (`title`, `xlabel`, `ylabel`, `color`, `alpha`).
+  - Publication-ready defaults.
+- Improved logging and error handling across `utils.py`.
+
+### 🧪 Testing
+- Added dedicated test modules:
+  - `test_access_adapter_conv.py` and `test_access_adapter_rad.py`
+  - `test_legacy_adapter_conv.py` and `test_legacy_adapter_rad.py`
+  - Compatibility tests for plotting (`test_plotting.py`, `test_plotting_aliases.py`)
+- Expanded coverage of decorators, metadata inference, and DataFrame outputs.
 
 ---
 
-### Notas de migração
-- Código que dependia de `diagAccess_legacy.py` deve migrar para:
-  - **Novo**: `AccessAdapter(diagAccess(...))` (preferido), ou
-  - **Compat**: `LegacyCompatAdapter(...)` quando ainda não for possível alterar o backend.
-- Em `plotting`, evite usar métodos “crus” do backend; prefira `diagPlotter(backend_ou_adapter)`.
+## [1.x] - Previous Series
 
-> Esta versão é uma *Release Candidate*; a API estável pode sofrer pequenos ajustes antes do 2.0 final.
+Earlier versions of `readDiag` provided basic diagnostic reading and plotting.  
+This pre-release marks the beginning of the **2.x stable API**, with adapters and improved plotting.  
+
+---
+
+[2.0.0-rc.1]: https://github.com/joaogerd/readDiag/releases/tag/v2.0.0-rc.1
+

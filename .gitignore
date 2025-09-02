@@ -8,7 +8,6 @@ outputs/
 *.yml
 *.tmp
 .DS_Store
-*.png
 # Files e Paths
 log
 0001-radiance.patch
@@ -29,3 +28,8 @@ site/
 site/
 # Local bundles
 *.zip
+# Ignore PNGs gerados nos testes
+tests/**/*.png
+
+# Permitir imagens de documentação
+!docs/images/*.png
