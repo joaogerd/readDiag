@@ -109,7 +109,7 @@ Cartopy     : not installed
 ```python
 from readDiag import diagAccess, diagPlotter
 
-diag = diagAccess("data/diag_conv_01.2020010100")
+diag = diagAccess("data/"diag_conv_01.2024013018)
 plotter = diagPlotter(diag)
 plotter.plot()
 ```
@@ -120,8 +120,8 @@ plotter.plot()
 from readDiag import ImpactAnalyzer, ExperimentComparator
 
 # Build pairs of (OmF, OmA) files for two sensors (e.g., n18 and n19)
-exp1 = [("data/diag_amsua_n18_01.2023041600", "data/diag_amsua_n18_03.2023041600"), ...]
-exp2 = [("data/diag_amsua_n19_01.2023041600", "data/diag_amsua_n19_03.2023041600"), ...]
+exp1 = [("data/diag_amsua_n18_01.2024013018", "data/diag_amsua_n18_03.2024013018"), ...]
+exp2 = [("data/diag_amsua_n18_01.2024013018", "data/diag_amsua_n19_03.2024013018"), ...]
 
 comparator = ExperimentComparator(exp1, exp2)
 comparator.compare()
