@@ -21,3 +21,6 @@ reader.py1
 reader.py2
 reader.py3
 reader_funcionando.py
+
+# MkDocs build
+site/
