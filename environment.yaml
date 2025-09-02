@@ -1,0 +1,18 @@
+name: readDiag
+channels:
+  - conda-forge
+dependencies:
+  - python>=3.9
+  - pip
+  # Runtime pesado melhor pelo conda
+  - numpy
+  - pandas
+  - matplotlib
+  - scipy
+  - statsmodels
+  - scikit-learn
+  - cartopy
+  - geopandas
+  # (opcional) utilitários que não existam no conda podem entrar via pip
+  - pip:
+      - -e .[dev,docs]
