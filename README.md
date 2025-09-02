@@ -17,7 +17,7 @@ It is designed for robust analysis of observation impact and supports scalable b
 
 ```bash
 conda create --name readDiag python=3.11 --no-default-packages
-conda activate testpkg
+conda activate readDiag
 ````
 
 ### For Users (runtime only)
