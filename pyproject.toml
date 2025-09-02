@@ -11,7 +11,9 @@ description = "Read, analyze and visualize GSI diagnostics (conv & radiance)."
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "LGPL-3.0"}
-authors = [{ name = "João Gerd Zell de Mattos" }]
+authors = [
+  { name = "João Gerd Zell de Mattos", email = "joao.gerd@inpe.br" }
+]
 keywords = ["GSI", "data assimilation", "diagnostics", "radiance", "conventional"]
 classifiers = [
   "Programming Language :: Python :: 3",
