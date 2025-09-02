@@ -17,7 +17,7 @@ It is designed for robust analysis of observation impact and supports scalable b
 
 ```bash
 conda create --name readDiag python=3.11 --no-default-packages
-conda activate testpkg
+conda activate readDiag
 ````
 
 ### For Users (runtime only)
@@ -37,8 +37,58 @@ git clone https://github.com/joaogerd/readDiag
 cd readDiag
 pip install -e .[dev]
 ```
+---
+### Verify package import and version
 
+```bash
+python -c "import readDiag; print('✅ import ok, version =', readDiag.__version__)"
+````
+### Or via CLI
+
+```bash
+python -m readDiag --show-versions
+``` 
 This installs additional dependencies for testing, linting, and documentation.
+
+---
+
+## 📟 CLI Usage
+
+Once installed, **readDiag** provides a lightweight command-line interface (CLI) for quick environment checks and debugging.
+
+### Run via Python module
+
+```bash
+# Show package version
+python -m readDiag --version
+
+# Show full environment (Python, OS, NumPy, Pandas, Matplotlib, Cartopy)
+python -m readDiag --show-versions
+```
+
+### Run via console script (if installed with entrypoint)
+
+If `setup.py` / `pyproject.toml` defines a `console_scripts` entrypoint, you can also call it directly:
+
+```bash
+# Show package version
+readDiag --version
+
+# Show environment versions
+readDiag --show-versions
+```
+
+### Example output
+
+```text
+readDiag    : 2.1.0
+Python      : 3.12.2
+OS          : Linux 6.8.0-...
+NumPy       : 2.0.2
+Pandas      : 2.2.3
+Matplotlib  : 3.9.2
+Cartopy     : not installed
+```
 
 ---
 
