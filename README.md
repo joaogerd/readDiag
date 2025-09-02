@@ -13,6 +13,13 @@ It is designed for robust analysis of observation impact and supports scalable b
 
 ## 🚀 Installation
 
+### Minimal Conda environment (optional, but recommended)
+
+```bash
+conda create --name readDiag python=3.11 --no-default-packages
+conda activate testpkg
+````
+
 ### For Users (runtime only)
 
 ```bash

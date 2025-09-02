@@ -1,34 +1,63 @@
-# =============================
 # pyproject.toml
-# =============================
-# TOML format
-[project.optional-dependencies]
-dev = ["pytest", "black", "ruff", "mypy"]
 
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=69", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "readDiag"
-version = "2.0.0rc1"
-description = "Package for reading and visualizing GSI diagnostic files (conventional and radiance)."
-authors = [
-    {name = "João Gerd Zell de Mattos", email = "joao.gerd@inpe.br"}
-]
+version = "2.0.0"
+description = "Read, analyze and visualize GSI diagnostics (conv & radiance)."
 readme = "README.md"
-requires-python = ">=3.9"
-license = {text = "LGPL-3.0-or-later"}
+requires-python = ">=3.10"
+license = {text = "LGPL-3.0"}
+authors = [{ name = "João Gerd Zell de Mattos" }]
+keywords = ["GSI", "data assimilation", "diagnostics", "radiance", "conventional"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: GNU Lesser General Public License v3 (LGPLv3)",
+  "Topic :: Scientific/Engineering",
+]
+
+# === Runtime dependencies (copiadas do setup.py) ===
 dependencies = [
-    "numpy",
-    "pandas",
-    "matplotlib"
+  # Core
+  "numpy>=2.0,<3.0",
+  "pandas>=2.2,<3.0",
+  "matplotlib>=3.8,<4.0",
+  "scipy>=1.12,<2.0",
+  "packaging>=23",
+  # Extras usados pela lib
+  "statsmodels>=0.14,<0.15",
+  "scikit-learn>=1.4,<2.0",
+  "cartopy>=0.22,<0.26",
+  "geopandas>=1.0,<1.3",
+]
+
+[project.optional-dependencies]
+# Ferramentas de desenvolvimento
+dev = [
+  "pytest>=8.2,<9.0",
+  "pytest-cov",
+  "black",
+  "ruff",
+  "mypy",
+]
+# Documentação
+docs = [
+  "mkdocs-material",
+  "mkdocstrings[python]",
+  "mkdocstrings-python",
+  "pillow",
+  "pygments",
 ]
 
 [project.urls]
 Homepage = "https://github.com/joaogerd/readDiag"
 
 [tool.setuptools]
-package-dir = {"" = "src"}
-packages = ["readDiag"]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
 
