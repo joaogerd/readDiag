@@ -24,3 +24,8 @@ reader_funcionando.py
 
 # MkDocs build
 site/
+
+# MkDocs build
+site/
+# Local bundles
+*.zip
