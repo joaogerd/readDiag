@@ -8,3 +8,15 @@ This site documents **readDiag** plotting utilities, focusing on the new `plotti
 - Full API generated automatically from your code docstrings
 
 > Python 3.10+ recommended.
+
+# API Reference
+
+::: readDiag.api
+
+::: readDiag.open
+
+::: readDiag.surface
+
+::: readDiag.adapters.access
+
+::: readDiag.adapters.legacy

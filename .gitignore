@@ -1,6 +1,8 @@
 # Dados e resultados que não devem ser versionados
 dataout/
 outputs/
+src/readDiag.egg-info/
+*.egg-info/
 *.csv
 *.log
 *.swp

@@ -18,6 +18,6 @@ def check_api(d: DiagnosticAPI):
 
 def test_access_adapter_smoke():
     from readDiag.open import open_diagnostic
-    d = open_diagnostic("dataTest/exp20/diag_conv_01.2024013018")
+    d = open_diagnostic("data/diag_conv_01.2024013018")
     check_api(d)
 

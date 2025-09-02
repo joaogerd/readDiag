@@ -6,6 +6,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [2.0.0] - 2025-09-02
+### Added
+- Stable Surface API + Adapters (access/legacy).
+- mkdocstrings API reference.
+
+### Changed
+- Packaging migrated to PEP 621; dependencies split.
+- Logging defaults to console; file logging opt‑in via env.
+
+### Removed
+- setup.py and egg‑info from repo.
+
+---
+
 ## [2.0.0-rc.1] - 2025-09-02 (Pre-release)
 
 ### 🚨 Breaking changes
