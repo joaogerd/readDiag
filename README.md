@@ -1,4 +1,6 @@
-# 📦 readDiag
+<p align="center">
+  <img src="docs/images/readDiag_logo.png" alt="readDiag Logo" width="300">
+</p>
 
 [![CI](https://github.com/joaogerd/readDiag/actions/workflows/ci.yml/badge.svg)](https://github.com/joaogerd/readDiag/actions/workflows/ci.yml)
 [![License: LGPL v3](https://img.shields.io/badge/License-LGPL%20v3-blue.svg)](https://opensource.org/licenses/LGPL-3.0)
@@ -11,11 +13,25 @@ It is designed for robust analysis of observation impact and supports scalable b
 
 ## 🚀 Installation
 
+### For Users (runtime only)
+
+```bash
+git clone https://github.com/joaogerd/readDiag
+cd readDiag
+pip install -r requirements.txt
+````
+
+This will install only the dependencies needed to run **readDiag** (data reading, analysis, and plotting).
+
+### For Development
+
 ```bash
 git clone https://github.com/joaogerd/readDiag
 cd readDiag
 pip install -e .[dev]
-````
+```
+
+This installs additional dependencies for testing, linting, and documentation.
 
 ---
 
@@ -64,9 +80,11 @@ print(df.head())
 
 Several ready-to-use scripts are provided in [`examples/`](examples):
 
-* `compare_sensor_impact_multi_cycle.py`: Batch impact analysis and robust statistical comparison between two sensors over multiple cycles.
-* `example_impact.py`, `run_impact_batch.py`: End-to-end pipeline for impact calculation and plotting.
-* `plotting_demo.ipynb`: Interactive notebook for custom plotting styles and diagnostics.
+* `01_quickstart_conv.py`, `02_quickstart_rad.py`: Basic usage for conventional and radiance diagnostics.
+* `05_impact_basic.py`, `06_impact_series.py`: Impact analysis and multi-cycle comparisons.
+* `07_legacy_compat.py`: Using the **LegacyCompatAdapter** with older code.
+* `08_plot_amsua_swath.py`: AMSU-A swath visualization.
+* `09_show_conv_dataframe.py`: Inspecting DataFrames directly.
 
 ---
 
