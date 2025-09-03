@@ -78,7 +78,6 @@ plugins:
   # Busca local; prebuild_index melhora performance em hospedagens estáticas
   - search:
       separator: '[\s\-]+'
-      prebuild_index: true
       lang: ["en"]        # adicionar "pt" aumenta o tamanho; use se precisar stemmer em PT
 
   # Geração automática de referência de API a partir das docstrings
