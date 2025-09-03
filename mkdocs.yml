@@ -1,0 +1,167 @@
+# ──────────────────────────────────────────────────────────────────────────────
+#  MKDOCS CONFIG — readDiag
+#  Comandos:
+#    - mkdocs serve   # servidor local com hot-reload
+#    - mkdocs build   # gera o site estático em ./site
+#  Requisitos:
+#    pip install mkdocs-material "mkdocstrings[python]" griffe pymdown-extensions
+# ──────────────────────────────────────────────────────────────────────────────
+
+# — Informações básicas do site —
+site_name: readDiag Docs
+# site_url: https://joaogerd.github.io/readDiag/   # (opcional; ajuda SEO e links absolutos)
+
+# Falhar build em links quebrados (bom para CI; ligue quando estiver estável)
+# strict: true
+
+# — Repositório (habilita “Edit this page” e links de origem) —
+repo_name: joaogerd/readDiag
+repo_url: https://github.com/joaogerd/readDiag
+edit_uri: edit/master/docs/     # aponta para a pasta docs/ no branch master
+
+# — Tema (Material for MkDocs) —
+theme:
+  name: material
+  # Logo e favicon: caminhos relativos à pasta docs/
+  logo: images/readDiag_logo.png
+  favicon: images/readDiag_logo.png
+
+  # Paleta com tema claro/escuro e toggle (opcional, mas útil)
+  palette:
+    - scheme: default
+      primary: blue
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Trocar para modo escuro
+    - scheme: slate
+      primary: blue
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Trocar para modo claro
+
+  # Recursos do Material
+  features:
+    # Navegação / TOC
+    - navigation.instant        # navegação sem reload completo
+    - navigation.tracking       # URL acompanha seção ativa
+    - navigation.top            # botão “voltar ao topo”
+    - toc.follow                # TOC segue a rolagem
+    # Busca
+    - search.highlight
+    - search.suggest
+    # Código
+    - content.code.copy         # botão de copiar nos blocos de código
+    - content.code.annotate     # permite ^1 anotações em blocos de código
+    # Edição (usa repo_url + edit_uri)
+    - content.action.edit
+
+# — Navegação (sidebar) —
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - User Guide:
+      - Configuration: user-guide/config.md
+      - Usage Flags: user-guide/usage-flags.md
+      - Plotting: user-guide/plotting.md
+  - API Reference:
+      - Reader: api-reference/reader.md
+      - Plotting: api-reference/plotting.md
+      - Impact: api-reference/impact.md
+      - Utils: api-reference/utils.md
+  - Developer Guide:
+      - Stable API Adapter: developer-guide/stable-api-adapter.md
+
+# — Plugins —
+plugins:
+  # Busca local; prebuild_index melhora performance em hospedagens estáticas
+  - search:
+      separator: '[\s\-]+'
+      prebuild_index: true
+      lang: ["en"]        # adicionar "pt" aumenta o tamanho; use se precisar stemmer em PT
+
+  # Geração automática de referência de API a partir das docstrings
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          # paths: ["src"]       # descomente se seu pacote ficar em src/readDiag/
+          options:
+            # >>> Docstrings em Numpy + seções como TABELA (Parameters/Returns/Raises)
+            docstring_style: numpy
+            docstring_section_style: table
+
+            # Assinatura visível e com tipos
+            show_signature: true
+            separate_signature: true
+            show_signature_annotations: true
+
+            # Junta docstring do __init__ com a classe (API mais limpa)
+            merge_init_into_class: true
+
+            # Ordem dos membros conforme o código-fonte
+            members_order: source
+
+            # Oculta membros privados (regex: começa com "_")
+            filters: ["!^_"]
+
+            # Inclui membros herdados
+            inherited_members: true
+
+            # Link “view source” direto pro GitHub (usa repo_url)
+            show_source: true
+
+            # Ajuda na quebra de linhas dentro das tabelas
+            line_length: 88
+
+# — Extensões Markdown (pymdown-extensions + extras do Material) —
+markdown_extensions:
+  # Blocos úteis
+  - admonition
+  - attr_list
+  - pymdownx.details            # <details> colapsáveis
+  - pymdownx.superfences        # cercas de código aninhadas
+  - pymdownx.highlight          # realce de sintaxe avançado
+  - pymdownx.inlinehilite       # `==código==` inline com highlight
+  - pymdownx.snippets           # inclui trechos externos (!!!include "path")
+  - pymdownx.keys               # atalhos: ++Ctrl+C++
+  - pymdownx.tabbed:
+      alternate_style: true     # abas de conteúdo (ex.: Python / Bash)
+  # Matemática (se precisar fórmulas, descomente também extra_javascript abaixo)
+  # - pymdownx.arithmatex:
+  #     generic: true
+  # Tabela de conteúdo
+  - toc:
+      permalink: true
+
+# — Extras visuais e sociais (opcional) —
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/joaogerd/readDiag
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/readDiag/
+  # analytics:
+  #   provider: google
+  #   property: G-XXXXXXXXXX
+
+# — CSS/JS adicionais (opcional) —
+# Use para ajustar tamanho do logo ou estilos finos.
+# Crie docs/css/overrides.css e adicione, por exemplo:
+#   .md-header__button.md-logo img { height: 36px; width: auto; }
+extra_css:
+  - css/overrides.css   # deixe o arquivo vazio se não precisar ainda
+
+# Se ativar arithmatex (acima), inclua KaTeX/MathJax aqui (KaTeX é mais leve).
+# extra_javascript:
+#   - https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js
+#   - https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js
+#   - js/math-init.js     # script simples para inicializar render das fórmulas
+
+# — Observa diretórios extras durante `mkdocs serve` (hot-reload do código) —
+# Útil se você editar o pacote ao mesmo tempo.
+# watch:
+#   - readDiag
+#   - scripts
+

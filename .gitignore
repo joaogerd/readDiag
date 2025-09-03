@@ -9,7 +9,7 @@ notebooks/
 *.log
 *.swp
 *.swo
-*.yml
+#*.yml
 *.tmp
 .DS_Store
 # Files e Paths
