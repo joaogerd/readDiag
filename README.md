@@ -109,7 +109,7 @@ Cartopy     : not installed
 ```python
 from readDiag import diagAccess, diagPlotter
 
-diag = diagAccess("data/"diag_conv_01.2024013018)
+diag = diagAccess("data/diag_conv_01.2024013018")
 plotter = diagPlotter(diag)
 plotter.plot()
 ```
