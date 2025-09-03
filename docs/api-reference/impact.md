@@ -1,3 +1,4 @@
+# API Reference — Impact
 
 # `readDiag.impact`
 

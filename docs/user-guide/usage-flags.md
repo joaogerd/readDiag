@@ -1,3 +1,4 @@
+# Usage Flags Explained
  No código **read_prepbufr.f90**, o campo que vira o `iuse` nos DataFrames é a variável **`usage`**; já o **`iusev`** (uso efetivo na análise) **não é definido aqui**: ele é decidido mais adiante no fluxo do GSI (setup/analysis) depois de todos os checks.
 
 A seguir, o resumo objetivo.
@@ -63,6 +64,5 @@ Para facilitar a vida do grupo (e não “caçar” significados no Fortran):
    * “monitorados (análise)”: `iusev == -1`
 
 3. **Relatórios**: mostrar `value_counts()` de `iuse` com **legenda** (e de `iusev` quando houver), para rapidamente entender por que dados caíram fora.
-
 
 

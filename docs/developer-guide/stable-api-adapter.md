@@ -1,4 +1,4 @@
-# readDiag – Stable API & Adapter Architecture (Developer Guide)
+# Developer Guide — Stable API Adapter
 
 **Last updated:** 2025-08-30
 

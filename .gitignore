@@ -2,6 +2,8 @@
 dataout/
 outputs/
 src/readDiag.egg-info/
+docs.old/
+notebooks/
 *.egg-info/
 *.csv
 *.log

@@ -1,4 +1,4 @@
-# Plotting with `diagPlotter`
+# Plotting Guide
 
 This page summarizes common tasks and provides ready-to-run snippets with **real examples** based on the files in `data/`. Each snippet now saves a figure into `docs/assets/figs/` and embeds it below.
 
@@ -159,4 +159,3 @@ ax.figure.savefig("docs/assets/figs/legacy_conv.png", dpi=150)
 
 ![Legacy rad](../assets/figs/legacy_rad.png){ width="49%" }
 ![Legacy conv](../assets/figs/legacy_conv.png){ width="49%" }
-

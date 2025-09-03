@@ -1,3 +1,4 @@
+# API Reference — Reader
 
 # `readDiag.reader`
 
