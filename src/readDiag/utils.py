@@ -38,7 +38,8 @@ import re
 import sys
 import time
 import warnings
-from typing import Iterable, Literal, Optional, Tuple, Dict
+from typing import Any, Iterable, Literal, Optional, Tuple, Dict
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -744,4 +745,94 @@ def apply_usage_filter(
     if mode == "post:monitored":
         return df[s == -1], col
     return df, col
+
+
+# ---------------------------------------------------------------------
+# Cycle resolution utilities
+# ---------------------------------------------------------------------
+
+_CYCLE_PAT = re.compile(r"(\d{10})")  # ex: 2024013018
+
+def _as_dt(val: Any) -> Optional[datetime]:
+    if val is None:
+        return None
+    if isinstance(val, datetime):
+        return val
+    if isinstance(val, (int, float)):
+        s = str(int(val))
+        if len(s) in (10, 12, 14):
+            fmt = {10: "%Y%m%d%H", 12: "%Y%m%d%H%M", 14: "%Y%m%d%H%M%S"}[len(s)]
+            return datetime.strptime(s, fmt)
+    if isinstance(val, str):
+        s = val.strip().replace("-", "").replace(":", "").replace(" ", "")
+        for L, fmt in [(14, "%Y%m%d%H%M%S"), (12, "%Y%m%d%H%M"), (10, "%Y%m%d%H")]:
+            if len(s) == L and s.isdigit():
+                return datetime.strptime(s, fmt)
+    return None
+
+
+def _token_from_dt(dt: datetime) -> str:
+    return dt.strftime("%Y%m%d%H")
+
+
+def _try_metadata(diag: Any) -> Tuple[Optional[datetime], Optional[str]]:
+    # procura em atributos comuns
+    candidates = []
+    for attr in ("cycle_dt", "datetime", "analysis_time", "valid_time", "time"):
+        candidates.append(getattr(diag, attr, None))
+
+    # procura em dicionários comuns
+    for dict_attr in ("meta", "metadata", "header", "info"):
+        d = getattr(diag, dict_attr, None)
+        if isinstance(d, dict):
+            for key in ("cycle_dt", "datetime", "analysis_time", "valid_time", "time", "date", "cycle"):
+                candidates.append(d.get(key))
+
+    for c in candidates:
+        dt = _as_dt(c)
+        if dt:
+            return dt, _token_from_dt(dt)
+        if isinstance(c, str):
+            m = _CYCLE_PAT.search(c)
+            if m:
+                token = m.group(1)
+                try:
+                    return datetime.strptime(token, "%Y%m%d%H"), token
+                except Exception:
+                    pass
+    return None, None
+
+
+def _try_filename(diag: Any) -> Tuple[Optional[datetime], Optional[str]]:
+    name = getattr(diag, "file_name", None)
+    if not name:
+        p = getattr(diag, "path", None) or getattr(diag, "filepath", None)
+        if p:
+            try:
+                name = Path(p).name
+            except Exception:
+                name = str(p)
+    if not name:
+        return None, None
+    m = _CYCLE_PAT.search(str(name))
+    if not m:
+        return None, None
+    token = m.group(1)
+    try:
+        return datetime.strptime(token, "%Y%m%d%H"), token
+    except Exception:
+        return None, None
+
+
+def get_cycle(diag: Any) -> Tuple[Optional[datetime], Optional[str]]:
+    """Retorna (cycle_dt, cycle_token) na ordem:
+    1. metadados do arquivo
+    2. nome do arquivo
+    3. None, None
+    """
+    dt, tok = _try_metadata(diag)
+    if dt:
+        return dt, tok
+    return _try_filename(diag)
+
 

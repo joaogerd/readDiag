@@ -96,6 +96,31 @@ class AccessAdapter(DiagnosticAPI):
             n_obs=m.get("n_obs"),
         )
 
+        # --- Convenience/retro-compat attributes -------------------------
+        # Expose commonly expected attributes used by plotting and legacy code.
+        self.file_name: str = self._meta.file_name
+        self.date: Optional[datetime | str] = self._meta.date  # keep original; utils will normalize
+
+        # Try to derive a canonical datetime for the cycle when possible.
+        # We probe common keys from the raw file info first, then fall back to self.date.
+        self.cycle_dt: Optional[datetime] = None
+        try:
+            raw = (
+                m.get("analysis_time")
+                or m.get("datetime")
+                or m.get("valid_time")
+                or self._meta.date
+            )
+            # Normalize here only if it's trivially safe; otherwise leave to utils.get_cycle
+            if isinstance(raw, str) and raw.isdigit() and len(raw) >= 10:
+                # Accept tokens with at least YYYYMMDDHH; ignore extra mm/ss if present
+                self.cycle_dt = datetime.strptime(raw[:10], "%Y%m%d%H")
+            elif isinstance(raw, datetime):
+                self.cycle_dt = raw
+            # Else: leave None; utils.get_cycle() will try additional paths.
+        except Exception:
+            # Be forgiving: plotting will fall back to filename via utils.get_cycle()
+            pass
     # ---------------------------------------------------------------------
     # Generic API
     # ---------------------------------------------------------------------
@@ -388,4 +413,22 @@ class AccessAdapter(DiagnosticAPI):
             "n_channels": m.n_channels,
             "n_obs": m.n_obs,
         }
+
+    @property
+    def file_name(self) -> str:
+        """Base file name (legacy attribute expected by plotting).
+
+        Returns
+        -------
+        str
+            Something like ``diag_conv_01.2024013018``.
+        """
+        m = self._meta
+        return m.file_name
+
+    @property
+    def file_path(self) -> str:
+        """Full file path as string (legacy convenience)."""
+        return str(self.path)
+
 

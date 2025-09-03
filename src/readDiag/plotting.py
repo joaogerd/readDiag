@@ -32,6 +32,7 @@ from .reader import diagAccess as _DiagAccess
 from .style import PlotConfig
 from .utils import deprecated, check_kind
 from .utils import extract_int, mask_to_query, nice_label, guess_cycle_token
+from .utils import get_cycle
 from .utils_plotting import wrap_lon, cmap_hex, ensure_axes_gpd, ensure_axes_cartopy, make_axes, wrap_label
 
 def _get_conv_df(diag, var: str, kx: int) -> pd.DataFrame:
@@ -978,7 +979,8 @@ class diagPlotter:
 
             title_left = f"Radiance - {str(varName or '').upper()} - {str(varType or '').upper()}."
             title_center = f"Channel ={ch}"
-            cycle = guess_cycle_token(self.diag.file_name)  # implementado abaixo
+            cycle_dt, cycle_token = get_cycle(self.diag)
+            cycle = cycle_token or ""   # string vazia se nada encontrado
 
         # --------------------------------------------------------------- CONV
         else:
@@ -1008,7 +1010,8 @@ class diagPlotter:
 
             title_left = f"Conventional - {var.upper()} (kx={kx})"
             title_center = color_col
-            cycle = guess_cycle_token(self.diag.file_name)
+            cycle_dt, cycle_token = get_cycle(self.diag)
+            cycle = cycle_token or ""   # string vazia se nada encontrado
 
         # --------------------------------------------------------------- PLOT
         ax, transform = make_axes(basemap=basemap, resolution=resolution)
