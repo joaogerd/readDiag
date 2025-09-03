@@ -9,7 +9,7 @@
 
 # — Informações básicas do site —
 site_name: readDiag Docs
-# site_url: https://joaogerd.github.io/readDiag/   # (opcional; ajuda SEO e links absolutos)
+site_url: https://joaogerd.github.io/readDiag/   # (opcional; ajuda SEO e links absolutos)
 
 # Falhar build em links quebrados (bom para CI; ligue quando estiver estável)
 # strict: true
