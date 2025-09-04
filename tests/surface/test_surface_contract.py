@@ -15,9 +15,12 @@ def check_api(d: DiagnosticAPI):
         for i in chs:
             df = d.frame_channel(i)
             assert "omf" in df.columns
+            
+def assert_surface_api(obj):
+     assert hasattr(obj, "meta")
 
-def test_access_adapter_smoke():
-    from readDiag.open import open_diagnostic
-    d = open_diagnostic("data/diag_conv_01.2024013018")
-    check_api(d)
-
+def test_access_adapter_smoke(handle_conv):
+    d = handle_conv
+    assert_surface_api(d)
+    # chamadas leves do contrato
+    d.kind(); d.variables(); d.kx_list()

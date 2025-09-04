@@ -63,6 +63,7 @@ nav:
   - Getting Started: getting-started.md
   - User Guide:
       - Configuration: user-guide/config.md
+      - File Structure: user-guide/file_structure.md
       - Usage Flags: user-guide/usage-flags.md
       - Plotting: user-guide/plotting.md
   - API Reference:

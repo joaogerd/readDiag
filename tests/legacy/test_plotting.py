@@ -1,9 +1,12 @@
+import pytest
+
+
+
 # tests/test_plotting.py
 import os
 import matplotlib
 matplotlib.use("Agg")  # garante backend não-interativo
 
-import pytest
 import numpy as np
 import pandas as pd
 from readDiag import diagAccess, diagPlotter

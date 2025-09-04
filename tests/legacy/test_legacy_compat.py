@@ -1,3 +1,5 @@
+
+
 """
 Legacy compatibility: read_diag wrapper + plotting aliases.
 
@@ -7,10 +9,11 @@ These tests ensure 100% drop-in behavior for legacy names:
 - impact(var=...) for pair of conv files
 """
 from __future__ import annotations
+import pytest
+
 
 import warnings
 from pathlib import Path
-import pytest
 import matplotlib.pyplot as plt
 
 from readDiag.legacy import read_diag

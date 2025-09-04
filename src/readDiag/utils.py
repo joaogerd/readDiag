@@ -102,11 +102,13 @@ def _build_logger() -> logging.Logger:
     console.setFormatter(fmt)
     lg.addHandler(console)
 
-    file_handler = RotatingFileHandler(
-        "diagAccess.log", maxBytes=10 * 1024 * 1024, backupCount=5
-    )
-    file_handler.setFormatter(fmt)
-    lg.addHandler(file_handler)
+    # File logging is opt-in: set READDIAG_LOG_FILE to a truthy value or a path
+    file_cfg = os.getenv("READDIAG_LOG_FILE", "").strip()
+    if file_cfg:
+        log_path = file_cfg if any(ch in file_cfg for ch in ("/", "\\")) else "diagAccess.log"
+        file_handler = RotatingFileHandler(log_path, maxBytes=10 * 1024 * 1024, backupCount=5)
+        file_handler.setFormatter(fmt)
+        lg.addHandler(file_handler)
 
     level = os.getenv("DIAGACCESS_LOG_LEVEL", "INFO").upper()
     lg.setLevel(getattr(logging, level, logging.INFO))

@@ -64,8 +64,8 @@ class AccessAdapter(DiagnosticAPI):
     """
 
     def __init__(self, backend: diagAccess) -> None:
-        """Initialize the adapter.
-
+        """Initialize adapter over a diagAccess backend.
+    
         Parameters
         ----------
         backend
@@ -74,52 +74,79 @@ class AccessAdapter(DiagnosticAPI):
 
         Notes
         -----
-        The constructor reads once the file-level metadata from the
-        backend and materializes a :class:`Metadata` instance for fast,
-        cheap future access.
+        - Reads file-level metadata **once** and materializes a `Metadata` DTO
+          for cheap future access.
+        - Avoids writing into properties (uses private caches, e.g. `_file_name`).
+        - Uses tolerant heuristics for `kind` and `cycle_dt` when exact fields
+          are absent in `get_file_info()`.
         """
         self._b = backend
-
-        # --- Extract and normalize backend metadata once -----------------
-        # We rely only on stable keys returned by diagAccess.get_file_info().
-        # If a key is optional (sensor/platform), we guard accesses.
-        m = backend.get_file_info()
-        kind: Kind = "rad" if m.get("data_type") == "rad" else "conv"
-
+    
+        # --- File info snapshot (one-time) ---------------------------------
+        try:
+            m = backend.get_file_info()
+            if not isinstance(m, dict):
+                raise TypeError("diagAccess.get_file_info() must return dict")
+        except Exception as e:
+            raise RuntimeError("Failed to retrieve file info from diagAccess") from e
+    
+        # --- Kind inference (stable first, then heuristics) ----------------
+        dt = (m.get("kind") or m.get("data_type") or "").strip().lower()
+        if dt in {"rad", "radiance"}:
+            kind: Kind = "rad"
+        elif dt in {"conv", "conventional"}:
+            kind = "conv"
+        else:
+            # Heuristic: presence of channels or n_channels → radiance
+            if m.get("n_channels") or hasattr(backend, "channels") or hasattr(backend, "frame_channel"):
+                kind = "rad"
+            else:
+                kind = "conv"
+    
+        # --- Resolve file_name with tolerant fallbacks ---------------------
+        file_name = (
+            m.get("file_name")
+            or getattr(backend, "file_name", None)
+            or getattr(backend, "filename", None)
+            or str(getattr(backend, "path", ""))  # last resort
+            or ""
+        )
+    
+        # --- Build Metadata DTO -------------------------------------------
+        date = m.get("date") or m.get("analysis_time") or m.get("datetime") or m.get("valid_time")
+        platform = m.get("platform")
+        if platform is not None:
+            platform = str(platform)
+    
         self._meta = Metadata(
-            file_name=m["file_name"],
-            date=m["date"],
+            file_name=file_name,
+            date=date,
             kind=kind,
             sensor=m.get("sensor"),
-            platform=str(m.get("platform")) if m.get("platform") is not None else None,
+            platform=platform,
             n_channels=m.get("n_channels"),
             n_obs=m.get("n_obs"),
         )
-
-        # --- Convenience/retro-compat attributes -------------------------
-        # Expose commonly expected attributes used by plotting and legacy code.
-        self.file_name: str = self._meta.file_name
-        self.date: Optional[datetime | str] = self._meta.date  # keep original; utils will normalize
-
-        # Try to derive a canonical datetime for the cycle when possible.
-        # We probe common keys from the raw file info first, then fall back to self.date.
+    
+        # --- Cached convenience fields (do NOT assign properties) ----------
+        self._file_name: str = self._meta.file_name or file_name
+        # keep original date token (str or datetime); deeper normalization lives in utils
+        self.date: Optional[datetime | str] = self._meta.date
+    
+        # --- Best-effort canonical cycle datetime --------------------------
+        # Only parse when trivially safe; complex cases defer to utils.get_cycle(...)
         self.cycle_dt: Optional[datetime] = None
+        raw = date
         try:
-            raw = (
-                m.get("analysis_time")
-                or m.get("datetime")
-                or m.get("valid_time")
-                or self._meta.date
-            )
-            # Normalize here only if it's trivially safe; otherwise leave to utils.get_cycle
-            if isinstance(raw, str) and raw.isdigit() and len(raw) >= 10:
-                # Accept tokens with at least YYYYMMDDHH; ignore extra mm/ss if present
-                self.cycle_dt = datetime.strptime(raw[:10], "%Y%m%d%H")
-            elif isinstance(raw, datetime):
+            if isinstance(raw, datetime):
                 self.cycle_dt = raw
-            # Else: leave None; utils.get_cycle() will try additional paths.
+            elif isinstance(raw, str):
+                tok = raw.strip()
+                # Accept tokens with at least YYYYMMDDHH; ignore extra mm/ss if present
+                if tok.isdigit() and len(tok) >= 10:
+                    self.cycle_dt = datetime.strptime(tok[:10], "%Y%m%d%H")
         except Exception:
-            # Be forgiving: plotting will fall back to filename via utils.get_cycle()
+            # Be forgiving: plotting can fall back to filename-based cycle parsing
             pass
     # ---------------------------------------------------------------------
     # Generic API
@@ -166,28 +193,50 @@ class AccessAdapter(DiagnosticAPI):
         return list(self._b.get_variables())
 
     @check_kind("conv")
-    def kx_list(self, var: str) -> list[int]:
-        """List available WMO platform codes (``kx``) for a variable.
+    def kx_list(self, var: Optional[str] = None) -> Union[List[int], Dict[str, List[int]]]:
+        """
+        Return the list of WMO/BUFR *KX* codes available in the file.
 
         Parameters
         ----------
-        var : str
-            A conventional variable name returned by :meth:`variables`.
+        var : str, optional
+            Variable name (e.g., ``"t"``, ``"q"``, ``"uv"``, ``"ps"``, ...).
+            If provided, returns the KX list for that variable only.
+            If ``None`` (default), returns a dict mapping each variable
+            to its sorted list of KX codes.
 
         Returns
         -------
-        list of int
-            Integer ``kx`` codes for the given variable. Empty list if not
-            a conventional dataset.
+        list of int or dict of str -> list of int
+            - If ``var`` is given: a sorted list of integers (KX codes).
+            - Otherwise: a mapping ``{variable: [kx, ...]}`` with lists sorted.
 
         Notes
         -----
-        Values are coerced to ``int`` for consistency, even if the backend
-        returns ``numpy.int64`` or strings.
+        This is a thin adapter over the backend interface. If the backend
+        does not provide an aggregate KX listing, we compute it by
+        iterating over :meth:`variables` and calling the per-variable KX
+        method.
+
+        Examples
+        --------
+        >>> d.kx_list("t")
+        [120, 130, 131]
+        >>> d.kx_list()  # doctest: +ELLIPSIS
+        {'t': [...], 'q': [...], 'uv': [...], 'ps': [...]}
         """
-        if self.kind() != "conv":
-            return []
-        return [int(k) for k in self._b.get_kx_list(var)]
+        # Caminho rápido: var especificado
+        if var is not None:
+            kxs = self._b.get_kx_list(var)  # assume backend já possui este método
+            return sorted(set(kxs))
+
+        # Agregado para todas as variáveis
+        result: Dict[str, List[int]] = {}
+        for v in self.variables():
+            kxs = self._b.get_kx_list(v)
+            # normaliza: únicos + ordenado
+            result[v] = sorted(set(kxs))
+        return result
 
     @check_kind("conv")
     def frame_conv(self, var: str, kx: int) -> pd.DataFrame:
@@ -416,19 +465,22 @@ class AccessAdapter(DiagnosticAPI):
 
     @property
     def file_name(self) -> str:
-        """Base file name (legacy attribute expected by plotting).
-
-        Returns
-        -------
-        str
-            Something like ``diag_conv_01.2024013018``.
-        """
-        m = self._meta
-        return m.file_name
-
+       """File name (often a full path). Kept for legacy/plotting expectations.
+    
+       Notes
+       -----
+       Historically this attribute has been used both as basename and as
+       full path depending on the backend. We preserve the value as provided
+       by the backend/metadata to avoid breaking legacy code. If you need the
+       basename, apply ``os.path.basename(adapter.file_name)`` at call site.
+       """
+       return self._file_name
+    
     @property
     def file_path(self) -> str:
-        """Full file path as string (legacy convenience)."""
-        return str(self.path)
-
+       """Full file path as string (legacy convenience)."""
+       # Prefer backend attribute if available; fall back to metadata.
+       return str(
+           getattr(self._b, "file_name", "") or self._meta.file_name or self._file_name
+       )
 

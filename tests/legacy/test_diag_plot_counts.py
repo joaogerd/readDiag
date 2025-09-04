@@ -1,5 +1,8 @@
-import os
 import pytest
+
+
+
+import os
 import matplotlib
 matplotlib.use("Agg")  # Backend não interativo para testes
 import matplotlib.pyplot as plt

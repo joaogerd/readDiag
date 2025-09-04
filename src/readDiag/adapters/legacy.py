@@ -61,7 +61,7 @@ from typing import Any, Dict
 import pandas as pd
 
 from ..surface import DiagnosticAPI, Metadata, Kind
-from ..utils import check_kind
+from ..utils import check_kind, guess_cycle_token
 
 __all__ = ["LegacyCompatAdapter"]
 
@@ -133,9 +133,10 @@ class LegacyCompatAdapter(DiagnosticAPI):
             try:
                 date = backend.get_date()
             except Exception:
-                date = datetime.now()
+                date = guess_cycle_token(file_name) or datetime.now()
         else:
-            date = datetime.now()
+            date = guess_cycle_token(file_name) or datetime.now()
+
         sensor = getattr(backend, "sensor", None)
         platform = getattr(backend, "platform", None)
 

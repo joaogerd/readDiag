@@ -51,7 +51,7 @@ Implementing a custom backend (sketch):
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Literal, Protocol, TypeAlias
+from typing import Literal, Protocol, TypeAlias, Optional
 
 import pandas as pd
 
@@ -109,12 +109,11 @@ class Metadata:
 
     file_name: str
     date: datetime
-    kind: Kind
-    sensor: str | None = None
-    platform: str | None = None
-    n_channels: int | None = None
-    n_obs: int | None = None
-
+    kind: str  # "conv" | "rad"
+    sensor: Optional[str] = None
+    platform: Optional[str] = None
+    n_channels: Optional[int] = None
+    n_obs: Optional[int] = None
 
 # ---------------------------------------------------------------------------
 # Stable protocol for diagnostic access

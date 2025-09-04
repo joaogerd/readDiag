@@ -10,7 +10,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 import matplotlib.pyplot as plt
-from readDiag import diagAccess, diagPlotter, PlotConfig
+from readDiag import open_diagnostic, diagPlotter, PlotConfig
 
 def main() -> None:
     ap = argparse.ArgumentParser()
@@ -25,7 +25,7 @@ def main() -> None:
     cfg = PlotConfig(style="seaborn-v0_8-deep")
     plt.style.use(cfg.style)
 
-    d = diagAccess(args.file)
+    d = open_diagnostic(args.file)
     p = diagPlotter(d)
 
     var = d.get_variables()[0]

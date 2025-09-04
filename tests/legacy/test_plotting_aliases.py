@@ -1,13 +1,16 @@
+
+
 """
 Plotting aliases and modern methods:
 - Ensure deprecated aliases still work and warn.
 - Ensure modern methods accept kwargs for titles/labels/colors.
 """
 from __future__ import annotations
+import pytest
+
 
 import warnings
 import matplotlib.pyplot as plt
-import pytest
 from readDiag import diagAccess, diagPlotter
 
 @pytest.mark.usefixtures("conv01_path", "conv_var_kx")

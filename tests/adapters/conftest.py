@@ -224,9 +224,9 @@ def conv_var_kx(conv01_path: Path) -> Tuple[str, int]:
     AssertionError
         If no variables or no KX values are found in the file.
     """
-    from readDiag import open_diagnostic
+    from readDiag import diagAccess
 
-    d = open_diagnostic(str(conv01_path))
+    d = diagAccess(str(conv01_path))
     vars_ = d.get_variables()
     assert vars_, "No variables found in conventional file."
 

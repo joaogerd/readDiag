@@ -1,10 +1,13 @@
+
+
 """
 Endianness sanity for radiance: ensure DataFrame operations don't crash.
 """
 from __future__ import annotations
+import pytest
+
 from pathlib import Path
 import pandas as pd
-import pytest
 from readDiag import diagAccess
 
 @pytest.mark.usefixtures("rad01_path")

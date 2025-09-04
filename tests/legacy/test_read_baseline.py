@@ -1,11 +1,14 @@
+
+
 """
 Baseline reads for conv and rad files.
 """
 from __future__ import annotations
+import pytest
+
 from pathlib import Path
 from datetime import datetime
 import pandas as pd
-import pytest
 from readDiag import diagAccess
 
 @pytest.mark.usefixtures("conv01_path", "rad01_path")
