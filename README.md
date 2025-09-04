@@ -38,6 +38,56 @@ cd readDiag
 pip install -e .[dev]
 ```
 ---
+
+### ⚠️ Large Files (Git LFS)
+
+Some diagnostic files used for testing or examples may exceed the default GitHub size limit.
+To ensure these files are downloaded correctly, **install and configure Git LFS** before cloning the repository:
+
+#### **1. Install Git LFS**
+
+**Linux (Debian/Ubuntu):**
+
+```bash
+sudo apt-get install git-lfs
+```
+
+**macOS (Homebrew):**
+
+```bash
+brew install git-lfs
+```
+
+**Windows (Chocolatey):**
+
+```bash
+choco install git-lfs
+```
+
+#### **2. Enable Git LFS**
+
+After installation, enable LFS in your local Git environment:
+
+```bash
+git lfs install
+```
+
+#### **3. Clone the Repository**
+
+```bash
+git clone https://github.com/joaogerd/readDiag
+cd readDiag
+git lfs pull
+```
+
+> **Tip**: If you already cloned the repo without LFS, just run:
+>
+> ```bash
+> git lfs install
+> git lfs pull
+> ```
+
+---
 ### Verify package import and version
 
 ```bash
