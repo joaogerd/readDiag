@@ -5,8 +5,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
+## [2.0.0-rc.2] - 2025-09-04 (Pre-release)
 
-## [2.0.0] - 2025-09-02
+### 🚨 Breaking changes
+- Test suite reorganized into subpackages:
+  - `tests/adapters/`, `tests/surface/`, `tests/legacy/`, `tests/utils/`.
+- Removed `src/readDiag/requirements.txt` (dependencies are now managed exclusively via `pyproject.toml`).
+- `AccessAdapter` and `LegacyCompatAdapter` APIs slightly adjusted for surface contract compliance.
+
+### ✨ Improvements
+- Added new test modules:
+  - `tests/test_access_adapter_file_name.py`
+  - Dedicated `conftest.py` files per test subpackage.
+- Added documentation page `docs/user-guide/file_structure.md` describing GSI file structure.
+- Figures in `docs/assets/figs/` updated for consistency with new plotting API.
+- Example script `01_quickstart_conv.py` revised to reflect stable surface API.
+
+### 🔧 Internal
+- Updated `.gitignore` to exclude `site/` and generated artifacts.
+- Cleaned up legacy adapters and utils for clarity.
+- Adjusted `mkdocs.yml`, `pytest.ini`, and `pyproject.toml` to reflect new layout.
+
+
+## [2.0.0-rc.1] - 2025-09-02 (Pre-release)
+
 ### Added
 - Stable Surface API + Adapters (access/legacy).
 - mkdocstrings API reference.
@@ -18,9 +40,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Removed
 - setup.py and egg‑info from repo.
 
----
-
-## [2.0.0-rc.1] - 2025-09-02 (Pre-release)
 
 ### 🚨 Breaking changes
 - Introduced the new **stable API layer** with adapters:
