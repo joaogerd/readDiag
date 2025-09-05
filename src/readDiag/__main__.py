@@ -6,6 +6,8 @@ import sys
 from . import read_diag
 
 def main(argv=None):
+  if argv and argv[0] in ('-h','--help'):
+    print('Usage: python -m readDiag <diag_file>'); return 0
   argv = sys.argv[1:] if argv is None else argv
   if not argv:
     print("Usage: python -m readDiag <diag_file>")

@@ -71,3 +71,13 @@ __all__ = [
     "plot_kx_count","plot_omf_map","plot_oma_map",
     "plot_histogram_omf","plot_histogram_oma","plot_scatter",
 ]
+
+# -- Legacy export (deprecated): diagAccess for old tests/scripts --
+try:
+    from .io.reader import diagAccess as diagAccess  # type: ignore
+except Exception:
+    pass
+if "__all__" in globals():
+    if "diagAccess" not in __all__:
+        __all__.append("diagAccess")
+
