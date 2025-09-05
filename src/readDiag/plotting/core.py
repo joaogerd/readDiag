@@ -38,7 +38,15 @@ from ..io.reader import diagAccess as _DiagAccess
 from .style import PlotConfig
 from ..utils import deprecated, check_kind
 from ..utils import extract_int, mask_to_query, nice_label, guess_cycle_token
-from ..utils import get_cycle
+try:
+    from .._utils import get_cycle  # shim to modern utils
+except Exception:
+    def get_cycle(obj):
+        try:
+            m = getattr(obj, 'meta', lambda: None)()
+            return getattr(m, 'date', None)
+        except Exception:
+            return None
 from .utils_plotting import wrap_lon, cmap_hex, ensure_axes_gpd, ensure_axes_cartopy, make_axes, wrap_label
 
 def _get_conv_df(diag, var: str, kx: int) -> pd.DataFrame:
