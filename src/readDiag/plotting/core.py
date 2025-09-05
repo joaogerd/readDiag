@@ -28,11 +28,7 @@ except Exception:  # cartopy opcional
     _HAS_CARTOPY = False
 
 from ..surface.access_adapter import AccessAdapter
-try:
-    from ..surface.adapters.legacy import LegacyCompatAdapter
-except Exception:
-    class LegacyCompatAdapter:
-        pass
+from ..surface.adapters.legacy import LegacyCompatAdapter
 from ..surface.api import DiagnosticAPI
 from ..io.reader import diagAccess as _DiagAccess
 from .style import PlotConfig

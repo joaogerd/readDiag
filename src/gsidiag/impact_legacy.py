@@ -187,3 +187,14 @@ def plot_all_impact_subplots(
     plt.tight_layout()
     plt.show()
 
+
+# --- backcompat shim: aceitar alias "top_k" em plot_impact_bar (legacy) ---
+try:
+    _gsid_orig_plot_impact_bar = ImpactAnalyzer.plot_impact_bar  # type: ignore[name-defined]
+    def _gsid_plot_impact_bar_shim(self, metric: str, *args, top_k=None, **kwargs):
+        if top_k is not None and "n" not in kwargs:
+            kwargs["n"] = top_k
+        return _gsid_orig_plot_impact_bar(self, metric, *args, **kwargs)
+    ImpactAnalyzer.plot_impact_bar = _gsid_plot_impact_bar_shim  # type: ignore[name-defined]
+except Exception:
+    pass
