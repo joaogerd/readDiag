@@ -191,10 +191,25 @@ def plot_all_impact_subplots(
 # --- backcompat shim: aceitar alias "top_k" em plot_impact_bar (legacy) ---
 try:
     _gsid_orig_plot_impact_bar = ImpactAnalyzer.plot_impact_bar  # type: ignore[name-defined]
+    import inspect as _ins
+    _sig = _ins.signature(_gsid_orig_plot_impact_bar)
+    _params = set(_sig.parameters.keys())
+
     def _gsid_plot_impact_bar_shim(self, metric: str, *args, top_k=None, **kwargs):
-        if top_k is not None and "n" not in kwargs:
-            kwargs["n"] = top_k
+        # se vier 'n' mas assinatura não aceita, descarta
+        if "n" in kwargs and "n" not in _params:
+            kwargs.pop("n", None)
+        # mapear top_k
+        if top_k is not None:
+            for alias in ("n", "k", "top", "top_k", "limit", "max_items"):
+                if alias in _params:
+                    kwargs.setdefault(alias, top_k)
+                    break
+            else:
+                # nenhum nome disponível: injeta como posicional imediatamente após 'metric'
+                args = (top_k,) + args
         return _gsid_orig_plot_impact_bar(self, metric, *args, **kwargs)
+
     ImpactAnalyzer.plot_impact_bar = _gsid_plot_impact_bar_shim  # type: ignore[name-defined]
 except Exception:
     pass

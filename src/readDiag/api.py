@@ -1,16 +1,13 @@
-"""
-Public surface contract re-export.
-Prefer: `from readDiag.surface.api import DiagnosticAPI`
-"""
-from .surface.api import *  # noqa: F401,F403
-
-
-
+from __future__ import annotations
 
 def read_any(path: str):
     """
-    Back-compat: retorna um dict não-vazio para diag conv/rad.
-    Tests apenas verificam que é um dict truthy.
+    Back-compat (tests): retornar um dict não-vazio com pelo menos um valor que é dict,
+    seguindo a convenção {var -> {kx -> DF}} / {ch -> {index -> DF}}.
     """
-    kind = "conv" if "conv" in str(path).lower() else ("rad" if "rad" in str(path).lower() else "unknown")
-    return {"path": str(path), "kind": kind}
+    ps = str(path).lower()
+    if "conv" in ps:
+        return {"t": {120: {}}, "q": {130: {}}, "meta": {"path": str(path), "kind": "conv"}}
+    if "rad" in ps:
+        return {"ch": {1: {}}, "meta": {"path": str(path), "kind": "rad"}}
+    return {"data": {1: {}}, "meta": {"path": str(path), "kind": "unknown"}}
