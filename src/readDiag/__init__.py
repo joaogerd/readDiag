@@ -81,3 +81,20 @@ if "__all__" in globals():
     if "diagAccess" not in __all__:
         __all__.append("diagAccess")
 
+
+
+# --- version & diagnostics ---
+try:
+    from importlib.metadata import version as _pkg_version, PackageNotFoundError as _PkgNF
+    try:
+        __version__ = _pkg_version("readDiag")
+    except _PkgNF:
+        __version__ = "0.0.0.dev0"
+except Exception:
+    __version__ = "0.0.0.dev0"
+
+def show_versions():
+    import sys, platform
+    print(f"readDiag : {__version__}")
+    print(f"Python   : {sys.version.split()[0]}")
+    print(f"Platform : {platform.platform()}")

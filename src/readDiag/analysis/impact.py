@@ -648,3 +648,14 @@ def plot_metric_series(
     plt.tight_layout()
     return ax
 
+
+# --- backcompat shim: aceitar alias "top_k" em plot_impact_bar ---
+try:
+    _rd_orig_plot_impact_bar = ImpactAnalyzer.plot_impact_bar  # type: ignore[name-defined]
+    def _rd_plot_impact_bar_shim(self, metric: str, *args, top_k=None, **kwargs):
+        if top_k is not None and "n" not in kwargs:
+            kwargs["n"] = top_k
+        return _rd_orig_plot_impact_bar(self, metric, *args, **kwargs)
+    ImpactAnalyzer.plot_impact_bar = _rd_plot_impact_bar_shim  # type: ignore[name-defined]
+except Exception:
+    pass
