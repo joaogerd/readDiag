@@ -47,7 +47,7 @@ except Exception:
             return getattr(m, 'date', None)
         except Exception:
             return None
-from .utils_plotting import wrap_lon, cmap_hex, ensure_axes_gpd, ensure_axes_cartopy, make_axes, wrap_label
+from ._utils import wrap_lon, cmap_hex, ensure_axes_gpd, ensure_axes_cartopy, make_axes, wrap_label
 
 def _get_conv_df(diag, var: str, kx: int) -> pd.DataFrame:
     return diag.get_dataframe(var, kx) if hasattr(diag, "get_dataframe") else diag.get_data_frame()[var][kx]
