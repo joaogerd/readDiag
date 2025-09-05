@@ -33,7 +33,7 @@ try:
 except Exception:
     class LegacyCompatAdapter:
         pass
-from .surface import DiagnosticAPI
+from ..surface.api import DiagnosticAPI
 from .reader import diagAccess as _DiagAccess
 from .style import PlotConfig
 from .utils import deprecated, check_kind
