@@ -65,3 +65,6 @@ where = ["src"]
 
 [project.scripts]
 readdiag = "readDiag:main"
+
+[tool.setuptools.package-data]
+readDiag = ["*.yml", "*.yaml", "*.json", "*.csv"]
