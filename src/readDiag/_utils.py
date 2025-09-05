@@ -406,32 +406,30 @@ def replace_sentinels(df: pd.DataFrame, threshold: float = 1e10) -> pd.DataFrame
 
 
 def check_kind(kind: str):
-    """Decorator ensuring a plotting method is called only for a given kind.
-
-    Parameters
-    ----------
-    kind : {"conv", "rad"}
-        The diagnostic kind that the decorated method expects.
-
-    Returns
-    -------
-    collections.abc.Callable
-        A decorator that raises ``ValueError`` if the owning instance's
-        ``.kind`` attribute differs from ``kind``.
-    """
-
     def decorator(func):
+        import functools
         @functools.wraps(func)
         def wrapper(self, *args, **kwargs):
-            # Garante que o método seja chamado para o tipo correto (PT-BR)
             actual = getattr(self, "kind", None)
-            # se for método, chama; se for atributo, usa direto
             actual = actual() if callable(actual) else actual
+            if actual is None:
+                d = getattr(self, "diag", None)
+                if d is not None:
+                    _k = getattr(d, "kind", None)
+                    actual = _k() if callable(_k) else _k
+                    if actual is None:
+                        _m = getattr(d, "meta", None)
+                        if callable(_m):
+                            try:
+                                actual = getattr(_m(), "kind", None)
+                            except Exception:
+                                actual = None
             if actual != kind:
                 raise ValueError(f"{func.__name__} only valid for {kind} diagnostics")
             return func(self, *args, **kwargs)
-
         return wrapper
+    return decorator
+    return decorator
 
     return decorator
 
