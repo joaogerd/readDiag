@@ -1,4 +1,5 @@
 # ---------------------------------------------------------------------------
+
 # Plotting utilities for GSI diagnostics (NumPy-style docstrings)
 # ---------------------------------------------------------------------------
 from __future__ import annotations
@@ -26,7 +27,12 @@ try:
 except Exception:  # cartopy opcional
     _HAS_CARTOPY = False
 
-from .adapters import AccessAdapter, LegacyCompatAdapter
+from ..surface.access_adapter import AccessAdapter
+try:
+    from ..surface.adapters.legacy import LegacyCompatAdapter
+except Exception:
+    class LegacyCompatAdapter:
+        pass
 from .surface import DiagnosticAPI
 from .reader import diagAccess as _DiagAccess
 from .style import PlotConfig
