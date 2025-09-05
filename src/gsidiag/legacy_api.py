@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional
 import pandas as pd
 
 from readDiag.io.reader import diagAccess
-from .impact import ImpactAnalyzer
+from .impact_legacy import ImpactAnalyzer
 from .plotting import diagPlotter
 from .utils import deprecated
 
