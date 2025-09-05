@@ -16,3 +16,10 @@ try:
     from readDiag import read_diag, open_diagnostic  # type: ignore
 except Exception:
     pass
+
+# Legacy convenience: expose diagAccess at package root (deprecated)
+try:
+    from readDiag.io.reader import diagAccess  # type: ignore
+    __all__ = list(globals().get("__all__", [])) + ["diagAccess"]
+except Exception:
+    pass
