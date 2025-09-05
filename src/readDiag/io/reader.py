@@ -38,8 +38,8 @@ from .utils import (
     needs_swap_dtype,
     replace_sentinels,
 )
-from .conv import read_conv_file, BASE20_COLS
-from .rad import (
+from .conv_reader import read_conv_file, BASE20_COLS
+from .rad_reader import (
     init_rad_dtypes,
     read_rad_header,
     read_rad_channels,

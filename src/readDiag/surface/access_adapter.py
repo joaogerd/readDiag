@@ -5,7 +5,7 @@ from typing import Any, Dict
 
 import pandas as pd
 
-from ..surface import DiagnosticAPI, Metadata, Kind
+from .api import DiagnosticAPI, Metadata, Kind
 from ..reader import diagAccess  # current backend (facade)
 from ..utils import check_kind
 
