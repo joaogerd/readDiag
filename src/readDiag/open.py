@@ -32,21 +32,16 @@ Preferred usage:
 >>> print(m.kind)
 conv
 
-Backward-compatible usage:
-
->>> from readDiag import read_diag
->>> d = read_diag("diag_amsua_n15_01.2024013018")
->>> m = d.meta()
->>> print(m.kind)
-rad
 """
 
-# Import the preferred opener from the main package
-from . import open_diagnostic as open_diagnostic  # noqa: F401
+from __future__ import annotations
+from .io.reader import diagAccess
+from .surface.access_adapter import AccessAdapter
+from .surface.api import DiagnosticAPI
 
-# Provide legacy alias
-read_diag = open_diagnostic
+def open_diagnostic(path: str) -> DiagnosticAPI:
+    """High-level entrypoint: open a GSI diagnostic and return a DiagnosticAPI."""
+    raw = diagAccess(path)               # motor baixo-nível (NÃO é legacy)
+    return AccessAdapter(raw)            # superfície estável
 
-# Explicit export list
-__all__ = ["open_diagnostic", "read_diag"]
 
