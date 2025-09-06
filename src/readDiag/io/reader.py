@@ -5,12 +5,16 @@ from __future__ import annotations
 readDiag.reader (facade)
 ========================
 
-High-level facade that keeps the public API stable (``diagAccess`` / ``DiagAccess``)
-while delegating heavy lifting to submodules:
+High-level *facade* that preserves the historical public API
+(:class:`diagAccess` / :class:`DiagAccess`) while delegating all format-
+specific heavy lifting to dedicated submodules:
 
-- ``readDiag.conv``  – conventional diagnostics reader
-- ``readDiag.rad``   – radiance diagnostics reader
-- ``readDiag.utils`` – shared helpers (endianness, logging, timing)
+- ``readDiag.conv_reader`` — conventional diagnostics (GSI ``diag_conv_*``)
+- ``readDiag.rad_reader``  — radiance  diagnostics (GSI ``diag_<sensor>_*``)
+- ``readDiag.utils``       — shared helpers (endianness, logging, timing, NaN fixes)
+
+The goal is to centralize *entry-point ergonomics* (auto-detection, common
+flags, unified metadata) without mixing concerns with low-level I/O.
 
 Examples
 --------
@@ -25,7 +29,8 @@ Examples
 
 from pathlib import Path
 from datetime import datetime
-from typing import Any, Dict, IO, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Union
+
 import os
 import struct
 import pandas as pd
@@ -54,36 +59,71 @@ class diagAccess:
     """
     Unified reader for GSI diagnostics (conventional and radiance).
 
+    The constructor *sniffs* the file type and routes to the appropriate
+    implementation. Public methods mirror the legacy surface while adding
+    a few quality-of-life utilities (e.g., CSV export, summary strings).
+
     Parameters
     ----------
     file_name : str
-        Path to a GSI diagnostic file (binary, not NetCDF).
+        Path to a **binary** GSI diagnostic file. NetCDF diagnostics are
+        not supported here.
     var : str, optional
-        Variable to focus on for conventional files (e.g., ``'t'``, ``'q'``, ``'uv'``).
+        Target variable for conventional files (e.g., ``'t'``, ``'q'``, ``'uv'``).
         Ignored for radiance files.
     use_memmap : bool, default False
-        If True, use ``numpy.memmap`` for radiance payload (lower RAM, potential disk I/O cost).
+        Use ``numpy.memmap`` for radiance payloads to reduce peak RAM usage (may
+        increase I/O on spinning disks).
     fast : bool, default True
         Fast path for conventional data; enables optimized grouping and fewer copies.
     base20_only : bool, default True
-        If ``nreal > 20``, read only the first 20 slots (speed & memory friendly).
+        For conventional files with ``nreal > 20``, load only the first 20 slots
+        (faster and memory friendly).
     read_sids : bool, default False
-        Decode and include station IDs from conventional files.
+        Decode and include station IDs for conventional files (slower).
     compat_legacy : bool, default True
-        Populate legacy alias columns for downstream code compatibility.
+        Populate legacy alias columns for downstream compatibility.
     raw_numpy : bool, default False
         For conventional data, return raw NumPy arrays instead of DataFrames.
     compact : bool, default False
-        For conventional data, return one DataFrame per variable (no ``kx`` split).
+        For conventional data, return a single DataFrame per variable (no ``kx`` split).
 
     Notes
     -----
-    The constructor detects the file type automatically and routes to the proper reader.
-    Public methods are stable relative to previous versions.
+    - Data type codes follow the common convention: ``1 = conv``, ``2 = rad``.
+    - Sentinel values present in diagnostics are converted to ``NaN`` on read.
+
+    Examples
+    --------
+    Conventional (variable/kx drill-down):
+
+    >>> rd = diagAccess('data/diag_conv_01.2024013018', var='t')
+    >>> rd.get_data_type()
+    1
+    >>> rd.get_variables()[:3]
+    ['t', 'q', 'ps']
+    >>> kx = rd.get_kx_list('t')[:5]
+    >>> isinstance(rd.get_dataframe('t', kx[0]), pd.DataFrame)
+    True
+
+    Radiance (1-based channel list):
+
+    >>> rd = diagAccess('data/diag_amsua_n15_03.2024013018')
+    >>> rd.get_data_type()
+    2
+    >>> rd.get_channels()[:3]
+    [1, 2, 3]
+    >>> info = rd.get_file_info()
+    >>> info['n_channels'] > 0 and info['n_obs'] >= 0
+    True
     """
 
-    _rad_inited: bool = False  # cache for radiance dtype tables
+    # cache to initialize radiance dtype tables only once
+    _rad_inited: bool = False
 
+    # --------------------------------------------------------------------- #
+    # Constructor: detect format and route to the proper reader
+    # --------------------------------------------------------------------- #
     def __init__(
         self,
         file_name: str,
@@ -96,18 +136,21 @@ class diagAccess:
         raw_numpy: bool = False,
         compact: bool = False,
     ) -> None:
+        # quick structural sanity
         size = os.path.getsize(file_name)
         if size < 4:
             raise ValueError(f"File too small to detect format: {file_name}")
 
-        with open(file_name, 'rb') as f:
+        # NetCDF guard (classic CDF magic)
+        with open(file_name, "rb") as f:
             sig = f.read(3)
-        if sig == b'CDF':
+        if sig == b"CDF":
             raise ValueError(
-                "NetCDF detected. Provide binary diagnostics (netcdf_diag=.false.) "
-                "or use a NetCDF reader."
+                "NetCDF detected. Provide *binary* diagnostics (netcdf_diag=.false.) "
+                "or use a NetCDF-aware reader."
             )
 
+        # store user knobs
         self.file_name = file_name
         self.var = var
         self.use_memmap = use_memmap
@@ -119,8 +162,8 @@ class diagAccess:
         self.compact = compact
 
         fmt = self._detect_format_file(file_name)
-        if fmt == 'conv':
-            # Read conventional diagnostics
+        if fmt == "conv":
+            # -------------------- Conventional path --------------------- #
             self._data_type = 1
             raw_data = read_conv_file(
                 file_name,
@@ -131,47 +174,51 @@ class diagAccess:
                 compat_legacy=compat_legacy,
                 raw_numpy=raw_numpy,
                 compact=compact,
-                set_date_cb=lambda d: setattr(self, '_idate', d),
+                set_date_cb=lambda d: setattr(self, "_idate", d),
             )
-            
-            # Replace sentinel values with NaN for all DataFrames
+
+            # Normalize sentinels to NaN for DataFrame outputs
             if not raw_numpy:
                 for v in raw_data:
                     for kx in raw_data[v]:
                         raw_data[v][kx] = replace_sentinels(raw_data[v][kx])
-            
+
             self._data_frame = raw_data
 
         else:
-            # Initialize radiance dtypes only once
+            # ---------------------- Radiance path ----------------------- #
             if not type(self)._rad_inited:
                 init_rad_dtypes()
                 type(self)._rad_inited = True
+
             self._data_type = 2
-            with open(file_name, 'rb') as f:
-                hdr, size = read_rad_header(f, file_name)
-                chdf = read_rad_channels(f, hdr['nchanl'])
-                diag = read_rad_payload(f, size, hdr, use_memmap)
+            with open(file_name, "rb") as f:
+                hdr, rec_size = read_rad_header(f, file_name)
+                chdf = read_rad_channels(f, hdr["nchanl"])
+                diag = read_rad_payload(f, rec_size, hdr, use_memmap)
                 df1, df_list, df2 = extract_rad_dataframes(diag, hdr)
-                
-            # Replace sentinel values in all radiance DataFrames
+
+            # Normalize sentinels to NaN
             df1 = replace_sentinels(df1)
             df2 = replace_sentinels(df2)
             df_list = [replace_sentinels(df) for df in df_list]
-                
-            self._idate = datetime.strptime(str(int(hdr['idate'])), "%Y%m%d%H")
+
+            # Header date is an integer like 2024013018
+            self._idate = datetime.strptime(str(int(hdr["idate"])), "%Y%m%d%H")
+
+            # Public structure for radiances: keep it explicit and predictable
             self._data_frame = {
-                'sensor': hdr['obstype'],
-                'kx': hdr['dplat'],
-                'dataframes': {
-                    'channel_df': chdf,
-                    'diagbuf_df': df1,
-                    'diagbufchan_df': df_list,
-                    'diagbufex_df': df2,
+                "sensor": hdr["obstype"],            # e.g., "amsua"
+                "kx": hdr["dplat"],                  # platform (legacy "kx"-ish slot)
+                "dataframes": {
+                    "channel_df": chdf,              # channel metadata
+                    "diagbuf_df": df1,               # main payload ("bulk")
+                    "diagbufchan_df": df_list,       # list of per-channel DFs
+                    "diagbufex_df": df2,             # extended payload (when present)
                 },
             }
 
-    # ---------------- Public API ----------------
+    # ============================== Public API =============================== #
 
     def get_date(self) -> datetime:
         """
@@ -187,9 +234,9 @@ class diagAccess:
         AttributeError
             If the file did not provide a date.
         """
-        if hasattr(self, '_idate'):
+        if hasattr(self, "_idate"):
             return self._idate  # type: ignore[attr-defined]
-        raise AttributeError("Date not set.")
+        raise AttributeError("Date not set in this diagnostic.")
 
     def get_data_type(self) -> int:
         """
@@ -209,9 +256,9 @@ class diagAccess:
         Returns
         -------
         Any
-            For radiances, a dict with keys ``sensor``, ``kx`` and ``dataframes``.
-            For conventional data, either a nested dict of DataFrames or raw NumPy
-            arrays depending on constructor flags.
+            - **Radiance**: dict with keys ``sensor``, ``kx`` and ``dataframes``.
+            - **Conventional**: nested dict of DataFrames (or raw arrays if
+              ``raw_numpy=True``) with shape ``{var -> {kx -> DataFrame}}``.
         """
         return self._data_frame  # type: ignore[attr-defined]
 
@@ -259,21 +306,28 @@ class diagAccess:
 
     def get_channels(self) -> List[int]:
         """
-        Return channel indices for a radiance file.
+        Return **1-based** channel indices for a radiance file.
 
         Returns
         -------
         list of int
+            Channel indices starting at 1 (``[1, 2, ..., N]``).
 
         Raises
         ------
         ValueError
             If the file is conventional.
+
+        Notes
+        -----
+        Historically some code used 0-based indices. This facade normalizes
+        to **1-based** for user-facing methods. When selecting a channel to
+        export (see :meth:`export_to_csv`), pass the same 1-based index.
         """
         if self._data_type != 2:
             raise ValueError("get_channels is only available for radiance data.")
         df_list = self._data_frame["dataframes"]["diagbufchan_df"]
-        return list(range(len(df_list)))
+        return list(range(1, len(df_list) + 1))
 
     def get_metadata(self) -> Dict[str, Any]:
         """
@@ -282,6 +336,7 @@ class diagAccess:
         Returns
         -------
         dict
+            Minimal, human-friendly metadata dictionary.
         """
         meta: Dict[str, Any] = {
             "file_name": self.file_name,
@@ -300,7 +355,9 @@ class diagAccess:
         Parameters
         ----------
         var : str
+            Variable present in the dataset (e.g., ``'t'``).
         kx : int
+            Observation type code.
 
         Returns
         -------
@@ -322,10 +379,13 @@ class diagAccess:
         Returns
         -------
         str
+            Multi-line string with basic info and counts.
         """
-        lines = [f"File: {self.file_name}",
-                 f"Type: {'Radiance' if self._data_type == 2 else 'Conventional'}",
-                 f"Date: {self.get_date()}"]
+        lines = [
+            f"File: {self.file_name}",
+            f"Type: {'Radiance' if self._data_type == 2 else 'Conventional'}",
+            f"Date: {self.get_date()}",
+        ]
         if self._data_type == 1:
             vars_ = self.get_variables()
             lines.append(f"Variables: {', '.join(vars_)}")
@@ -346,8 +406,15 @@ class diagAccess:
         Returns
         -------
         dict
-            Keys include ``file_name``, ``data_type``, ``date``; for radiances
-            also ``sensor``, ``platform``, ``n_channels`` and ``n_obs``.
+            Keys always include:
+                - ``file_name``
+                - ``data_type`` (``'conv'`` or ``'rad'``)
+                - ``date`` (:class:`datetime`)
+            For **radiance** also include:
+                - ``sensor`` (e.g., ``'amsua'``)
+                - ``platform`` (value stored in header ``dplat``)
+                - ``n_channels`` (int)
+                - ``n_obs`` (row count of main payload)
         """
         info: Dict[str, Any] = {
             "file_name": self.file_name,
@@ -355,12 +422,14 @@ class diagAccess:
             "date": self.get_date(),
         }
         if self._data_type == 2:
-            info.update({
-                "sensor": self._data_frame.get("sensor"),
-                "platform": self._data_frame.get("kx"),
-                "n_channels": self._data_frame["dataframes"]["channel_df"].shape[0],
-                "n_obs": self._data_frame["dataframes"]["diagbuf_df"].shape[0],
-            })
+            info.update(
+                {
+                    "sensor": self._data_frame.get("sensor"),
+                    "platform": self._data_frame.get("kx"),
+                    "n_channels": self._data_frame["dataframes"]["channel_df"].shape[0],
+                    "n_obs": self._data_frame["dataframes"]["diagbuf_df"].shape[0],
+                }
+            )
         return info
 
     def export_to_csv(
@@ -378,16 +447,31 @@ class diagAccess:
         path : str or pathlib.Path
             Output CSV path.
         var : str, optional
-            Required for conventional files.
+            **Conventional only.** Variable key.
         kx : int, optional
-            Required for conventional files.
+            **Conventional only.** Observation type to export.
         channel : int, optional
-            Required for radiance files.
+            **Radiance only.** **1-based** channel index as returned by
+            :meth:`get_channels`.
 
         Raises
         ------
         ValueError
             If required selectors are missing for the chosen file type.
+
+        Examples
+        --------
+        Conventional:
+
+        >>> rd = diagAccess('data/diag_conv_01.2024013018')
+        >>> first_kx = rd.get_kx_list('t')[0]
+        >>> rd.export_to_csv('t_kx.csv', var='t', kx=first_kx)
+
+        Radiance (1-based channel):
+
+        >>> rd = diagAccess('data/diag_amsua_n15_03.2024013018')
+        >>> ch1 = rd.get_channels()[0]
+        >>> rd.export_to_csv('ch01.csv', channel=ch1)
         """
         path = Path(path)
         if self._data_type == 1:
@@ -397,10 +481,12 @@ class diagAccess:
         else:
             if channel is None:
                 raise ValueError("For radiance files, channel index must be provided.")
-            df = self._data_frame["dataframes"]["diagbufchan_df"][channel]
+            # convert **1-based** -> internal 0-based list index
+            idx0 = int(channel) - 1
+            df = self._data_frame["dataframes"]["diagbufchan_df"][idx0]
         df.to_csv(path, index=False)
 
-    # ---- deprecated bridges (kept for compatibility) ---------------------
+    # ---------------- deprecated bridges (kept for compatibility) ------------ #
 
     def overview(self):  # pragma: no cover
         """Deprecated: use :meth:`get_overview`."""
@@ -423,25 +509,31 @@ class diagAccess:
                       DeprecationWarning, stacklevel=2)
         return self.export_to_csv(*args, **kwargs)
 
-    # ---------------- Internals ----------------
+    # =============================== Internals =============================== #
 
     @staticmethod
     def _detect_format_file(file_name: str) -> str:
         """
-        Sniff file type.
+        Sniff file type by reading the first big-endian int32.
 
         Parameters
         ----------
         file_name : str
+            Path to the diagnostic file.
 
         Returns
         -------
         str
             ``'conv'`` if first big-endian int32 equals 4; otherwise ``'rad'``.
+
+        Notes
+        -----
+        - Conventional diagnostics begin with a record marker ``4`` (big-endian).
+        - Radiance diagnostics typically do not match this sentinel.
         """
-        with open(file_name, 'rb') as f:
-            val = struct.unpack('>I', f.read(4))[0]
-        return 'conv' if val == 4 else 'rad'
+        with open(file_name, "rb") as f:
+            val = struct.unpack(">I", f.read(4))[0]
+        return "conv" if val == 4 else "rad"
 
 
 # Backward compatibility alias
