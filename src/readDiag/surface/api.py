@@ -69,46 +69,57 @@ Kind: TypeAlias = Literal["conv", "rad"]  # dataset category alias
 # ---------------------------------------------------------------------------
 @dataclass(frozen=True)
 class Metadata:
-    """Minimal, format-stable metadata returned by any diagnostic backend.
+    """
+    Minimal, format-stable metadata returned by any diagnostic backend.
 
-    This structure is intentionally compact and avoids backend-specific keys.
-    It captures only the information that higher layers consistently need.
+    This dataclass encapsulates only the most essential attributes that higher-level
+    layers (e.g., plotting, analytics) consistently need, regardless of backend
+    implementation. It is intentionally compact and avoids backend-specific details.
 
     Parameters
     ----------
     file_name : str
-        Original path to the diagnostic file (may be absolute or relative).
+        Original path to the diagnostic file (absolute or relative).
     date : datetime
         Analysis cycle timestamp parsed from the file header.
     kind : {"conv", "rad"}
-        High-level data category used by plotting and higher-level tools.
+        High-level category of the dataset. Either conventional (`"conv"`) or radiance (`"rad"`).
     sensor : str, optional
-        Sensor/instrument ID, when available (commonly for radiance).
+        Sensor/instrument ID when available (commonly provided for radiance diagnostics).
     platform : str, optional
-        Platform/satellite identifier, when available (commonly for radiance).
+        Platform or satellite identifier, when available (commonly for radiance diagnostics).
     n_channels : int, optional
-        Number of channels (radiance), if known.
+        Number of channels (radiance only), if known.
     n_obs : int, optional
         Total number of observations (radiance or conventional), if known.
 
     Attributes
     ----------
     file_name : str
+        Path to the diagnostic file.
     date : datetime
-    kind : {"conv", "rad"}
+        Timestamp of the diagnostic cycle.
+    kind : str
+        Dataset category (`"conv"` or `"rad"`).
     sensor : str or None
+        Sensor identifier.
     platform : str or None
+        Platform/satellite identifier.
     n_channels : int or None
+        Number of channels.
     n_obs : int or None
+        Number of observations.
 
     Notes
     -----
-    - The dataclass is **frozen**: instances are immutable and hashable.
-    - Missing/unknown fields should be ``None`` rather than placeholders.
+    - The dataclass is **frozen**, meaning instances are immutable and hashable.
+    - Missing or unknown fields should be represented by ``None``.
     - Intended for use in logging, summaries, and lightweight metadata checks.
 
     Examples
     --------
+    Create a metadata object for a conventional diagnostics file:
+
     >>> from datetime import datetime
     >>> meta = Metadata(
     ...     file_name="diag_conv_t.2024010100",
@@ -120,6 +131,26 @@ class Metadata:
     'conv'
     >>> meta.n_obs > 0
     True
+
+    Create a metadata object for a radiance diagnostics file:
+
+    >>> meta = Metadata(
+    ...     file_name="diag_amsua_n15_03.2024010100",
+    ...     date=datetime(2024, 1, 1, 0),
+    ...     kind="rad",
+    ...     sensor="amsua",
+    ...     platform="n15",
+    ...     n_channels=15,
+    ...     n_obs=654321
+    ... )
+    >>> print(meta.pretty())
+    Arquivo : diag_amsua_n15_03.2024010100
+    Data    : 2024-01-01 00:00 UTC
+    Tipo    : rad
+    Sensor  : amsua
+    Plataf. : n15
+    Canais  : 15
+    Obs     : 654321
     """
 
     file_name: str
@@ -130,7 +161,42 @@ class Metadata:
     n_channels: Optional[int] = None
     n_obs: Optional[int] = None
 
+    def pretty(self) -> str:
+        """
+        Return a human-friendly, formatted string of the metadata.
 
+        Returns
+        -------
+        str
+            Multiline string with aligned key-value pairs.
+
+        Examples
+        --------
+        >>> from datetime import datetime
+        >>> meta = Metadata(
+        ...     file_name="diag_conv_t.2024010100",
+        ...     date=datetime(2024, 1, 1, 0),
+        ...     kind="conv",
+        ...     n_obs=100
+        ... )
+        >>> print(meta.pretty())
+        Arquivo : diag_conv_t.2024010100
+        Data    : 2024-01-01 00:00 UTC
+        Tipo    : conv
+        Sensor  : -
+        Plataf. : -
+        Canais  : -
+        Obs     : 100
+        """
+        return (
+            f"Arquivo : {self.file_name}\n"
+            f"Data    : {self.date:%Y-%m-%d %H:%M UTC}\n"
+            f"Tipo    : {self.kind}\n"
+            f"Sensor  : {self.sensor or '-'}\n"
+            f"Plataf. : {self.platform or '-'}\n"
+            f"Canais  : {self.n_channels or '-'}\n"
+            f"Obs     : {self.n_obs or '-'}"
+        )
 # ---------------------------------------------------------------------------
 # Stable protocol for diagnostic access
 # ---------------------------------------------------------------------------
