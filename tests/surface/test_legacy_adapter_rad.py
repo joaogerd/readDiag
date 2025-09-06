@@ -17,19 +17,18 @@ def test_legacy_rad_meta_kind(legacy_rad_fake):
 
 def test_legacy_rad_channels_and_frames(legacy_rad_fake):
     api = LegacyCompatAdapter(legacy_rad_fake)
-    # LegacyCompatAdapter normaliza channels para 1-based mesmo se inferir
+
+    # canais normalizados
     assert api.channels() == [1, 2, 3]
 
     df1 = api.frame_channel(1)
     assert isinstance(df1, pd.DataFrame)
 
-    # table(): "diagbufchan_df" deve ser mapeamento {index: DF}
-    # Para o LegacyCompatAdapter, normalizamos para 1-based — mas toleramos 0-based
+    # diagbufchan_df -> mapeamento {canal: DF}
     chmap = api.table("diagbufchan_df")
     assert isinstance(chmap, dict)
     keys = set(chmap.keys())
     assert keys in ({1, 2, 3}, {0, 1, 2})
-    # escolhe uma chave válida e testa
     any_key = sorted(keys)[0]
     assert isinstance(chmap[any_key], pd.DataFrame)
 
@@ -41,11 +40,15 @@ def test_legacy_rad_channels_and_frames(legacy_rad_fake):
     assert isinstance(main, pd.DataFrame)
     assert isinstance(ext, pd.DataFrame)
 
-    # erros
+    # erros: AGORA chamando algo dentro do bloco
     with pytest.raises(KeyError):
-        _ = api.frame_channel(99)
+        api.table("desconhecida")
+
     with pytest.raises(KeyError):
-        _ = api.table("unknown_table")
+        api.table("")  # nome vazio
+
+    with pytest.raises(KeyError):
+        api.table(None)  # type: ignore[arg-type]
 
 
 def test_legacy_rad_legacy_shims(legacy_rad_fake):

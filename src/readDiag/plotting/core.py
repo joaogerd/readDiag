@@ -835,7 +835,7 @@ class diagPlotter:
         df = chan_list[channel_index]
 
         key = "omf_nbc" if corrected and "omf_nbc" in df.columns else "omf"
-        values = df[key].dropna().to_numpy()
+        values = df[key].dropna().to_numpy() if key in df.columns else np.asarray([], dtype=float) if key in df.columns else np.asarray([], dtype=float)
 
         ax = self._ensure_ax(ax)
         data_kwargs, style_kwargs = self._split_kwargs(kwargs)
