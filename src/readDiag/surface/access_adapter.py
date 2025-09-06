@@ -1,13 +1,86 @@
 # readDiag/adapters.py
 from __future__ import annotations
 
-from typing import Any, Dict
+"""
+AccessAdapter
+=============
+
+Adapter that wraps the legacy/low-level ``diagAccess`` facade and exposes a
+stable, typed interface consistent with :class:`readDiag.api.DiagnosticAPI`.
+
+Why this exists
+---------------
+Historically, ``diagAccess`` returned nested dicts/lists whose *shape and keys*
+varied a bit across versions (and even sensors). This adapter **centralizes the
+translation** from those fragile structures into a clear, predictable surface.
+
+Key behaviors
+-------------
+- **Kind inference**: determines ``"conv"`` (conventional) vs ``"rad"`` (radiance)
+  from file info; falls back to heuristics when needed.
+- **Metadata snapshot**: reads metadata once and stores it in a :class:`Metadata`
+  DTO for cheap access.
+- **Radiance tables**: exposes named tables via :meth:`table` and per-channel
+  frames via :meth:`frame_channel`.
+- **Conventional slices**: lists variables/KX and fetches DataFrames by
+  (variable, kx) via :meth:`frame_conv`.
+- **Legacy shims**: preserves a minimal set of legacy getters so old plotting/test
+  code continues to work during the migration.
+
+Notes
+-----
+- This module is designed to be **import-light** and avoid importing plotting
+  libraries. Keep high-level visualization in dedicated modules.
+- Channel indices in the public API are **1-based**. Internally, some backends
+  keep 0-based lists; we normalize as needed.
+
+Examples
+--------
+Wrap a ``diagAccess`` backend and query metadata:
+
+>>> # from readDiag.io.reader import diagAccess
+>>> # from readDiag.adapters import AccessAdapter
+>>> # b = diagAccess("/path/to/diag_amsua_n15_03.2024013018")
+>>> # d = AccessAdapter(b)
+>>> # m = d.meta()
+>>> # (m.kind, m.sensor, m.platform)  # doctest: +SKIP
+... # ('rad', 'amsua', 'n15')
+
+Conventional workflow (variables/KX → DataFrame):
+
+>>> # if d.kind() == "conv":
+... #     for var in d.variables():
+... #         for kx in d.kx_list(var):
+... #             df = d.frame_conv(var, kx)   # doctest: +SKIP
+... #             assert hasattr(df, "shape")
+
+Radiance workflow (channels → per-channel DataFrame):
+
+>>> # if d.kind() == "rad":
+... #     for ch in d.channels():
+... #         ch_df = d.frame_channel(ch)      # doctest: +SKIP
+... #         assert hasattr(ch_df, "columns")
+
+Accessing named radiance tables:
+
+>>> # if d.kind() == "rad":
+... #     chan_tbl = d.table("channel_df")     # doctest: +SKIP
+... #     main_tbl = d.table("diagbuf_df")     # doctest: +SKIP
+... #     ext_tbl  = d.table("diagbufex_df")   # doctest: +SKIP
+... #     ch_map   = d.table("diagbufchan_df") # doctest: +SKIP
+... #     # ch_map is {1: DataFrame, 2: DataFrame, ...} (1-based)
+"""
+
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Union
 
 import pandas as pd
 
 from .api import DiagnosticAPI, Metadata, Kind
 from ..io.reader import diagAccess  # current backend (facade)
 from ..utils import check_kind
+
+__all__ = ["AccessAdapter"]
 
 
 class AccessAdapter(DiagnosticAPI):
@@ -59,29 +132,30 @@ class AccessAdapter(DiagnosticAPI):
     ... #     chan_tbl = adapter.table("channel_df")
     ... #     main_tbl = adapter.table("diagbuf_df")
     ... #     ext_tbl  = adapter.table("diagbufex_df")
-    ... #     ch_dict  = adapter.table("diagbufchan_df")  # {index: DataFrame}
+    ... #     ch_dict  = adapter.table("diagbufchan_df")  # {1-based index: DF}
     ... #     assert isinstance(ch_dict[1], pd.DataFrame)
     """
 
     def __init__(self, backend: diagAccess) -> None:
-        """Initialize adapter over a diagAccess backend.
-    
+        """Initialize adapter over a :class:`diagAccess` backend.
+
         Parameters
         ----------
-        backend
+        backend : diagAccess
             A fully initialized ``diagAccess`` instance (already opened
             and ready to serve data).
 
         Notes
         -----
-        - Reads file-level metadata **once** and materializes a `Metadata` DTO
-          for cheap future access.
-        - Avoids writing into properties (uses private caches, e.g. `_file_name`).
-        - Uses tolerant heuristics for `kind` and `cycle_dt` when exact fields
-          are absent in `get_file_info()`.
+        - Reads file-level metadata **once** and materializes a :class:`Metadata`
+          DTO for cheap future access.
+        - Avoids writing into properties (uses private caches, e.g. ``_file_name``).
+        - Uses tolerant heuristics for ``kind`` and ``cycle_dt`` when exact fields
+          are absent in ``get_file_info()``.
         """
+        # Store the backend reference (private: do not expose its surface)
         self._b = backend
-    
+
         # --- File info snapshot (one-time) ---------------------------------
         try:
             m = backend.get_file_info()
@@ -89,7 +163,7 @@ class AccessAdapter(DiagnosticAPI):
                 raise TypeError("diagAccess.get_file_info() must return dict")
         except Exception as e:
             raise RuntimeError("Failed to retrieve file info from diagAccess") from e
-    
+
         # --- Kind inference (stable first, then heuristics) ----------------
         dt = (m.get("kind") or m.get("data_type") or "").strip().lower()
         if dt in {"rad", "radiance"}:
@@ -102,7 +176,7 @@ class AccessAdapter(DiagnosticAPI):
                 kind = "rad"
             else:
                 kind = "conv"
-    
+
         # --- Resolve file_name with tolerant fallbacks ---------------------
         file_name = (
             m.get("file_name")
@@ -111,13 +185,13 @@ class AccessAdapter(DiagnosticAPI):
             or str(getattr(backend, "path", ""))  # last resort
             or ""
         )
-    
+
         # --- Build Metadata DTO -------------------------------------------
         date = m.get("date") or m.get("analysis_time") or m.get("datetime") or m.get("valid_time")
         platform = m.get("platform")
         if platform is not None:
             platform = str(platform)
-    
+
         self._meta = Metadata(
             file_name=file_name,
             date=date,
@@ -127,12 +201,12 @@ class AccessAdapter(DiagnosticAPI):
             n_channels=m.get("n_channels"),
             n_obs=m.get("n_obs"),
         )
-    
+
         # --- Cached convenience fields (do NOT assign properties) ----------
         self._file_name: str = self._meta.file_name or file_name
         # keep original date token (str or datetime); deeper normalization lives in utils
         self.date: Optional[datetime | str] = self._meta.date
-    
+
         # --- Best-effort canonical cycle datetime --------------------------
         # Only parse when trivially safe; complex cases defer to utils.get_cycle(...)
         self.cycle_dt: Optional[datetime] = None
@@ -148,6 +222,7 @@ class AccessAdapter(DiagnosticAPI):
         except Exception:
             # Be forgiving: plotting can fall back to filename-based cycle parsing
             pass
+
     # ---------------------------------------------------------------------
     # Generic API
     # ---------------------------------------------------------------------
@@ -162,7 +237,7 @@ class AccessAdapter(DiagnosticAPI):
         return self._meta
 
     def kind(self) -> Kind:
-        """Return the dataset kind (``\"conv\"`` or ``\"rad\"``).
+        """Return the dataset kind (``"conv"`` or ``"rad"``).
 
         Returns
         -------
@@ -220,21 +295,21 @@ class AccessAdapter(DiagnosticAPI):
 
         Examples
         --------
-        >>> d.kx_list("t")
-        [120, 130, 131]
-        >>> d.kx_list()  # doctest: +ELLIPSIS
-        {'t': [...], 'q': [...], 'uv': [...], 'ps': [...]}
+        >>> # d.kx_list("t")                    # doctest: +SKIP
+        ... # [120, 130, 131]
+        >>> # d.kx_list()                       # doctest: +SKIP
+        ... # {'t': [...], 'q': [...], 'uv': [...], 'ps': [...]}
         """
-        # Caminho rápido: var especificado
+        # Fast path: specific variable
         if var is not None:
-            kxs = self._b.get_kx_list(var)  # assume backend já possui este método
+            kxs = self._b.get_kx_list(var)  # backend method
             return sorted(set(kxs))
 
-        # Agregado para todas as variáveis
+        # Aggregate across all variables
         result: Dict[str, List[int]] = {}
         for v in self.variables():
             kxs = self._b.get_kx_list(v)
-            # normaliza: únicos + ordenado
+            # normalize to unique + sorted
             result[v] = sorted(set(kxs))
         return result
 
@@ -309,11 +384,10 @@ class AccessAdapter(DiagnosticAPI):
         if self.kind() != "rad":
             raise ValueError("frame_channel only valid for radiance data.")
 
-        # The backend returns a structured store with a list of per-channel
-        # frames under ["dataframes"]["diagbufchan_df"]. We centralize access
-        # here to avoid leaking structure to callers.
+        # Backend stores a list of per-channel frames at:
+        # get_data_frame()["dataframes"]["diagbufchan_df"]
         store = self._b.get_data_frame()["dataframes"]["diagbufchan_df"]
-        # nossa API é 1-based; a lista do backend é 0-based
+        # Public API is 1-based; backend list is 0-based
         i0 = ch_index - 1
         return store[i0]
 
@@ -328,8 +402,8 @@ class AccessAdapter(DiagnosticAPI):
             - ``"channel_df"``: instrument/channel metadata.
             - ``"diagbuf_df"``: main diagnostic buffer table.
             - ``"diagbufex_df"``: extended diagnostic buffer table.
-            - ``"diagbufchan_df"``: *mapping* ``{index: DataFrame}``
-              for per-channel frames.
+            - ``"diagbufchan_df"``: **mapping** ``{index: DataFrame}``
+              for per-channel frames (1-based indices).
 
         Returns
         -------
@@ -357,10 +431,10 @@ class AccessAdapter(DiagnosticAPI):
         if name == "diagbufex_df":
             return df_store["diagbufex_df"]  # type: ignore[return-value]
 
-        # Convert list of per-channel frames to an index->DataFrame mapping.
+        # Convert list of per-channel frames to a 1-based index->DataFrame mapping.
         if name == "diagbufchan_df":
             lst = df_store["diagbufchan_df"]  # list[DataFrame]
-            return {i: df for i, df in enumerate(lst)}
+            return {i: df for i, df in enumerate(lst, start=1)}
 
         raise KeyError(f"Unknown table '{name}'")
 
@@ -385,7 +459,7 @@ class AccessAdapter(DiagnosticAPI):
 
     def get_kx_list(self, var: str) -> list[int]:
         """Legacy alias for :meth:`kx_list`."""
-        return self.kx_list(var)
+        return self.kx_list(var)  # type: ignore[return-value]
 
     def get_channels(self) -> list[int]:
         """Legacy alias for :meth:`channels`."""
@@ -410,7 +484,7 @@ class AccessAdapter(DiagnosticAPI):
                 - ``"channel_df"``: ``DataFrame``
                 - ``"diagbuf_df"``: ``DataFrame``
                 - ``"diagbufex_df"``: ``DataFrame``
-                - ``"diagbufchan_df"``: ``list[DataFrame]``  # per channel
+                - ``"diagbufchan_df"``: ``list[DataFrame]``  # per channel (legacy)
 
                 ``}}``
 
@@ -421,17 +495,16 @@ class AccessAdapter(DiagnosticAPI):
         :meth:`channels`, :meth:`frame_channel` and :meth:`table`.
         """
         if self.kind() == "conv":
-            # Build the legacy nested mapping on demand to avoid exposing
-            # internal storage formats externally.
+            # Build on demand to avoid leaking backend internal storage.
             out: dict[str, dict[int, pd.DataFrame]] = {}
             for var in self.variables():
                 inner: dict[int, pd.DataFrame] = {}
-                for kx in self.kx_list(var):
+                for kx in self.kx_list(var):  # type: ignore[arg-type]
                     inner[kx] = self.frame_conv(var, kx)
                 out[var] = inner
             return out
 
-        # Radiance (kept verbatim, including list-of-frames for channels)
+        # Radiance (kept verbatim to match historic callers/tests)
         chan_ids = self.channels()
         return {
             "dataframes": {
@@ -463,24 +536,33 @@ class AccessAdapter(DiagnosticAPI):
             "n_obs": m.n_obs,
         }
 
+    # ---------------------------------------------------------------------
+    # Legacy properties (kept for plotting/tests)
+    # ---------------------------------------------------------------------
     @property
     def file_name(self) -> str:
-       """File name (often a full path). Kept for legacy/plotting expectations.
-    
-       Notes
-       -----
-       Historically this attribute has been used both as basename and as
-       full path depending on the backend. We preserve the value as provided
-       by the backend/metadata to avoid breaking legacy code. If you need the
-       basename, apply ``os.path.basename(adapter.file_name)`` at call site.
-       """
-       return self._file_name
-    
+        """File name (often a full path). Kept for legacy/plotting expectations.
+
+        Notes
+        -----
+        Historically this attribute has been used both as basename and as
+        full path depending on the backend. We preserve the value as provided
+        by the backend/metadata to avoid breaking legacy code. If you need the
+        basename, apply ``os.path.basename(adapter.file_name)`` at call site.
+        """
+        return self._file_name
+
     @property
     def file_path(self) -> str:
-       """Full file path as string (legacy convenience)."""
-       # Prefer backend attribute if available; fall back to metadata.
-       return str(
-           getattr(self._b, "file_name", "") or self._meta.file_name or self._file_name
-       )
+        """Full file path as string (legacy convenience).
+
+        Returns
+        -------
+        str
+            The best-effort full path, preferring backend attributes.
+        """
+        # Prefer backend attribute if available; fall back to metadata.
+        return str(
+            getattr(self._b, "file_name", "") or self._meta.file_name or self._file_name
+        )
 

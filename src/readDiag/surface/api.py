@@ -1,52 +1,53 @@
-# readDiag/surface.py
+# --- readDiag/surface.py ----------------------------------------------------
 from __future__ import annotations
 
-"""Stable surface (protocol) for readDiag diagnostic backends.
+"""
+Stable surface (protocol) for readDiag diagnostic backends
+=========================================================
 
-This module defines the minimal, reader-agnostic interface that plotting,
-analytics and higher-level tools will depend on. Concrete backends (e.g.,
-adapters over legacy readers or newer implementations) must implement this
-surface without leaking internal or unstable structures.
+This module defines the **minimal, reader-agnostic interface** (protocol) that
+plotting, analytics, and higher-level tools depend on. Concrete backends
+(e.g., adapters wrapping legacy readers or newer implementations) must
+implement this surface without leaking internal or unstable structures.
 
 Design goals
 ------------
 - **Stability**: expose a thin, durable interface that survives backend changes.
-- **Simplicity**: use plain Python and pandas types; avoid backend-specific dicts.
-- **Separation of concerns**: parsing/IO stays in backends; orchestration lives
-  at higher levels; this surface is the contract between them.
+- **Simplicity**: rely on plain Python and pandas types; avoid backend-specific dicts.
+- **Separation of concerns**: parsing/IO is handled in backends, orchestration
+  happens in higher layers; this surface acts as the *contract* between them.
 
-Quick example
--------------
+Examples
+--------
 Wrap an existing backend and consume this surface:
 
->>> # from readDiag.reader import diagAccess
->>> # from readDiag.adapters import AccessAdapter
->>> # b = diagAccess("/path/to/diag_amsua_n15_03.2024013018")
->>> # api = AccessAdapter(b)     # api : DiagnosticAPI
->>> # m = api.meta()
->>> # m.kind
-... # 'rad'
->>> # if m.kind == "rad":
-... #     ch = api.channels()
-... #     df = api.frame_channel(ch[0])
+>>> from readDiag.reader import diagAccess
+>>> from readDiag.adapters import AccessAdapter
+>>> b = diagAccess("data/diag_amsua_n15_03.2024013018")
+>>> api = AccessAdapter(b)   # api : DiagnosticAPI
+>>> m = api.meta()
+>>> m.kind
+'rad'
+>>> if m.kind == "rad":
+...     ch = api.channels()
+...     df = api.frame_channel(ch[0])
+...     assert isinstance(df, pd.DataFrame)
 
 Implementing a custom backend (sketch):
 
->>> # from dataclasses import dataclass
->>> # import pandas as pd
->>> # class MyBackend:
-... #     ...
->>> # @dataclass(frozen=True)
-... # class MyAdapter(DiagnosticAPI):
-... #     _b: MyBackend
-... #     def meta(self) -> Metadata: ...
-... #     def kind(self) -> Kind: ...
-... #     def variables(self) -> list[str]: ...
-... #     def kx_list(self, var: str) -> list[int]: ...
-... #     def frame_conv(self, var: str, kx: int) -> pd.DataFrame: ...
-... #     def channels(self) -> list[int]: ...
-... #     def frame_channel(self, ch_index: int) -> pd.DataFrame: ...
-... #     def table(self, name: str) -> pd.DataFrame | dict[int, pd.DataFrame]: ...
+>>> from dataclasses import dataclass
+>>> import pandas as pd
+>>> @dataclass(frozen=True)
+... class MyAdapter(DiagnosticAPI):
+...     _b: object  # concrete backend
+...     def meta(self) -> Metadata: ...
+...     def kind(self) -> Kind: ...
+...     def variables(self) -> list[str]: ...
+...     def kx_list(self, var: str) -> list[int]: ...
+...     def frame_conv(self, var: str, kx: int) -> pd.DataFrame: ...
+...     def channels(self) -> list[int]: ...
+...     def frame_channel(self, ch_index: int) -> pd.DataFrame: ...
+...     def table(self, name: str) -> pd.DataFrame | dict[int, pd.DataFrame]: ...
 """
 
 from dataclasses import dataclass
@@ -60,7 +61,7 @@ __all__ = ["Kind", "Metadata", "DiagnosticAPI"]
 # ---------------------------------------------------------------------------
 # Public, stable aliases/types
 # ---------------------------------------------------------------------------
-Kind: TypeAlias = Literal["conv", "rad"]
+Kind: TypeAlias = Literal["conv", "rad"]  # dataset category alias
 
 
 # ---------------------------------------------------------------------------
@@ -102,9 +103,23 @@ class Metadata:
 
     Notes
     -----
-    - The dataclass is **frozen** to allow safe sharing and hashing where useful.
-    - Backends should populate missing/unknown fields with ``None`` rather than
-      inventing placeholder values.
+    - The dataclass is **frozen**: instances are immutable and hashable.
+    - Missing/unknown fields should be ``None`` rather than placeholders.
+    - Intended for use in logging, summaries, and lightweight metadata checks.
+
+    Examples
+    --------
+    >>> from datetime import datetime
+    >>> meta = Metadata(
+    ...     file_name="diag_conv_t.2024010100",
+    ...     date=datetime(2024, 1, 1, 0),
+    ...     kind="conv",
+    ...     n_obs=123456
+    ... )
+    >>> meta.kind
+    'conv'
+    >>> meta.n_obs > 0
+    True
     """
 
     file_name: str
@@ -115,52 +130,57 @@ class Metadata:
     n_channels: Optional[int] = None
     n_obs: Optional[int] = None
 
+
 # ---------------------------------------------------------------------------
 # Stable protocol for diagnostic access
 # ---------------------------------------------------------------------------
 class DiagnosticAPI(Protocol):
     """Stable, reader-agnostic surface for readDiag tools.
 
-    Implementations should be thin adapters around concrete readers and must
-    not leak backend-specific data structures (e.g., nested dicts/lists with
-    implicit invariants). Prefer returning :class:`pandas.DataFrame` and plain
-    Python types only.
+    Implementations should be **thin adapters** around concrete readers and must
+    not leak backend-specific data structures (nested dicts/lists with implicit
+    invariants). Prefer returning :class:`pandas.DataFrame` and plain Python types.
 
     Contract
     --------
     - **Generic**: :meth:`meta` returns immutable :class:`Metadata`; :meth:`kind`
       returns the dataset category.
-    - **Conventional**: callers can enumerate variables and their WMO platform
-      codes (``kx``) and request a slice as a DataFrame.
-    - **Radiance**: callers can enumerate channel indices and request a
-      per-channel DataFrame; common radiance tables are exposed by a small
-      set of stable names via :meth:`table`.
+    - **Conventional**: enumerate variables and their WMO platform codes (``kx``),
+      request slices as DataFrames.
+    - **Radiance**: enumerate channel indices, request per-channel DataFrames,
+      and access common radiance tables by stable names.
 
     Error semantics
     ---------------
-    - Methods that are not meaningful for the current ``kind`` **must** raise
-      ``ValueError`` (e.g., calling :meth:`frame_channel` on a conventional file).
-    - Out-of-range or unknown keys (variable, kx, channel, table name) **should**
-      raise ``KeyError`` where appropriate.
+    - Invalid calls (e.g., calling :meth:`frame_channel` on a conventional file)
+      **must** raise ``ValueError``.
+    - Unknown/out-of-range keys (variable, kx, channel, table) **should** raise
+      ``KeyError``.
 
     Performance
     -----------
-    Implementations may lazily read data or cache frames. The protocol does not
-    mandate eager loading; it mandates only the *shape* of the responses.
+    - Implementations may lazily read or cache data.
+    - The protocol enforces *shape* and type of responses, not loading strategy.
 
     Examples
     --------
-    >>> # Assume `api` is a DiagnosticAPI for a conventional file:
-    ... # for var in api.variables():
-    ... #     for kx in api.kx_list(var):
-    ... #         df = api.frame_conv(var, kx)
-    ... #         assert isinstance(df, pd.DataFrame)
+    For a conventional file:
 
-    >>> # For radiance:
-    ... # ch = api.channels()
-    ... # ch_df = api.frame_channel(ch[0])
-    ... # main = api.table("diagbuf_df")
-    ... # assert isinstance(main, pd.DataFrame)
+    >>> api: DiagnosticAPI = ...
+    >>> if api.kind() == "conv":
+    ...     for var in api.variables():
+    ...         for kx in api.kx_list(var):
+    ...             df = api.frame_conv(var, kx)
+    ...             assert isinstance(df, pd.DataFrame)
+
+    For a radiance file:
+
+    >>> api: DiagnosticAPI = ...
+    >>> if api.kind() == "rad":
+    ...     ch = api.channels()
+    ...     ch_df = api.frame_channel(ch[0])
+    ...     meta_tbl = api.table("channel_df")
+    ...     assert isinstance(meta_tbl, pd.DataFrame)
     """
 
     # ---- generic ----
@@ -311,5 +331,6 @@ class DiagnosticAPI(Protocol):
             If the table name is unknown.
         """
         ...
+
 
 
