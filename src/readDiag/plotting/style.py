@@ -4,19 +4,22 @@ import matplotlib.pyplot as plt
 
 """
 Module: readDiag.style
+======================
 
-Centralizes global plotting style for the readDiag package. The main entry point
-is the :class:`PlotConfig` dataclass, which collects rcParams, spines, grid, and
-reference-line settings. Users can instantiate a PlotConfig to override default
-styling and then call :meth:`apply_to_axes` on any Matplotlib axes.
+Centralizes global plotting style for the ``readDiag`` package.
 
-Example
--------
+The main entry point is the :class:`PlotConfig` dataclass, which collects
+``rcParams``, spines, grid, and reference-line settings. Users can instantiate
+a :class:`PlotConfig` object to override default styling and then call
+:meth:`apply_to_axes` on any Matplotlib axes.
+
+Examples
+--------
 >>> from readDiag.style import PlotConfig
 >>> cfg = PlotConfig(style="seaborn-v0_8-darkgrid", show_spines=True)
 >>> import matplotlib.pyplot as plt
 >>> fig, ax = plt.subplots()
->>> ax.plot([0,1],[1,2])
+>>> ax.plot([0, 1], [1, 2])
 >>> cfg.apply_to_axes(ax)
 >>> ax.set_title("Styled")
 >>> plt.show()
@@ -27,24 +30,54 @@ Example
 class PlotConfig:
     """Configuration container for global plot styling.
 
+    This class centralizes Matplotlib styling options, including rcParams,
+    grid appearance, background color, and spines visibility.
+
     Attributes
     ----------
     style : str
-        Matplotlib style name, passed to ``plt.style.use`` (e.g., ``'seaborn-v0_8-darkgrid'``).
+        Matplotlib style name, passed to ``plt.style.use`` 
+        (e.g., ``'seaborn-v0_8-darkgrid'``).
     rc_params : dict
-        Key–value overrides for Matplotlib's rcParams (applied via ``plt.rcParams.update``).
-        Typical entries: ``axes.titlesize``, ``axes.facecolor``, ``grid.linestyle``.
+        Key–value overrides for Matplotlib's rcParams 
+        (applied via ``plt.rcParams.update``).
+        Typical entries: ``axes.titlesize``, ``axes.facecolor``,
+        ``grid.linestyle``.
     zero_line_kwargs : dict
         Parameters for drawing a horizontal reference line at y=0
         (e.g., ``{'y': 0.0, 'ls': 'dashed', 'c': 'gray'}``).
     show_spines : bool
-        Whether to display spines (axes borders). If ``False``, all spines are hidden.
+        Whether to display spines (axes borders). If ``False``,
+        all spines are hidden.
     spines_sides : list of str
-        Which spines to show if ``show_spines=True``. Options: ``['top','bottom','left','right']``.
+        Which spines to show if ``show_spines=True``.
+        Options: ``['top','bottom','left','right']``.
     spine_color : str
         Color applied to visible spines.
     spine_linewidth : float
         Line width applied to visible spines.
+
+    Examples
+    --------
+    Create and apply a custom configuration:
+
+    >>> import matplotlib.pyplot as plt
+    >>> from readDiag.style import PlotConfig
+    >>> config = PlotConfig(
+    ...     style='seaborn-v0_8-darkgrid',
+    ...     rc_params={'axes.titlesize': 14, 'axes.facecolor': '#F0F0F0'},
+    ...     spines_sides=['left', 'bottom'],
+    ...     spine_color='darkblue',
+    ...     spine_linewidth=1.5
+    ... )
+    >>> plt.style.use(config.style)
+    >>> plt.rcParams.update(config.rc_params)
+    >>> fig, ax = plt.subplots()
+    >>> ax.plot([0, 1], [1, 2], label="Line")
+    >>> config.apply_to_axes(ax)
+    >>> ax.legend()
+    >>> ax.set_title("Custom Styled Plot")
+    >>> plt.show()
     """
 
     style: str = 'seaborn-v0_8-darkgrid'
@@ -84,9 +117,22 @@ class PlotConfig:
 
         Notes
         -----
-        - Grid settings are pulled from ``rc_params`` (``grid.linestyle``, ``grid.color``, etc.).
-        - If ``show_spines`` is False, all spines are hidden regardless of other settings.
+        - Grid settings are pulled from ``rc_params`` (``grid.linestyle``,
+          ``grid.color``, etc.).
+        - If ``show_spines`` is False, all spines are hidden regardless of
+          other settings.
         - Otherwise, only sides listed in ``spines_sides`` are shown and styled.
+
+        Examples
+        --------
+        >>> import matplotlib.pyplot as plt
+        >>> from readDiag.style import PlotConfig
+        >>> cfg = PlotConfig(show_spines=False)
+        >>> fig, ax = plt.subplots()
+        >>> ax.plot([0, 1], [1, 2])
+        >>> cfg.apply_to_axes(ax)
+        >>> ax.set_title("No Spines")
+        >>> plt.show()
         """
         # Enable grid lines if rc_params specify them
         if 'grid.linestyle' in self.rc_params:
@@ -99,12 +145,12 @@ class PlotConfig:
                 alpha=0.7,
             )
 
-        # Set background facecolor
+        # Set background facecolor if defined
         facecolor = self.rc_params.get('axes.facecolor')
         if facecolor:
             ax.set_facecolor(facecolor)
 
-        # Spine visibility and styling
+        # Configure spines visibility and styling
         if self.show_spines:
             for side in ['top', 'bottom', 'left', 'right']:
                 visible = side in self.spines_sides
@@ -136,12 +182,15 @@ if __name__ == "__main__":
         zero_line_kwargs={'y': 0.0, 'ls': 'dotted', 'c': 'gray'},
     )
 
+    # Apply global style
     plt.style.use(config.style)
     plt.rcParams.update(config.rc_params)
 
+    # Create test plot
     fig, ax = plt.subplots()
     ax.plot([1, 2, 3], [2, 1, 3], label='Demo Line')
     config.apply_to_axes(ax)
     ax.set_title("Styled Plot Example")
     ax.legend()
     plt.show()
+
