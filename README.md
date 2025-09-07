@@ -6,29 +6,32 @@
 [![License: LGPL v3](https://img.shields.io/badge/License-LGPL%20v3-blue.svg)](https://opensource.org/licenses/LGPL-3.0)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 
-**readDiag** is a modern Python package for reading, analyzing, and visualizing GSI (Gridpoint Statistical Interpolation) diagnostic files, including both conventional and radiance data.  
-It is designed for robust analysis of observation impact and supports scalable batch processing for multi-cycle and multi-sensor experiments.
+# readDiag
+
+**readDiag** is a modern Python toolkit for reading, analyzing, and visualizing **GSI (Gridpoint Statistical Interpolation)** diagnostics — both **conventional** and **radiance**.  
+It focuses on a **stable high-level API** (the `DiagnosticAPI`) and clear separation between **legacy** interfaces and the **new** supported surface.
+
+> 🔁 Migrating from older scripts? See **[MIGRATION_LEGACY.md](MIGRATION_LEGACY.md)**.  
+> TL;DR: `gsidiag` = legacy (kept for compatibility, deprecated); `readDiag` = new.
 
 ---
 
 ## 🚀 Installation
 
-### Minimal Conda environment (optional, but recommended)
+### (Optional) Minimal Conda environment
 
 ```bash
 conda create --name readDiag python=3.11 --no-default-packages
 conda activate readDiag
 ````
 
-### For Users (runtime only)
+### For Users (runtime)
 
 ```bash
 git clone https://github.com/joaogerd/readDiag
 cd readDiag
-pip install -r requirements.txt
-````
-
-This will install only the dependencies needed to run **readDiag** (data reading, analysis, and plotting).
+pip install .
+```
 
 ### For Development
 
@@ -37,7 +40,194 @@ git clone https://github.com/joaogerd/readDiag
 cd readDiag
 pip install -e .[dev]
 ```
+
+> The **dev** extras include tools for linting, testing and docs (if defined in `pyproject.toml`).
+
+### Verify the install
+
+```bash
+python -c "import readDiag; print('✅ import ok')"
+```
+
 ---
+
+## ⚡ Quick Start (New API)
+
+Open any diagnostic file and work with a **stable** surface (`DiagnosticAPI`).
+
+```python
+import readDiag as rd
+
+api = rd.open_diagnostic("data/diag_conv_01.2024013018")  # -> DiagnosticAPI
+print(api.kind())  # "conv" or "rad"
+
+if api.kind() == "conv":
+    for v in api.variables():
+        for kx in api.kx_list(v):
+            df = api.frame_conv(v, kx)      # pandas.DataFrame
+            # ... analysis/plots ...
+else:
+    for ch in api.channels():
+        df = api.frame_channel(ch)          # pandas.DataFrame for channel `ch`
+```
+
+### Plotting helpers (wrappers)
+
+```python
+from readDiag.plotting.wrappers import plot_kx_count, plot_omf_map, plot_oma_map
+
+api = rd.open_diagnostic("data/diag_conv_01.2024013018")
+plot_kx_count(api)
+plot_omf_map(api, var="t", kx=120)
+plot_oma_map(api, var="t", kx=120)
+```
+
+---
+
+## 📟 CLI Usage
+
+Once installed, **readDiag** provides a lightweight command-line interface (CLI) for quick environment checks and debugging.
+
+### Run via Python module
+
+```bash
+# Show package version
+python -m readDiag --version
+
+# Show full environment (Python, OS, NumPy, Pandas, Matplotlib, Cartopy)
+python -m readDiag --show-versions
+
+# JSON output (machine-readable)
+python -m readDiag --show-versions --json
+
+# Include extra packages in the report (scipy, xarray, netCDF4, shapely, pyproj, cfgrib, eccodes)
+python -m readDiag --show-versions --extra
+````
+
+### Run via console script (if installed with entrypoint)
+
+```bash
+# Show package version
+readDiag --version
+
+# Show environment versions (table)
+readDiag --show-versions
+
+# JSON output
+readDiag --show-versions --json
+
+# Include extra packages
+readDiag --show-versions --extra
+```
+
+### Quick file inspection
+
+```bash
+# Inspect a single diagnostic file (conv or rad)
+python -m readDiag data/diag_conv_01.2024013018
+
+# or
+readDiag data/diag_conv_01.2024013018
+```
+
+**Example output (show-versions):**
+
+```
+readDiag    : 2.1.0
+Python      : 3.12.2
+OS          : Linux 6.8.0-...
+Executable  : /usr/bin/python3
+NumPy       : 2.0.2
+Pandas      : 2.2.3
+Matplotlib  : 3.9.2
+Cartopy     : not installed
+GeoPandas   : 0.14.4
+```
+
+**Example output (conv):**
+
+```
+conv | date=2024-01-30 18:00:00 | file=data/diag_conv_01.2024013018
+  var=t kx=[120, 220, ...]
+  var=q kx=[...]
+  ...
+```
+
+**Example output (rad):**
+
+```
+rad | date=2024-01-30 18:00:00 | file=data/diag_amsua_n19_01.2024013018
+  channels=[1, 2, 3, ...]
+
+```
+### Legacy CLI (compat only)
+
+```bash
+# legacy interface (deprecated, still available)
+gsidiag data/diag_conv_01.2024013018 --var t --kx 120
+```
+
+---
+
+## 🧪 Tests & Dev
+
+```bash
+# run tests
+pytest -q
+
+# style/lint (if configured)
+ruff check .
+black --check .
+```
+
+---
+
+## 📚 Examples
+
+See the `examples/` folder for quickstarts and scripts.
+(We’re organizing examples by **basic/**, **advanced/**, and **cli/**.)
+
+---
+
+## 🧾 Legacy vs New (READ THIS)
+
+* **LEGACY**: the `gsidiag/` package keeps the old `read_diag` class and methods for compatibility.
+  Importing it triggers a **DeprecationWarning**.
+* **NEW**: the `readDiag/` package provides the stable entrypoint:
+
+  ```python
+  import readDiag as rd
+  api = rd.open_diagnostic("path/to/diag_file")  # -> DiagnosticAPI
+  ```
+* The low-level reader **is modern** (not legacy): `readDiag.io.reader.diagAccess`.
+* For migration details and before/after mapping, see **[MIGRATION\_LEGACY.md](MIGRATION_LEGACY.md)**.
+
+---
+
+### ⚠️ Large Files (Git LFS)
+
+Some diagnostic files used for testing or examples may exceed the default GitHub size limit.
+To ensure these files are downloaded correctly, **install and configure Git LFS** before cloning the repository:
+
+#### **1. Install Git LFS**
+
+**Linux (Debian/Ubuntu):**
+
+```bash
+sudo apt-get install git-lfs
+```
+
+**macOS (Homebrew):**
+
+```bash
+brew install git-lfs
+```
+
+**Windows (Chocolatey):**
+
+```bash
+choco install git-lfs
+```
 
 ### ⚠️ Large Files (Git LFS)
 
@@ -87,164 +277,6 @@ git lfs pull
 > git lfs pull
 > ```
 
----
-### Verify package import and version
-
-```bash
-python -c "import readDiag; print('✅ import ok, version =', readDiag.__version__)"
-````
-### Or via CLI
-
-```bash
-python -m readDiag --show-versions
-``` 
-This installs additional dependencies for testing, linting, and documentation.
-
----
-
-## 📟 CLI Usage
-
-Once installed, **readDiag** provides a lightweight command-line interface (CLI) for quick environment checks and debugging.
-
-### Run via Python module
-
-```bash
-# Show package version
-python -m readDiag --version
-
-# Show full environment (Python, OS, NumPy, Pandas, Matplotlib, Cartopy)
-python -m readDiag --show-versions
-```
-
-### Run via console script (if installed with entrypoint)
-
-If `setup.py` / `pyproject.toml` defines a `console_scripts` entrypoint, you can also call it directly:
-
-```bash
-# Show package version
-readDiag --version
-
-# Show environment versions
-readDiag --show-versions
-```
-
-### Example output
-
-```text
-readDiag    : 2.1.0
-Python      : 3.12.2
-OS          : Linux 6.8.0-...
-NumPy       : 2.0.2
-Pandas      : 2.2.3
-Matplotlib  : 3.9.2
-Cartopy     : not installed
-```
-
----
-
-## ⚡ Features
-
-* Fast and flexible reading of GSI diagnostics (conventional & radiance).
-* Detailed **observation impact analysis**: Total Impact (TI), Fractional Impact (FI), Fractional Background Impact (FBI).
-* Robust statistical comparison of experiments (mean, median, CI, significance tests, effect size, trends, and more).
-* Highly customizable plotting and publication-ready visualizations.
-* Example scripts for batch impact analysis, comparison between sensors, and visualization.
-
----
-
-## 📚 Usage Example
-
-### Basic Access & Plot
-
-```python
-from readDiag import diagAccess, diagPlotter
-
-diag = diagAccess("data/diag_conv_01.2024013018")
-plotter = diagPlotter(diag)
-plotter.plot()
-```
-
-### Multi-Cycle Impact Analysis
-
-```python
-from readDiag import ImpactAnalyzer, ExperimentComparator
-
-# Build pairs of (OmF, OmA) files for two sensors (e.g., n18 and n19)
-exp1 = [("data/diag_amsua_n18_01.2024013018", "data/diag_amsua_n18_03.2024013018"), ...]
-exp2 = [("data/diag_amsua_n18_01.2024013018", "data/diag_amsua_n19_03.2024013018"), ...]
-
-comparator = ExperimentComparator(exp1, exp2)
-comparator.compare()
-df = comparator.comparison_df
-print(df.head())
-```
-
-**More complete batch analysis and visualization scripts can be found in the `examples/` directory.**
-
----
-
-## 📝 Examples
-
-Several ready-to-use scripts are provided in [`examples/`](examples):
-
-* `01_quickstart_conv.py`, `02_quickstart_rad.py`: Basic usage for conventional and radiance diagnostics.
-* `05_impact_basic.py`, `06_impact_series.py`: Impact analysis and multi-cycle comparisons.
-* `07_legacy_compat.py`: Using the **LegacyCompatAdapter** with older code.
-* `08_plot_amsua_swath.py`: AMSU-A swath visualization.
-* `09_show_conv_dataframe.py`: Inspecting DataFrames directly.
-
----
-
-## 🧪 Tests
-
-Run the full test suite:
-
-```bash
-make test
-```
-
-Run benchmarks:
-
-```bash
-make benchmark
-```
-
-Check code style with linter:
-
-```bash
-make lint
-```
----
-
-## Legacy vs New (LEIA ISTO)
-
-- **LEGACY**: o pacote `gsidiag/` mantém a classe `read_diag` e métodos antigos.  
-  Ele continua funcionando **apenas para compatibilidade** e emite `DeprecationWarning`.
-- **NOVO**: o pacote `readDiag/` expõe uma entrada estável:
-```python
-  import readDiag as rd
-  api = rd.open_diagnostic("path/to/diag_file")  # -> DiagnosticAPI
-
-  if api.kind() == "conv":
-      for v in api.variables():
-          for kx in api.kx_list(v):
-              df = api.frame_conv(v, kx)
-  else:
-      for ch in api.channels():
-          df = api.frame_channel(ch)
-````
-
-* O leitor baixo-nível **moderno** é `readDiag.io.reader.diagAccess` (não é legacy).
-* Para mapas/contagens rápidas:
-
-```python
-from readDiag.plotting.wrappers import plot_kx_count, plot_omf_map, plot_oma_map
-plot_kx_count(api)
-plot_omf_map(api, var="t", kx=120)
-```
-
-
----
 
 ## 📄 License
 
@@ -257,5 +289,4 @@ Distributed under the [LGPL-3.0-or-later](https://opensource.org/licenses/LGPL-3
 João Gerd Zell de Mattos
 Feel free to open issues or contribute!
 
----
 

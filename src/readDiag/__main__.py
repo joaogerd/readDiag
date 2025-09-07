@@ -1,76 +1,132 @@
 from __future__ import annotations
 import argparse
+import json
+import os
+import platform
+import sys
+from importlib import metadata as im
+from typing import Dict, Any, List
+
 from .open import open_diagnostic
 
 
+def _pkg_version(name: str) -> str:
+    """Return installed package version or 'not installed'."""
+    try:
+        return im.version(name)
+    except im.PackageNotFoundError:
+        return "not installed"
+    except Exception:
+        return "unknown"
+
+
+def _readDiag_version() -> str:
+    # Tenta pegar via importlib.metadata; se falhar, tenta atributo __version__
+    v = _pkg_version("readDiag")
+    if v not in ("not installed", "unknown"):
+        return v
+    try:
+        import readDiag as _rd  # type: ignore
+        return getattr(_rd, "__version__", "unknown")
+    except Exception:
+        return "unknown"
+
+
+def _collect_versions(extra: bool = False) -> Dict[str, Any]:
+    """Coleta informações de ambiente com dependências opcionais."""
+    info: Dict[str, Any] = {
+        "readDiag": _readDiag_version(),
+        "Python": platform.python_version(),
+        "OS": platform.platform(),
+        "Executable": sys.executable,
+    }
+
+    # Pacotes principais
+    libs = [
+        ("NumPy", "numpy"),
+        ("Pandas", "pandas"),
+        ("Matplotlib", "matplotlib"),
+        ("Cartopy", "cartopy"),
+        ("GeoPandas", "geopandas"),
+    ]
+
+    # Extras úteis
+    if extra:
+        libs.extend([
+            ("SciPy", "scipy"),
+            ("xarray", "xarray"),
+            ("netCDF4", "netCDF4"),
+            ("Shapely", "shapely"),
+            ("PyProj", "pyproj"),
+            ("CFGRIB", "cfgrib"),
+            ("eccodes", "eccodes"),
+        ])
+
+    for label, pkg in libs:
+        info[label] = _pkg_version(pkg)
+
+    return info
+
+
+def _print_versions_table(info: Dict[str, Any]) -> None:
+    width = max(len(k) for k in info) + 2
+    for k, v in info.items():
+        print(f"{k:<{width}}: {v}")
+
+
 def cli() -> int:
-    """
-    Command-line interface for the ``readDiag`` package.
-
-    This function parses command-line arguments, opens a GSI diagnostic file
-    (conventional or radiance), and prints basic metadata and content overview.
-
-    Workflow
-    --------
-    1. Parse the filename from CLI arguments.
-    2. Open the diagnostic file using :func:`open_diagnostic`.
-    3. Retrieve metadata via :meth:`DiagnosticAPI.meta`.
-    4. Display metadata and file-specific information:
-       - For conventional diagnostics: list variables and their KX codes.
-       - For radiance diagnostics: list available channels.
-
-    Returns
-    -------
-    int
-        Exit code, ``0`` on success. Returned via ``SystemExit``.
-
-    Notes
-    -----
-    - This CLI is intentionally minimal. For more advanced analysis
-      (statistics, plotting), use the Python API directly.
-    - The metadata returned includes kind, date, file name, and optionally
-      sensor/platform information for radiance files.
-
-    Examples
-    --------
-    Run from the command line with a conventional diagnostic file:
-
-    >>> # In shell
-    >>> readDiag data/diag_conv_01.2024013018
-    conv | date=2024-01-30 18:00:00 | file=data/diag_conv_01.2024013018
-      var=t kx=[120, 130, 131]
-      var=q kx=[120, 130]
-
-    Run with a radiance diagnostic file:
-
-    >>> readDiag data/diag_amsua_n15_03.2024013018
-    rad | date=2024-01-30 18:00:00 | file=data/diag_amsua_n15_03.2024013018
-      channels=[1, 2, 3, 4, 5, 6, 7]
-
-    """
-    # Create argument parser with program name "readDiag"
-    p = argparse.ArgumentParser(prog="readDiag")
-
-    # Positional argument: diagnostic file (conventional or radiance)
-    p.add_argument("file", help="diagnostic file (conv or rad)")
+    p = argparse.ArgumentParser(
+        prog="readDiag",
+        description="Lightweight CLI for readDiag: environment checks and quick file inspection.",
+    )
+    p.add_argument("file", nargs="?", help="Diagnostic file to inspect (conv or rad)")
+    p.add_argument("--version", action="store_true", help="Show readDiag package version and exit")
+    p.add_argument(
+        "--show-versions",
+        action="store_true",
+        help="Show environment versions (Python, OS, NumPy, Pandas, Matplotlib, Cartopy, ...)",
+    )
+    p.add_argument(
+        "--json",
+        action="store_true",
+        help="When used with --show-versions, print JSON instead of a table",
+    )
+    p.add_argument(
+        "--extra",
+        action="store_true",
+        help="When used with --show-versions, include extra packages (scipy, xarray, netCDF4, shapely, pyproj, cfgrib, eccodes)",
+    )
     args = p.parse_args()
 
-    # Open diagnostic file through high-level API
-    api = open_diagnostic(args.file)
+    # 1) Apenas versão do pacote
+    if args.version:
+        print(_readDiag_version())
+        return 0
 
-    # Extract metadata (kind, date, file name, etc.)
-    m = api.meta()
-    print(f"{m.kind} | date={m.date} | file={m.file_name}")
+    # 2) Tabela (ou JSON) de versões/ambiente
+    if args.show_versions:
+        info = _collect_versions(extra=args.extra)
+        if args.json:
+            print(json.dumps(info, ensure_ascii=False, indent=2))
+        else:
+            _print_versions_table(info)
+        return 0
 
-    # Depending on the kind, print variables (conv) or channels (rad)
-    if m.kind == "conv":
-        for v in api.variables():
-            kx = api.kx_list(v)
-            print(f"  var={v} kx={kx}")
-    else:
-        print(f"  channels={api.channels()}")
+    # 3) Sem flags -> se passou arquivo, faz um "inspect" rápido
+    if args.file:
+        api = open_diagnostic(args.file)
+        m = api.meta()
+        print(f"{m.kind} | date={m.date} | file={m.file_name}")
+        if m.kind == "conv":
+            for v in api.variables():
+                kx = api.kx_list(v)
+                print(f"  var={v} kx={kx}")
+        else:
+            print(f"  channels={api.channels()}")
+        return 0
 
-    # Return success exit code
+    # 4) Sem nada — mostra ajuda
+    p.print_help()
     return 0
 
 
