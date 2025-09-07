@@ -214,6 +214,35 @@ Check code style with linter:
 ```bash
 make lint
 ```
+---
+
+## Legacy vs New (LEIA ISTO)
+
+- **LEGACY**: o pacote `gsidiag/` mantém a classe `read_diag` e métodos antigos.  
+  Ele continua funcionando **apenas para compatibilidade** e emite `DeprecationWarning`.
+- **NOVO**: o pacote `readDiag/` expõe uma entrada estável:
+```python
+  import readDiag as rd
+  api = rd.open_diagnostic("path/to/diag_file")  # -> DiagnosticAPI
+
+  if api.kind() == "conv":
+      for v in api.variables():
+          for kx in api.kx_list(v):
+              df = api.frame_conv(v, kx)
+  else:
+      for ch in api.channels():
+          df = api.frame_channel(ch)
+````
+
+* O leitor baixo-nível **moderno** é `readDiag.io.reader.diagAccess` (não é legacy).
+* Para mapas/contagens rápidas:
+
+```python
+from readDiag.plotting.wrappers import plot_kx_count, plot_omf_map, plot_oma_map
+plot_kx_count(api)
+plot_omf_map(api, var="t", kx=120)
+```
+
 
 ---
 
@@ -229,3 +258,4 @@ João Gerd Zell de Mattos
 Feel free to open issues or contribute!
 
 ---
+

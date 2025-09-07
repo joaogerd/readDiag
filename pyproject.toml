@@ -64,7 +64,8 @@ package-dir = { "" = "src" }
 where = ["src"]
 
 [project.scripts]
-readdiag = "readDiag:main"
+readDiag = "readDiag.__main__:cli"
+gsidiag = "gsidiag.__main__:cli"
 
 [tool.setuptools.package-data]
 readDiag = ["*.yml", "*.yaml", "*.json", "*.csv"]
