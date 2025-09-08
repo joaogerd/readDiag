@@ -1460,4 +1460,152 @@ class diagPlotter:
         ax.set_xlabel("Longitude")
         ax.set_ylabel("Latitude")
         return ax
+    # -----------------------------
+    # NOVOS PLOTS - CONVENCIONAL
+    # -----------------------------
+    def plot_spatial_conv_auto(self, var: str, kx: int, prefer=None, **kwargs):
+        """
+        Mapa espacial para conv escolhendo automaticamente o parâmetro disponível.
+        Ordem padrão: ["oma", "omf", "obs", "ges", "hofx"].
+        Retorna: matplotlib.axes.Axes
+        """
+        prefer = prefer or ["oma", "omf", "obs", "ges", "hofx"]
+        df = self.diag.frame_conv(var, kx)
+        cols = set(df.columns)
+        col = next((c for c in prefer if c in cols), None)
+        if col is None:
+            raise ValueError(f"Nenhuma de {prefer} nas colunas: {sorted(cols)}")
+        return self.plot_spatial_conv(var, kx, param=col, **kwargs)
+
+    def plot_coverage_conv(self, var: str, kx: int, s: int = 2):
+        """
+        Mapa rápido de cobertura (lat/lon) para conv.
+        Retorna: matplotlib.axes.Axes
+        """
+        import matplotlib.pyplot as plt
+        df = self.diag.frame_conv(var, kx)
+        need = {"lat", "lon"}
+        if not need <= set(df.columns):
+            raise ValueError(f"Faltam colunas {need} em {sorted(df.columns)}")
+        ax = plt.gca()
+        ax.scatter(df["lon"], df["lat"], s=s)
+        ax.set_xlabel("Longitude"); ax.set_ylabel("Latitude")
+        ax.set_title(f"Coverage ({var}, kx={kx})")
+        return ax
+
+    def plot_scatter_conv(self, var: str, kx: int, x: str, y: str, s: int = 3, **kwargs):
+        """
+        Dispersão genérica para conv (ex.: hofx vs omf).
+        Retorna: matplotlib.axes.Axes
+        """
+        df = self.diag.frame_conv(var, kx)
+        need = {x, y}
+        if not need <= set(df.columns):
+            raise ValueError(f"Faltam {need} em {sorted(df.columns)}")
+        ax = df.plot.scatter(x=x, y=y, s=s, **kwargs)
+        ax.set_title(f"{y} vs {x} ({var}, kx={kx})")
+        return ax
+
+    def plot_hist_conv(self, var: str, kx: int, param: str, bins: int = 50, **kwargs):
+        """
+        Histograma de um parâmetro para conv (ex.: omf).
+        Retorna: matplotlib.axes.Axes
+        """
+        df = self.diag.frame_conv(var, kx)
+        if param not in df.columns:
+            raise ValueError(f"Coluna '{param}' não encontrada em {sorted(df.columns)}")
+        ax = df[param].plot.hist(bins=bins, **kwargs)
+        ax.set_xlabel(param); ax.set_ylabel("count")
+        ax.set_title(f"Histogram of {param} ({var}, kx={kx})")
+        return ax
+
+    def plot_box_by_kx(self, var: str, param: str, kx_limit: int | None = None):
+        """
+        Boxplot do parâmetro por KX (para uma variável).
+        Retorna: matplotlib.axes.Axes
+        """
+        import matplotlib.pyplot as plt
+        kxs = self.diag.kx_list(var)
+        if kx_limit:
+            kxs = kxs[:kx_limit]
+        data, labels = [], []
+        for kx in kxs:
+            df = self.diag.frame_conv(var, kx)
+            if param in df.columns and len(df[param]) > 0:
+                data.append(df[param].values)
+                labels.append(str(kx))
+        if not data:
+            raise ValueError(f"Nenhum dado para '{param}' em var={var}")
+        ax = plt.gca()
+        ax.boxplot(data, labels=labels, showfliers=False)
+        ax.set_title(f"{param} by KX — {var}")
+        ax.set_xlabel("KX"); ax.set_ylabel(param)
+        return ax
+
+    # -----------------------------
+    # NOVOS PLOTS - RADIÂNCIA
+    # -----------------------------
+    def plot_hist_channel(self, channel: int, param: str | None = None, bins: int = 50):
+        """
+        Histograma por canal (param padrão: omf→oma).
+        Retorna: matplotlib.axes.Axes
+        """
+        df = self.diag.frame_channel(channel)
+        if param is None:
+            param = "omf" if "omf" in df.columns else ("oma" if "oma" in df.columns else None)
+        if param is None or param not in df.columns:
+            raise ValueError(f"Nenhum de ['omf','oma'] disponível em {sorted(df.columns)}")
+        ax = df[param].plot.hist(bins=bins)
+        ax.set_title(f"Histogram of {param} (channel {channel})")
+        ax.set_xlabel(param); ax.set_ylabel("count")
+        return ax
+
+    def plot_scatter_channel(self, channel: int, x: str, y: str, s: int = 3, **kwargs):
+        """
+        Dispersão por canal (ex.: omf vs sat_zen).
+        Retorna: matplotlib.axes.Axes
+        """
+        df = self.diag.frame_channel(channel)
+        need = {x, y}
+        if not need <= set(df.columns):
+            raise ValueError(f"Faltam {need} em {sorted(df.columns)}")
+        ax = df.plot.scatter(x=x, y=y, s=s, **kwargs)
+        ax.set_title(f"{y} vs {x} (channel {channel})")
+        return ax
+
+    def plot_abs_omf_map_channel(self, channel: int, param: str | None = None, s: int = 3):
+        """
+        Mapa rápido de |omf| (fallback oma) por canal.
+        Retorna: matplotlib.axes.Axes
+        """
+        import numpy as np
+        import matplotlib.pyplot as plt
+        df = self.diag.frame_channel(channel)
+        if {"lat", "lon"} - set(df.columns):
+            raise ValueError("lat/lon ausentes no DataFrame")
+        if param is None:
+            param = "omf" if "omf" in df.columns else ("oma" if "oma" in df.columns else None)
+        if param is None or param not in df.columns:
+            raise ValueError("nem 'omf' nem 'oma' disponíveis para mapear")
+        ax = plt.gca()
+        sc = ax.scatter(df["lon"], df["lat"], s=s, c=np.abs(df[param].values))
+        ax.set_xlabel("Longitude"); ax.set_ylabel("Latitude")
+        ax.set_title(f"|{param}| map (channel {channel})")
+        import matplotlib.pyplot as _plt  # noqa: E401 (apelido interno)
+        _plt.colorbar(sc, label=f"|{param}|")
+        return ax
+
+    def plot_qc_hist_channel(self, channel: int, col: str = "qcflag"):
+        """
+        Distribuição (barras) de uma coluna de QC por canal.
+        Retorna: matplotlib.axes.Axes
+        """
+        df = self.diag.frame_channel(channel)
+        if col not in df.columns:
+            raise ValueError(f"Coluna '{col}' ausente em {sorted(df.columns)}")
+        counts = df[col].value_counts().sort_index()
+        ax = counts.plot.bar()
+        ax.set_xlabel(col); ax.set_ylabel("count")
+        ax.set_title(f"{col} distribution (channel {channel})")
+        return ax
 

@@ -1,0 +1,355 @@
+
+# 📄 `01_kx_count.py`
+
+```python
+from __future__ import annotations
+import os, sys
+import matplotlib.pyplot as plt
+import readDiag as rd
+import readDiag.plotting as rp
+
+def _resolve_default(path: str) -> str:
+    env = os.environ.get("READDIAG_DATA")
+    if env and not os.path.isabs(path):
+        candidate = os.path.join(env, path)
+        if os.path.exists(candidate):
+            return candidate
+    return path
+
+def main():
+    path = sys.argv[1] if len(sys.argv) > 1 else "data/diag_conv_01.2024013018"
+    path = _resolve_default(path)
+    api = rd.open_diagnostic(path)
+    rp.plot_kx_count(api)
+    out = "01_kx_count.png"
+    plt.savefig(out, bbox_inches="tight", dpi=150)
+    print(f"[INFO] saved: {out}")
+
+if __name__ == "__main__":
+    main()
+```
+
+---
+
+# 📄 `02_spatial_conv_auto.py`
+
+```python
+from __future__ import annotations
+import os, sys
+import matplotlib.pyplot as plt
+import readDiag as rd
+import readDiag.plotting as rp
+
+def _resolve_default(path: str) -> str:
+    env = os.environ.get("READDIAG_DATA")
+    if env and not os.path.isabs(path):
+        candidate = os.path.join(env, path)
+        if os.path.exists(candidate):
+            return candidate
+    return path
+
+def main():
+    if len(sys.argv) < 4:
+        print("Usage: python 02_spatial_conv_auto.py <conv_file> <var> <kx>")
+        sys.exit(1)
+    path, var, kx = sys.argv[1], sys.argv[2], int(sys.argv[3])
+    path = _resolve_default(path)
+    api = rd.open_diagnostic(path)
+    rp.plot_spatial_conv_auto(api, var, kx)
+    out = f"02_spatial_conv_auto_{var}_kx{kx}.png"
+    plt.savefig(out, bbox_inches="tight", dpi=150)
+    print(f"[INFO] saved: {out}")
+
+if __name__ == "__main__":
+    main()
+```
+
+---
+
+# 📄 `03_coverage_conv.py`
+
+```python
+from __future__ import annotations
+import os, sys
+import matplotlib.pyplot as plt
+import readDiag as rd
+import readDiag.plotting as rp
+
+def _resolve_default(path: str) -> str:
+    env = os.environ.get("READDIAG_DATA")
+    if env and not os.path.isabs(path):
+        candidate = os.path.join(env, path)
+        if os.path.exists(candidate):
+            return candidate
+    return path
+
+def main():
+    if len(sys.argv) < 4:
+        print("Usage: python 03_coverage_conv.py <conv_file> <var> <kx>")
+        sys.exit(1)
+    path, var, kx = sys.argv[1], sys.argv[2], int(sys.argv[3])
+    path = _resolve_default(path)
+    api = rd.open_diagnostic(path)
+    rp.plot_coverage_conv(api, var, kx)
+    out = f"03_coverage_conv_{var}_kx{kx}.png"
+    plt.savefig(out, bbox_inches="tight", dpi=150)
+    print(f"[INFO] saved: {out}")
+
+if __name__ == "__main__":
+    main()
+```
+
+---
+
+# 📄 `04_hist_conv.py`
+
+```python
+from __future__ import annotations
+import os, sys
+import matplotlib.pyplot as plt
+import readDiag as rd
+import readDiag.plotting as rp
+
+def _resolve_default(path: str) -> str:
+    env = os.environ.get("READDIAG_DATA")
+    if env and not os.path.isabs(path):
+        candidate = os.path.join(env, path)
+        if os.path.exists(candidate):
+            return candidate
+    return path
+
+def main():
+    if len(sys.argv) < 5:
+        print("Usage: python 04_hist_conv.py <conv_file> <var> <kx> <param>")
+        sys.exit(1)
+    path, var, kx, param = sys.argv[1], sys.argv[2], int(sys.argv[3]), sys.argv[4]
+    path = _resolve_default(path)
+    api = rd.open_diagnostic(path)
+    rp.plot_hist_conv(api, var, kx, param)
+    out = f"04_hist_conv_{param}_{var}_kx{kx}.png"
+    plt.savefig(out, bbox_inches="tight", dpi=150)
+    print(f"[INFO] saved: {out}")
+
+if __name__ == "__main__":
+    main()
+```
+
+---
+
+# 📄 `05_scatter_conv.py`
+
+```python
+from __future__ import annotations
+import os, sys
+import matplotlib.pyplot as plt
+import readDiag as rd
+import readDiag.plotting as rp
+
+def _resolve_default(path: str) -> str:
+    env = os.environ.get("READDIAG_DATA")
+    if env and not os.path.isabs(path):
+        candidate = os.path.join(env, path)
+        if os.path.exists(candidate):
+            return candidate
+    return path
+
+def main():
+    if len(sys.argv) < 6:
+        print("Usage: python 05_scatter_conv.py <conv_file> <var> <kx> <xcol> <ycol>")
+        sys.exit(1)
+    path, var, kx, xcol, ycol = sys.argv[1], sys.argv[2], int(sys.argv[3]), sys.argv[4], sys.argv[5]
+    path = _resolve_default(path)
+    api = rd.open_diagnostic(path)
+    rp.plot_scatter_conv(api, var, kx, x=xcol, y=ycol)
+    out = f"05_scatter_conv_{xcol}_vs_{ycol}_{var}_kx{kx}.png"
+    plt.savefig(out, bbox_inches="tight", dpi=150)
+    print(f"[INFO] saved: {out}")
+
+if __name__ == "__main__":
+    main()
+```
+
+---
+
+# 📄 `06_box_by_kx.py`
+
+```python
+from __future__ annotations
+import os, sys
+import matplotlib.pyplot as plt
+import readDiag as rd
+import readDiag.plotting as rp
+
+def _resolve_default(path: str) -> str:
+    env = os.environ.get("READDIAG_DATA")
+    if env and not os.path.isabs(path):
+        candidate = os.path.join(env, path)
+        if os.path.exists(candidate):
+            return candidate
+    return path
+
+def main():
+    if len(sys.argv) < 4:
+        print("Usage: python 06_box_by_kx.py <conv_file> <var> <param> [kx_limit]")
+        sys.exit(1)
+    path, var, param = sys.argv[1], sys.argv[2], sys.argv[3]
+    kx_limit = int(sys.argv[4]) if len(sys.argv) > 4 else None
+    path = _resolve_default(path)
+    api = rd.open_diagnostic(path)
+    rp.plot_box_by_kx(api, var, param, kx_limit=kx_limit)
+    suffix = f"_top{kx_limit}" if kx_limit else ""
+    out = f"06_box_by_kx_{param}_{var}{suffix}.png"
+    plt.savefig(out, bbox_inches="tight", dpi=150)
+    print(f"[INFO] saved: {out}")
+
+if __name__ == "__main__":
+    main()
+```
+
+---
+
+# 📄 `07_hist_channel.py`
+
+```python
+from __future__ import annotations
+import os, sys
+import matplotlib.pyplot as plt
+import readDiag as rd
+import readDiag.plotting as rp
+
+def _resolve_default(path: str) -> str:
+    env = os.environ.get("READDIAG_DATA")
+    if env and not os.path.isabs(path):
+        candidate = os.path.join(env, path)
+        if os.path.exists(candidate):
+            return candidate
+    return path
+
+def main():
+    if len(sys.argv) < 3:
+        print("Usage: python 07_hist_channel.py <rad_file> <channel> [param]")
+        sys.exit(1)
+    path, ch = sys.argv[1], int(sys.argv[2])
+    param = sys.argv[3] if len(sys.argv) > 3 else None
+    path = _resolve_default(path)
+    api = rd.open_diagnostic(path)
+    rp.plot_hist_channel(api, ch, param=param)
+    p = param or "auto"
+    out = f"07_hist_channel_ch{ch}_{p}.png"
+    plt.savefig(out, bbox_inches="tight", dpi=150)
+    print(f"[INFO] saved: {out}")
+
+if __name__ == "__main__":
+    main()
+```
+
+---
+
+# 📄 `08_scatter_channel.py`
+
+```python
+from __future__ import annotations
+import os, sys
+import matplotlib.pyplot as plt
+import readDiag as rd
+import readDiag.plotting as rp
+
+def _resolve_default(path: str) -> str:
+    env = os.environ.get("READDIAG_DATA")
+    if env and not os.path.isabs(path):
+        candidate = os.path.join(env, path)
+        if os.path.exists(candidate):
+            return candidate
+    return path
+
+def main():
+    if len(sys.argv) < 5:
+        print("Usage: python 08_scatter_channel.py <rad_file> <channel> <xcol> <ycol>")
+        sys.exit(1)
+    path, ch, xcol, ycol = sys.argv[1], int(sys.argv[2]), sys.argv[3], sys.argv[4]
+    path = _resolve_default(path)
+    api = rd.open_diagnostic(path)
+    rp.plot_scatter_channel(api, ch, x=xcol, y=ycol)
+    out = f"08_scatter_channel_{xcol}_vs_{ycol}_ch{ch}.png"
+    plt.savefig(out, bbox_inches="tight", dpi=150)
+    print(f"[INFO] saved: {out}")
+
+if __name__ == "__main__":
+    main()
+```
+
+---
+
+# 📄 `09_abs_omf_map_channel.py`
+
+```python
+from __future__ import annotations
+import os, sys
+import matplotlib.pyplot as plt
+import readDiag as rd
+import readDiag.plotting as rp
+
+def _resolve_default(path: str) -> str:
+    env = os.environ.get("READDIAG_DATA")
+    if env and not os.path.isabs(path):
+        candidate = os.path.join(env, path)
+        if os.path.exists(candidate):
+            return candidate
+    return path
+
+def main():
+    if len(sys.argv) < 3:
+        print("Usage: python 09_abs_omf_map_channel.py <rad_file> <channel>")
+        sys.exit(1)
+    path, ch = sys.argv[1], int(sys.argv[2])
+    path = _resolve_default(path)
+    api = rd.open_diagnostic(path)
+    rp.plot_abs_omf_map_channel(api, ch)
+    out = f"09_abs_omf_map_channel_ch{ch}.png"
+    plt.savefig(out, bbox_inches="tight", dpi=150)
+    print(f"[INFO] saved: {out}")
+
+if __name__ == "__main__":
+    main()
+```
+
+---
+
+# 📄 `10_qc_hist_channel.py`
+
+```python
+from __future__ import annotations
+import os, sys
+import matplotlib.pyplot as plt
+import readDiag as rd
+import readDiag.plotting as rp
+
+def _resolve_default(path: str) -> str:
+    env = os.environ.get("READDIAG_DATA")
+    if env and not os.path.isabs(path):
+        candidate = os.path.join(env, path)
+        if os.path.exists(candidate):
+            return candidate
+    return path
+
+def main():
+    if len(sys.argv) < 4:
+        print("Usage: python 10_qc_hist_channel.py <rad_file> <channel> <qc_col>")
+        sys.exit(1)
+    path, ch, qc_col = sys.argv[1], int(sys.argv[2]), sys.argv[3]
+    path = _resolve_default(path)
+    api = rd.open_diagnostic(path)
+    rp.plot_qc_hist_channel(api, ch, col=qc_col)
+    out = f"10_qc_hist_channel_{qc_col}_ch{ch}.png"
+    plt.savefig(out, bbox_inches="tight", dpi=150)
+    print(f"[INFO] saved: {out}")
+
+if __name__ == "__main__":
+    main()
+```
+
+---
+
+👉 pronto: com isso tu já consegue criar a pasta `examples/basic/plots/`, salvar cada arquivo e rodar direto.
+Queres que eu também monte uma **versão em português** do `README.md`, pensando em usuários iniciantes do INPE?
+

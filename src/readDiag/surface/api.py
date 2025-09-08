@@ -52,9 +52,11 @@ Implementing a custom backend (sketch):
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Literal, Protocol, TypeAlias, Optional
+from typing import Literal, Protocol, TypeAlias, Optional, TYPE_CHECKING
 
-import pandas as pd
+# Evita custo e dependências em runtime:
+if TYPE_CHECKING:
+    import pandas as pd  # só para type-checkers (mypy/pyright)
 
 __all__ = ["Kind", "Metadata", "DiagnosticAPI"]
 

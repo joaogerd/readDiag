@@ -72,9 +72,10 @@ Accessing named radiance tables:
 """
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, TYPE_CHECKING
 
-import pandas as pd
+if TYPE_CHECKING:
+    import pandas as pd
 
 from .api import DiagnosticAPI, Metadata, Kind
 from ..io.reader import diagAccess  # current backend (facade)
