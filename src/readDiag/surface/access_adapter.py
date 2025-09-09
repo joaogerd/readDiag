@@ -74,8 +74,7 @@ Accessing named radiance tables:
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union, TYPE_CHECKING
 
-if TYPE_CHECKING:
-    import pandas as pd
+import pandas as pd
 
 from .api import DiagnosticAPI, Metadata, Kind
 from ..io.reader import diagAccess  # current backend (facade)
@@ -438,6 +437,95 @@ class AccessAdapter(DiagnosticAPI):
             return {i: df for i, df in enumerate(lst, start=1)}
 
         raise KeyError(f"Unknown table '{name}'")
+
+    def bring(
+        self,
+        ch: int,
+        cols: Union[str, Sequence[str]],
+        *,
+        on: Optional[Sequence[str]] = None,
+        how: str = "inner",
+        allow_many_to_one: bool = True,
+        suffix_map: Optional[Mapping[str, str]] = None,
+    ) -> pd.DataFrame:
+        """
+        Return the channel DataFrame enriched with additional columns
+        automatically located from global radiance tables.
+
+        Parameters
+        ----------
+        ch : int
+            1-based channel index.
+        cols : str or list of str
+            Column(s) to include. If already present in the channel
+            DataFrame, no merge is performed.
+        on : sequence of str, optional
+            Candidate join keys. Only those present in both DataFrames
+            will be used. If none are found, falls back to positional join.
+        how : str, default="inner"
+            Join method.
+        allow_many_to_one : bool, default=True
+            Whether many-to-one joins are allowed (unique keys required
+            only on the table side).
+        suffix_map : mapping, optional
+            Optional suffixes for conflicting column names per table.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Combined DataFrame with requested columns.
+        """
+        wanted = [cols] if isinstance(cols, str) else list(cols)
+        out = self.frame_channel(ch).copy()
+
+        # case 1: everything already present
+        if all(c in out.columns for c in wanted):
+            return out
+
+        # candidate tables in priority order
+        candidate_tables = ("diagbuf_df", "diagbufex_df", "channel_df")
+
+        default_keys = ["seqno", "obs_id", "iobs", "obsnum", "scanpos", "row", "index"]
+        candidates = list(on) if on is not None else default_keys
+
+        for col in wanted:
+            if col in out.columns:
+                continue  # already present
+
+            # find which table has the column
+            source_table = None
+            for t in candidate_tables:
+                tbl = self.table(t)
+                if isinstance(tbl, pd.DataFrame) and col in tbl.columns:
+                    source_table = t
+                    break
+
+            if source_table is None:
+                raise KeyError(f"Column '{col}' not found in any known table.")
+
+            base = self.table(source_table)[[c for c in [col] + candidates if c in self.table(source_table).columns]]
+
+            # determine join keys
+            keys = [k for k in candidates if k in out.columns and k in base.columns]
+
+            if keys:
+                if not allow_many_to_one:
+                    if base.duplicated(keys).any():
+                        raise ValueError(f"Join keys {keys} not unique in {source_table}")
+                suf = (suffix_map or {}).get(source_table, f"_{source_table}")
+                out = out.merge(base, how=how, on=keys, suffixes=("", suf))
+            else:
+                # fallback: positional join
+                if len(out) != len(base):
+                    raise ValueError(
+                        f"Cannot align by position: different lengths (channel={len(out)}, {source_table}={len(base)})"
+                    )
+                left = out.reset_index(drop=False).rename(columns={"index": "_row"})
+                right = base.reset_index(drop=False).rename(columns={"index": "_row"})
+                suf = (suffix_map or {}).get(source_table, f"_{source_table}")
+                out = left.merge(right, how=how, on="_row", suffixes=("", suf)).drop(columns="_row")
+
+        return out
 
     # ---------------------------------------------------------------------
     # Legacy shims (compatibility with older plotting/tests)

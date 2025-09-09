@@ -62,8 +62,9 @@ from typing import Any, Dict, IO, List, Tuple, Optional
 import os
 import numpy as np
 import pandas as pd
+from datetime import datetime
 
-from .utils import fix_endian
+from .utils import logger, log_time, fix_endian, replace_sentinels
 
 # ---------------------------------------------------------------------------
 # dtype caches (initialized on first use)
@@ -447,6 +448,7 @@ def extract_rad_dataframes(
 # ---------------------------------------------------------------------------
 # High-level convenience wrapper
 
+@log_time
 def read_radiance(path: str | os.PathLike, use_memmap: bool = True) -> Dict[str, Any]:
     """
     Read a complete GSI radiance diagnostic file.
@@ -487,20 +489,32 @@ def read_radiance(path: str | os.PathLike, use_memmap: bool = True) -> Dict[str,
 
     path = os.fspath(path)
     with open(path, "rb") as f:
-        header, size = read_rad_header(f, path)
-        nchanl = int(header["nchanl"])
-        channels = read_rad_channels(f, nchanl)
-        diag = read_rad_payload(f, size, header, use_memmap=use_memmap)
-        diagbuf_df, channels_df, extra_df = extract_rad_dataframes(diag, header)
+        hdr, rec_size = read_rad_header(f, path)
+        chdf = read_rad_channels(f, hdr["nchanl"])
+        diag = read_rad_payload(f, rec_size, hdr, use_memmap)
+        df1, df_list, df2 = extract_rad_dataframes(diag, hdr)
 
-    return {
-        "header": header,
-        "file_size": size,
-        "channels": channels,
-        "diagbuf_df": diagbuf_df,
-        "channels_df": channels_df,
-        "extra_df": extra_df,
+    # Normalize sentinels to NaN
+    df1 = replace_sentinels(df1)
+    df2 = replace_sentinels(df2)
+    df_list = [replace_sentinels(df) for df in df_list]
+
+    # Header date is an integer like 2024013018
+    idate = datetime.strptime(str(int(hdr["idate"])), "%Y%m%d%H")
+
+    # Public structure for radiances: keep it explicit and predictable
+    data_frame = {
+        "sensor": hdr["obstype"],            # e.g., "amsua"
+        "kx": hdr["dplat"],                  # platform (legacy "kx"-ish slot)
+        "dataframes": {
+            "channel_df": chdf,              # channel metadata
+            "diagbuf_df": df1,               # main payload ("bulk")
+            "diagbufchan_df": df_list,       # list of per-channel DFs
+            "diagbufex_df": df2,             # extended payload (when present)
+        },
     }
+
+    return idate, data_frame
 
 
 __all__ = [

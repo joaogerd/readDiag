@@ -46,10 +46,7 @@ from .utils import (
 from .conv_reader import read_conv_file, BASE20_COLS
 from .rad_reader import (
     init_rad_dtypes,
-    read_rad_header,
-    read_rad_channels,
-    read_rad_payload,
-    extract_rad_dataframes,
+    read_radiance,
 )
 
 __all__ = ["diagAccess", "DiagAccess"]
@@ -192,32 +189,17 @@ class diagAccess:
                 type(self)._rad_inited = True
 
             self._data_type = 2
-            with open(file_name, "rb") as f:
-                hdr, rec_size = read_rad_header(f, file_name)
-                chdf = read_rad_channels(f, hdr["nchanl"])
-                diag = read_rad_payload(f, rec_size, hdr, use_memmap)
-                df1, df_list, df2 = extract_rad_dataframes(diag, hdr)
 
-            # Normalize sentinels to NaN
-            df1 = replace_sentinels(df1)
-            df2 = replace_sentinels(df2)
-            df_list = [replace_sentinels(df) for df in df_list]
-
+            idate, data_frame = read_radiance(
+                    path = file_name,
+                    use_memmap = use_memmap,
+                    )
             # Header date is an integer like 2024013018
-            self._idate = datetime.strptime(str(int(hdr["idate"])), "%Y%m%d%H")
+            self._idate = idate
 
             # Public structure for radiances: keep it explicit and predictable
-            self._data_frame = {
-                "sensor": hdr["obstype"],            # e.g., "amsua"
-                "kx": hdr["dplat"],                  # platform (legacy "kx"-ish slot)
-                "dataframes": {
-                    "channel_df": chdf,              # channel metadata
-                    "diagbuf_df": df1,               # main payload ("bulk")
-                    "diagbufchan_df": df_list,       # list of per-channel DFs
-                    "diagbufex_df": df2,             # extended payload (when present)
-                },
-            }
-
+            self._data_frame = data_frame
+     
     # ============================== Public API =============================== #
 
     def get_date(self) -> datetime:

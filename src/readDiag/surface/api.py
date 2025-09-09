@@ -400,5 +400,45 @@ class DiagnosticAPI(Protocol):
         """
         ...
 
+    def bring(
+        self,
+        ch: int,
+        cols: Union[str, Sequence[str]],
+        *,
+        on: Optional[Sequence[str]] = None,
+        how: str = "inner",
+        allow_many_to_one: bool = True,
+        suffix_map: Optional[Mapping[str, str]] = None,
+    ) -> pd.DataFrame:
+        """
+        Return the channel DataFrame enriched with additional columns
+        automatically located from global radiance tables.
+
+        Parameters
+        ----------
+        ch : int
+            1-based channel index.
+        cols : str or list of str
+            Column(s) to include. If already present in the channel
+            DataFrame, no merge is performed.
+        on : sequence of str, optional
+            Candidate join keys. Only those present in both DataFrames
+            will be used. If none are found, falls back to positional join.
+        how : str, default="inner"
+            Join method.
+        allow_many_to_one : bool, default=True
+            Whether many-to-one joins are allowed (unique keys required
+            only on the table side).
+        suffix_map : mapping, optional
+            Optional suffixes for conflicting column names per table.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Combined DataFrame with requested columns.
+        """
+        ...
+
+
 
 

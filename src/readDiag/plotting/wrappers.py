@@ -391,9 +391,7 @@ def plot_scatter_channel(
     Columns ``x`` and ``y`` accept legacy aliases and are normalized through
     :func:`resolve_name` with ``domain='rad'``.
     """
-    x_col = resolve_name(x, domain="rad")
-    y_col = resolve_name(y, domain="rad")
-    return _as_plotter(diag).plot_scatter_channel(channel, x_col, y_col, **kwargs)
+    return _as_plotter(diag).plot_scatter_channel(channel, x, y, **kwargs)
 
 
 def plot_abs_omf_map_channel(diag: Any, channel: int, **kwargs) -> "Axes":
@@ -403,7 +401,7 @@ def plot_abs_omf_map_channel(diag: Any, channel: int, **kwargs) -> "Axes":
 
 
 def plot_qc_hist_channel(
-    diag: Any, channel: int, col: str = "qc_flag", **kwargs
+    diag: Any, channel: int, param: str = "qc_flag", **kwargs
 ) -> "Axes":
     """Wrapper for :meth:`diagPlotter.plot_qc_hist_channel` with name resolution.
 
@@ -413,12 +411,12 @@ def plot_qc_hist_channel(
         Diagnostic handle.
     channel : int
         Channel number.
-    col : str, default='qc_flag'
+    param : str, default='qc_flag'
         Column to histogram (legacy or canonical). Normalized via
         :func:`resolve_name` with ``domain='rad'``.
     **kwargs
         Forwarded to :meth:`diagPlotter.plot_qc_hist_channel`.
     """
-    col_resolved = resolve_name(col, domain="rad")
+    col_resolved = resolve_name(param, domain="rad")
     return _as_plotter(diag).plot_qc_hist_channel(channel, col_resolved, **kwargs)
 

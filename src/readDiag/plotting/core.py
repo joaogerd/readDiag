@@ -34,6 +34,7 @@ from ..io.reader import diagAccess as _DiagAccess
 from .style import PlotConfig
 from ..utils import deprecated, check_kind
 from ..utils import extract_int, mask_to_query, nice_label, guess_cycle_token
+from ..schema.naming import resolve_col_in_df, resolve_name
 
 # Modern utils shim (preserve runtime robustness)
 try:
@@ -55,26 +56,23 @@ from ._utils import (
     wrap_label,
 )
 
+
 def _get_conv_df(diag, var: str, kx: int) -> pd.DataFrame:
     """Internal helper to retrieve a conventional frame regardless of backend quirks."""
     return diag.get_dataframe(var, kx) if hasattr(diag, "get_dataframe") else diag.get_data_frame()[var][kx]
 
-def _available_kx(diag, var: str) -> list[int]:
-    """Return available KX codes for a conventional variable.
 
-    Notes
-    -----
-    Robust to slightly different backends (old/new surface contracts).
-    """
+def _available_kx(diag, var: str) -> list[int]:
+    """Return available KX codes for a conventional variable (backend-agnostic)."""
     try:
         return [int(k) for k in diag.get_kx_list(var)]
     except Exception:
         d = diag.get_data_frame().get(var, {})
         return [int(k) for k in getattr(d, "keys", lambda: [])()]
-    
+
+
 # ---------------------------------------------------------------------------
 # Apply a global/default plotting configuration at import time
-# (keeps figures visually consistent unless the user provides their own config)
 # ---------------------------------------------------------------------------
 _default_config = PlotConfig()
 plt.style.use(_default_config.style)
@@ -122,7 +120,7 @@ class diagPlotter:
         >>> from readDiag.plotting import diagPlotter
         >>> d = diagAccess("path/to/diag_conv_01.2020010100")
         >>> p = diagPlotter(d)
-        >>> ax = p.plot_hist_conv("t", 120, bins=40, color="C0",
+        >>> ax = p.plot_hist_conv("t", 120, param="omf", bins=40, color="C0",
         ...                       title="Temp O−F Histogram")
 
     Counts across KX for all variables::
@@ -133,7 +131,7 @@ class diagPlotter:
 
         >>> d = diagAccess("path/to/diag_amsua_n19_01.2020010100")
         >>> p = diagPlotter(d)
-        >>> ax = p.plot_channel_stats_rad(metric="omf", agg="mean", marker="o")
+        >>> ax = p.plot_channel_stats_rad(param="omf", agg="mean", marker="o")
 
     Spatial scatter (conventional)::
 
@@ -176,37 +174,14 @@ class diagPlotter:
     # ------------------------------------------------------------------
     @staticmethod
     def _ensure_ax(ax: Optional[plt.Axes]) -> plt.Axes:
-        """Return an existing ``Axes`` or create a fresh one.
-
-        Parameters
-        ----------
-        ax : matplotlib.axes.Axes, optional
-            Target axes. If ``None``, a new figure and axes are created.
-
-        Returns
-        -------
-        matplotlib.axes.Axes
-            The provided or newly created axes.
-        """
+        """Return an existing ``Axes`` or create a fresh one."""
         if ax is None:
             fig, ax = plt.subplots()
         return ax
 
     @staticmethod
     def _save(ax: plt.Axes, savepath: Optional[str]) -> None:
-        """Save the figure to disk if a path is provided.
-
-        Parameters
-        ----------
-        ax : matplotlib.axes.Axes
-            Axes containing the figure.
-        savepath : str, optional
-            Destination file path. If ``None``, nothing is saved.
-
-        Notes
-        -----
-        The parent directory is created if it does not exist.
-        """
+        """Save the figure to disk if a path is provided."""
         if not savepath:
             return
         p = Path(savepath)
@@ -216,34 +191,23 @@ class diagPlotter:
     def _apply_plot_kwargs(self, ax: plt.Axes, style_kwargs: Dict[str, Any]) -> plt.Axes:
         """Apply axis-level styling (titles, labels, ticks, reference lines).
 
-        Only cosmetic kwargs are handled here. Graphical properties should be
-        passed directly to the plotting calls (e.g., ``color``, ``alpha``, ``bins``).
-
         Parameters
         ----------
         ax : matplotlib.axes.Axes
             Target axes to style.
         style_kwargs : dict
-            Supported keys are:
-
+            Supported keys:
             ``title`` : str
-                Plot title.
             ``xlabel`` / ``ylabel`` : str
-                Axis labels.
-            ``rotation`` : int, default: 0
-                Rotation for x tick labels.
-            ``fontsize`` : int, default: 10
-                Font size for labels and titles.
-            ``zero_line`` : bool, default: True
-                Draw a thin horizontal line at y=0.
+            ``rotation`` : int, default 0
+            ``fontsize`` : int, default 10
+            ``zero_line`` : bool, default True
 
         Returns
         -------
         matplotlib.axes.Axes
-            The styled axes.
         """
-        # Defensive copy so callers can reuse their dicts
-        style_kwargs = dict(style_kwargs)
+        style_kwargs = dict(style_kwargs)  # defensive copy
 
         title = style_kwargs.get("title")
         xlabel = style_kwargs.get("xlabel")
@@ -255,46 +219,27 @@ class diagPlotter:
         # Apply global style (grid, spines, facecolor, etc.)
         self.config.apply_to_axes(ax)
 
-        # Labels
         if isinstance(xlabel, str):
             ax.set_xlabel(xlabel, fontsize=fontsize)
         if isinstance(ylabel, str):
             ax.set_ylabel(ylabel, fontsize=fontsize)
 
-        # Tick label cosmetics
         for lbl in ax.get_xticklabels():
             lbl.set_rotation(rotation)
             lbl.set_fontsize(fontsize)
 
-        # Optional reference line at y = 0
         if zero_line:
             ax.axhline(**self.config.zero_line_kwargs)
 
-        # Title last (explicitly centered so tests using get_title() work
-        # regardless of rcParams like axes.titlelocation)
         if isinstance(title, str) and title.strip():
             ax.set_title(title, fontsize=fontsize, loc="center")
-            # Safety net: if another hook cleared the title, re-apply it
-            if not ax.get_title():
+            if not ax.get_title():  # safety
                 ax.set_title(title, fontsize=fontsize, loc="center")
 
         return ax
 
     def _split_kwargs(self, kwargs: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, Any]]:
-        """Split kwargs into *data* vs *style* dictionaries.
-
-        Parameters
-        ----------
-        kwargs : dict
-            Arbitrary keyword arguments passed to a plotting method.
-
-        Returns
-        -------
-        data_kwargs : dict
-            Forwarded directly to Matplotlib plot calls (e.g., ``color``, ``alpha``, ``bins``).
-        style_kwargs : dict
-            Consumed by :meth:`_apply_plot_kwargs` (``title``, ``xlabel``, etc.).
-        """
+        """Split kwargs into *data* vs *style* dictionaries."""
         data_kwargs = {k: v for k, v in kwargs.items() if k not in self.STYLE_KEYS}
         style_kwargs = {k: v for k, v in kwargs.items() if k in self.STYLE_KEYS}
         return data_kwargs, style_kwargs
@@ -307,7 +252,7 @@ class diagPlotter:
         self,
         var: str,
         kx: int,
-        col: str = "omf",
+        param: str = "omf",
         bins: int = 50,
         ax: Optional[plt.Axes] = None,
         savepath: Optional[str] = None,
@@ -321,8 +266,8 @@ class diagPlotter:
             Variable name (e.g., ``'t'``, ``'q'``, ``'uv'``).
         kx : int
             Sensor (data source) index inside the variable dictionary.
-        col : str, default: "omf"
-            Column in the DataFrame to histogram.
+        param : str, default: "omf"
+            Column in the DataFrame to histogram (legacy or canonical).
         bins : int, default: 50
             Number of histogram bins.
         ax : matplotlib.axes.Axes, optional
@@ -337,7 +282,6 @@ class diagPlotter:
         Returns
         -------
         matplotlib.axes.Axes
-            The axes containing the histogram.
 
         Raises
         ------
@@ -346,38 +290,38 @@ class diagPlotter:
 
         Examples
         --------
-        >>> ax = p.plot_hist_conv("t", 120, col="omf", bins=60, color="C1",
-        ...                       title="T@120 O−F")
+        >>> p.plot_hist_conv("t", 120, param="omf", bins=60, color="C1",
+        ...                  title="T@120 O−F")
         """
         df_dict = self.diag.get_data_frame()
         if var not in df_dict or kx not in df_dict[var]:
             raise ValueError(f"Variable '{var}' or kx '{kx}' not found.")
         df = df_dict[var][kx]
-        if col not in df.columns:
-            raise ValueError(f"Column '{col}' not in data frame.")
 
-        values = df[col].dropna().to_numpy()
+        # Resolve the requested parameter name against available columns
+        param_resolved = resolve_col_in_df(df.columns, param, domain="conv")
+        if param_resolved not in df.columns:
+            raise ValueError(f"Column '{param_resolved}' not in data frame.")
+
+        values = df[param_resolved].dropna().to_numpy()
         ax = self._ensure_ax(ax)
 
-        # Separate kwargs into data-vs-style; ensure color/alpha stay with data
         data_kwargs, style_kwargs = self._split_kwargs(kwargs)
         for key in ("color", "alpha"):
             if key in style_kwargs:
                 data_kwargs[key] = style_kwargs.pop(key)
 
-        # Plot and enforce uniform facecolor/alpha (when given)
         _, _, patches = ax.hist(values, bins=bins, **data_kwargs)
         color = data_kwargs.get("color")
         alpha = data_kwargs.get("alpha")
         if (color is not None or alpha is not None) and patches:
             base = patches[0].get_facecolor()
             rgba = mcolors.to_rgba(color if color is not None else base, alpha if alpha is not None else base[3])
-            for p in patches:
-                p.set_facecolor(rgba)
+            for pch in patches:
+                pch.set_facecolor(rgba)
 
-        # Default style
-        style_kwargs.setdefault("title", f"Histogram of {col} for {var} (kx {kx})")
-        style_kwargs.setdefault("xlabel", col)
+        style_kwargs.setdefault("title", f"Histogram of {param_resolved} for {var} (kx {kx})")
+        style_kwargs.setdefault("xlabel", param_resolved)
         style_kwargs.setdefault("ylabel", "Frequency")
 
         ax = self._apply_plot_kwargs(ax, style_kwargs)
@@ -388,7 +332,7 @@ class diagPlotter:
     def plot_boxplot_kxs_conv(
         self,
         var: str,
-        col: str = "omf",
+        param: str = "omf",
         ax: Optional[plt.Axes] = None,
         savepath: Optional[str] = None,
         **kwargs,
@@ -399,8 +343,8 @@ class diagPlotter:
         ----------
         var : str
             Variable name.
-        col : str, default: "omf"
-            Column to extract from each KX frame.
+        param : str, default: "omf"
+            Column to extract from each KX frame (legacy or canonical).
         ax : matplotlib.axes.Axes, optional
             Existing axes or ``None``.
         savepath : str, optional
@@ -413,7 +357,6 @@ class diagPlotter:
         Returns
         -------
         matplotlib.axes.Axes
-            The axes with the boxplots.
 
         Raises
         ------
@@ -422,18 +365,21 @@ class diagPlotter:
 
         Examples
         --------
-        >>> ax = p.plot_boxplot_kxs_conv("q", col="omf", color="0.3",
-        ...                              title="q O−F by KX")
+        >>> p.plot_boxplot_kxs_conv("q", param="omf", color="0.3",
+        ...                         title="q O−F by KX")
         """
         kxs = self.diag.kx_list(var)
         if not kxs:
             raise ValueError(f"Variable '{var}' not found or has no KX.")
         series_list: List[np.ndarray] = []
+        # Keep the resolved name for labels/titles
+        param_resolved: Optional[str] = None
+
         for k in sorted(kxs):
             df = self.diag.frame_conv(var, k)
-            if col not in df.columns:
-                raise ValueError(f"Column '{col}' not in data for kx {k}.")
-            series_list.append(df[col].dropna().to_numpy())
+            pr = resolve_col_in_df(df.columns, param, domain="conv")
+            param_resolved = pr  # update (same mapping across KXs ideally)
+            series_list.append(df[pr].dropna().to_numpy())
 
         ax = self._ensure_ax(ax)
         data_kwargs, style_kwargs = self._split_kwargs(kwargs)
@@ -447,9 +393,10 @@ class diagPlotter:
         ax.set_xticks(range(1, len(kxs) + 1))
         ax.set_xticklabels(sorted(kxs))
 
-        style_kwargs.setdefault("title", f"Boxplot of {col} for {var} across kxs")
+        param_label = param_resolved or param
+        style_kwargs.setdefault("title", f"Boxplot of {param_label} for {var} across KX")
         style_kwargs.setdefault("xlabel", "KX")
-        style_kwargs.setdefault("ylabel", col)
+        style_kwargs.setdefault("ylabel", param_label)
         ax = self._apply_plot_kwargs(ax, style_kwargs)
         self._save(ax, savepath)
         return ax
@@ -464,27 +411,9 @@ class diagPlotter:
     ) -> plt.Axes:
         """Number of observations per KX for a given variable (bars).
 
-        Parameters
-        ----------
-        varName : str
-            Variable name (e.g., ``'t'``, ``'q'``, ``'uv'``).
-        ax : matplotlib.axes.Axes, optional
-            Existing axes or ``None``.
-        savepath : str, optional
-            If provided, the figure is saved to this path.
-        **kwargs
-            Extra arguments forwarded to :meth:`matplotlib.axes.Axes.bar` (e.g.,
-            ``color``), plus style keys. If ``color`` is not provided, a discrete
-            colormap (``Set3``) is used to generate bar colors.
-
-        Returns
-        -------
-        matplotlib.axes.Axes
-            The axes with the bar chart.
-
         Examples
         --------
-        >>> ax = p.plot_observation_counts("t", title="Counts by KX", rotation=45)
+        >>> p.plot_observation_counts("t", title="Counts by KX", rotation=45)
         """
         ax = self._ensure_ax(ax)
         data = self.diag.get_data_frame()
@@ -495,14 +424,12 @@ class diagPlotter:
         kx, y = zip(*sorted(counts))
         x = list(range(len(kx)))
 
-        # Auto color per bar if not provided
         if "color" not in kwargs:
             cmap = kwargs.pop("colormap", cm.Set3)
             kwargs["color"] = [cmap(i % cmap.N) for i in range(len(kx))]
 
         data_kwargs, style_kwargs = self._split_kwargs(kwargs)
         ax.bar(x, y, **data_kwargs)
-
         ax.set_xticks(x)
         ax.set_xticklabels([str(k) for k in kx])
 
@@ -524,25 +451,9 @@ class diagPlotter:
     ) -> plt.Axes:
         """Total observations per KX across all variables (bars).
 
-        Parameters
-        ----------
-        ax : matplotlib.axes.Axes, optional
-            Existing axes or ``None``.
-        savepath : str, optional
-            If provided, the figure is saved to this path.
-        **kwargs
-            Extra args to :meth:`matplotlib.axes.Axes.bar` (e.g., ``color``), plus
-            style keys (``title``, ``xlabel``, ``ylabel``, etc.). If ``color`` is
-            not passed, a categorical colormap (``Set3``) is used.
-
-        Returns
-        -------
-        matplotlib.axes.Axes
-            The axes with the bar chart.
-
         Examples
         --------
-        >>> ax = p.plot_kx_count(title="Total per KX", rotation=45)
+        >>> p.plot_kx_count(title="Total per KX", rotation=45)
         """
         from collections import Counter
 
@@ -584,23 +495,9 @@ class diagPlotter:
     ) -> plt.Axes:
         """Total observations per variable (bars).
 
-        Parameters
-        ----------
-        ax : matplotlib.axes.Axes, optional
-            Existing axes or ``None``.
-        savepath : str, optional
-            If provided, the figure is saved to this path.
-        **kwargs
-            Extra args to :meth:`matplotlib.axes.Axes.bar` and style keys.
-
-        Returns
-        -------
-        matplotlib.axes.Axes
-            The axes with the bar chart.
-
         Examples
         --------
-        >>> ax = p.plot_variable_count(title="Total per variable")
+        >>> p.plot_variable_count(title="Total per variable")
         """
         ax = self._ensure_ax(ax)
         var_counts = {
@@ -630,26 +527,9 @@ class diagPlotter:
     ) -> plt.Axes:
         """Stacked bar chart of observations per KX, split by variable.
 
-        Parameters
-        ----------
-        vars : list of str, optional
-            Variables to include (e.g., ``['t', 'q', 'ps']``). If ``None``,
-            all variables found in the diagnostic are used.
-        ax : matplotlib.axes.Axes, optional
-            Existing axes or ``None``.
-        savepath : str, optional
-            If provided, the figure is saved to this path.
-        **kwargs
-            Extra args to :meth:`matplotlib.axes.Axes.bar` and style keys.
-
-        Returns
-        -------
-        matplotlib.axes.Axes
-            The axes with the stacked bars.
-
         Examples
         --------
-        >>> ax = p.plot_kx_count_stacked(vars=["t","q","uv"], title="Stacked counts")
+        >>> p.plot_kx_count_stacked(vars=["t","q","uv"], title="Stacked counts")
         """
         ax = self._ensure_ax(ax)
 
@@ -659,10 +539,10 @@ class diagPlotter:
 
         # Gather counts per (kx, var)
         kx_counts: Dict[int, Dict[str, int]] = defaultdict(dict)
-        for var in vars:
-            var_data = all_data.get(var, {})
+        for v in vars:
+            var_data = all_data.get(v, {})
             for kx, df in var_data.items():
-                kx_counts[kx][var] = len(df)
+                kx_counts[kx][v] = len(df)
 
         # Wide DataFrame indexed by kx, columns = variables
         df = pd.DataFrame.from_dict(kx_counts, orient="index").fillna(0).astype(int)
@@ -680,9 +560,9 @@ class diagPlotter:
 
         # Stack bars per variable
         bottoms = np.zeros(len(df))
-        for idx, var in enumerate(df.columns):
-            heights = df[var].values
-            ax.bar(x, heights, bottom=bottoms, label=var, color=colors[idx], **data_kwargs)
+        for idx, v in enumerate(df.columns):
+            heights = df[v].values
+            ax.bar(x, heights, bottom=bottoms, label=v, color=colors[idx], **data_kwargs)
             bottoms += heights
 
         ax.set_xticks(x)
@@ -722,7 +602,7 @@ class diagPlotter:
         kx : int
             Data source index within the variable.
         param : str, default: "omf"
-            Column to use for coloring the points (e.g., ``'omf'``, ``'obs'``).
+            Column used to color the points.
         mask : str, optional
             Pandas query expression to filter the DataFrame (e.g., ``"iusev == 1"``).
         area : list of float, optional
@@ -739,12 +619,11 @@ class diagPlotter:
         Returns
         -------
         matplotlib.axes.Axes
-            The GeoAxes with the scatter plot.
 
         Examples
         --------
-        >>> ax = p.plot_spatial_conv("t", 120, param="omf", cmap="coolwarm",
-        ...                          area=[-90, -60, 0, 15])
+        >>> p.plot_spatial_conv("t", 120, param="omf", cmap="coolwarm",
+        ...                     area=[-90, -60, 0, 15])
         """
         if not _HAS_CARTOPY:
             raise RuntimeError("Cartopy is required for spatial plotting. Please install cartopy.")
@@ -758,10 +637,11 @@ class diagPlotter:
             except Exception as e:
                 raise ValueError(f"Invalid mask expression: {mask}") from e
 
-        # Required columns
-        for col in ["lat", "lon", param]:
-            if col not in df.columns:
-                raise ValueError(f"Column '{col}' not found in the DataFrame.")
+        # Resolve the requested parameter *first* and check required columns
+        param_resolved = resolve_col_in_df(df.columns, param, domain="conv")
+        for required in ("lat", "lon", param_resolved):
+            if required not in df.columns:
+                raise ValueError(f"Column '{required}' not found in the DataFrame.")
 
         # Optional geographic clip
         if area:
@@ -770,7 +650,7 @@ class diagPlotter:
 
         lats = df["lat"].to_numpy()
         lons = wrap_lon(df["lon"].to_numpy(dtype=float), mode=lon_wrap)
-        values = df[param].to_numpy()
+        values = df[param_resolved].to_numpy()
 
         if ax is None:
             plt.figure(figsize=(12, 6))
@@ -801,9 +681,9 @@ class diagPlotter:
 
         # Colorbar
         cbar = plt.colorbar(sc, ax=ax, orientation="vertical", shrink=0.8)
-        cbar.set_label(param)
+        cbar.set_label(param_resolved)
 
-        style_kwargs.setdefault("title", f"Spatial plot of {param} ({var}, kx={kx})")
+        style_kwargs.setdefault("title", f"Spatial plot of {param_resolved} ({var}, kx={kx})")
         style_kwargs.setdefault("xlabel", "Longitude")
         style_kwargs.setdefault("ylabel", "Latitude")
 
@@ -821,7 +701,7 @@ class diagPlotter:
     @check_kind("rad")
     def plot_channel_stats_rad(
         self,
-        metric: str = "omf",
+        param: str = "omf",
         agg: str = "mean",
         ax: Optional[plt.Axes] = None,
         savepath: Optional[str] = None,
@@ -831,8 +711,8 @@ class diagPlotter:
 
         Parameters
         ----------
-        metric : str, default: "omf"
-            Column present in each per-channel DataFrame (e.g., ``'omf'``).
+        param : str, default: "omf"
+            Column present in each per-channel DataFrame (e.g., ``'omf'`` or legacy alias).
         agg : {"mean", "std", "median", ...}, default: "mean"
             Aggregation method applied to the selected column.
         ax : matplotlib.axes.Axes, optional
@@ -846,26 +726,35 @@ class diagPlotter:
         Returns
         -------
         matplotlib.axes.Axes
-            The axes with the line plot.
 
         Examples
         --------
-        >>> ax = p.plot_channel_stats_rad(metric="omf", agg="std", marker="s")
+        >>> p.plot_channel_stats_rad(param="omf", agg="std", marker="s")
         """
         chan_list = self.diag.get_data_frame().get("dataframes", {}).get("diagbufchan_df", [])
         if not chan_list:
             raise ValueError("No radiance channel data available.")
 
-        stats = [getattr(df[metric].dropna(), agg)() for df in chan_list if metric in df.columns]
+        # Resolve param against each channel DF as they may differ (legacy vs canonical)
+        stats: List[float] = []
+        for df in chan_list:
+            try:
+                param_resolved = resolve_col_in_df(df.columns, param, domain="rad")
+            except ValueError:
+                continue  # this channel lacks the requested param
+            s = df[param_resolved].dropna()
+            if not hasattr(s, agg):
+                raise ValueError(f"Aggregation '{agg}' is not valid for a pandas Series.")
+            stats.append(getattr(s, agg)())
 
         ax = self._ensure_ax(ax)
         data_kwargs, style_kwargs = self._split_kwargs(kwargs)
         data_kwargs.setdefault("marker", "o")
         ax.plot(range(1, len(stats) + 1), stats, **data_kwargs)
 
-        style_kwargs.setdefault("title", f"Radiance channel {agg} of {metric}")
+        style_kwargs.setdefault("title", f"Radiance channel {agg} of {param}")
         style_kwargs.setdefault("xlabel", "Channel")
-        style_kwargs.setdefault("ylabel", f"{agg}({metric})")
+        style_kwargs.setdefault("ylabel", f"{agg}({param})")
         style_kwargs.setdefault("zero_line", False)
 
         ax = self._apply_plot_kwargs(ax, style_kwargs)
@@ -892,26 +781,14 @@ class diagPlotter:
             If ``True`` and the column ``'omf_nbc'`` exists, use it instead of ``'omf'``.
         bins : int, default: 50
             Number of histogram bins.
-        ax : matplotlib.axes.Axes, optional
-            Existing axes or ``None``.
-        savepath : str, optional
-            If provided, the figure is saved to this path.
-        **kwargs
-            Extra args to :meth:`matplotlib.axes.Axes.hist` and style keys.
 
         Returns
         -------
         matplotlib.axes.Axes
-            The axes with the histogram.
-
-        Raises
-        ------
-        IndexError
-            If the channel index is out of range.
 
         Examples
         --------
-        >>> ax = p.plot_omf_distribution_rad(0, corrected=True, bins=80, color="0.2")
+        >>> p.plot_omf_distribution_rad(0, corrected=True, bins=80, color="0.2")
         """
         chan_list = self.diag.get_data_frame().get("dataframes", {}).get("diagbufchan_df", [])
         if channel_index < 0 or channel_index >= len(chan_list):
@@ -940,14 +817,10 @@ class diagPlotter:
     def pcount(self, *args, **kwargs):
         """Deprecated alias for :meth:`plot_observation_counts`.
 
-        Notes
-        -----
-        Accepts positional or keyword variable names for smoother compatibility.
-
         Examples
         --------
         >>> # Old: p.pcount("t")
-        >>> ax = p.pcount("t")
+        >>> p.pcount("t")
         """
         deprecated("pcount() is deprecated; use plot_observation_counts().")
         if args:
@@ -965,7 +838,7 @@ class diagPlotter:
 
         Examples
         --------
-        >>> ax = p.kxcount()
+        >>> p.kxcount()
         """
         deprecated("kxcount() is deprecated; use plot_kx_count().")
         return self.plot_kx_count(*args, **kwargs)
@@ -975,11 +848,11 @@ class diagPlotter:
 
         Notes
         -----
-        Accepts legacy patterns like ``vcount('t', kx=187, column='omf', bins=50)``.
+        Accepts legacy patterns like ``vcount('t', kx=187, param='omf', bins=50)``.
 
         Examples
         --------
-        >>> ax = p.vcount("t", kx=120, column="omf", bins=30, color="C2")
+        >>> p.vcount("t", kx=120, param="omf", bins=30, color="C2")
         """
         deprecated("vcount() is deprecated; use plot_hist_conv().")
 
@@ -1000,16 +873,17 @@ class diagPlotter:
             except Exception as e:
                 raise ValueError(f"No kx available for variable '{var}'.") from e
 
-        col = kwargs.pop("column", kwargs.pop("col", "omf"))
+        # accept legacy 'column'/'col' but normalize to 'param'
+        param = kwargs.pop("param", kwargs.pop("column", kwargs.pop("col", "omf")))
         bins = kwargs.pop("bins", 50)
-        return self.plot_hist_conv(var, kx, col=col, bins=bins, **kwargs)
+        return self.plot_hist_conv(var, kx, param=param, bins=bins, **kwargs)
 
     def plot_value_counts(self, *args, **kwargs):
         """Deprecated alias for :meth:`plot_variable_count`.
 
         Examples
         --------
-        >>> ax = p.plot_value_counts()
+        >>> p.plot_value_counts()
         """
         deprecated("plot_value_counts() is deprecated; use plot_variable_count() instead")
         return self.plot_variable_count(*args, **kwargs)
@@ -1044,9 +918,9 @@ class diagPlotter:
             Radiance: label for the title (e.g., sensor name like ``"amsua"``).
         varType : str, optional
             Free text for title (e.g., platform ``"n19"``).
-        param : str, default: "omf"
-            For radiance accepts ``{"obs","omf","oma"}`` mapping to
-            ``{"tb_obs","omf","oma"}``. For conventional, must be a DF column.
+        param : {"obs","omf","oma",...}, default: "omf"
+            Radiance: ``"obs"→"tb_obs"``; ``"omf"`` and ``"oma"`` as-is (resolved against DF).
+            Conventional: any DF column (legacy or canonical) resolved via :func:`resolve_col_in_df`.
         minVal, maxVal : float, optional
             Colormap bounds (``vmin``, ``vmax``).
         mask : str, optional
@@ -1072,20 +946,14 @@ class diagPlotter:
         Returns
         -------
         matplotlib.axes.Axes
-            The axes used for the plot.
-
-        Raises
-        ------
-        ValueError
-            When required columns are missing or selection is invalid.
 
         Examples
         --------
         >>> # Radiance:
-        >>> ax = p.plot(varName="amsua", varType="n19", param="omf", channel=5,
-        ...             cmap="coolwarm", s=4.0)
+        >>> p.plot(varName="amsua", varType="n19", param="omf", channel=5,
+        ...        cmap="coolwarm", s=4.0)
         >>> # Conventional:
-        >>> ax = p.plot(varName="t", kx=120, param="omf", cmap="coolwarm")
+        >>> p.plot(varName="t", kx=120, param="omf", cmap="coolwarm")
         """
         data_type = self.diag.get_data_type()  # 1=conv, else=rad (as per reader)
         # ------------------------------------------------------------------ RAD
@@ -1104,10 +972,13 @@ class diagPlotter:
             df_ch = chan_list[ch_idx].reset_index(drop=True)
             df = pd.concat([df_geo, df_ch], axis=1)
 
-            col_map = {"obs": "tb_obs", "omf": "omf", "oma": "oma"}
-            color_col = col_map.get(param.lower(), None)
-            if color_col is None or color_col not in df.columns:
-                raise ValueError(f"Unsupported param='{param}' for radiance.")
+            # Map legacy-friendly 'param' to actual radiance column
+            radiance_map = {"obs": "tb_obs", "omf": "omf", "oma": "oma"}
+            param_candidate = radiance_map.get(param.lower(), param)
+            # IMPORTANT: resolve in *radiance* domain
+            param_resolved = resolve_col_in_df(df.columns, param_candidate, domain="rad")
+            if param_resolved not in df.columns:
+                raise ValueError(f"Unsupported param='{param}' for radiance (resolved='{param_resolved}')")
 
             # Apply mask (remove nchan==N since already selected)
             if mask:
@@ -1125,7 +996,6 @@ class diagPlotter:
             var = varName or self.diag.get_variables()[0]
             if kx is None:
                 kx = extract_int(mask, r"kx\s*==\s*(\d+)", default=None)
-            # Data is organized as {var: {kx: DataFrame}}
             df_map = self.diag.get_data_frame()[var]
             if kx is None:
                 # pick first non-empty
@@ -1136,9 +1006,9 @@ class diagPlotter:
             if "lat" not in df.columns or "lon" not in df.columns:
                 raise ValueError("Conventional DF missing 'lat'/'lon' columns.")
 
-            # param must be a column in conv DF
-            color_col = param if param in df.columns else None
-            if color_col is None:
+            # Resolve 'param' in *conventional* domain
+            param_resolved = resolve_col_in_df(df.columns, param, domain="conv")
+            if param_resolved not in df.columns:
                 raise ValueError(f"param='{param}' not found in conventional columns: {list(df.columns)}")
 
             if mask:
@@ -1146,18 +1016,18 @@ class diagPlotter:
                 df = df.query(q)
 
             title_left = f"Conventional - {var.upper()} (kx={kx})"
-            title_center = color_col
+            title_center = param_resolved
             cycle_dt, cycle_token = get_cycle(self.diag)
             cycle = cycle_token or ""   # empty string if nothing found
 
         # --------------------------------------------------------------- PLOT
         ax, transform = make_axes(basemap=basemap, resolution=resolution)
         sc = ax.scatter(
-            df["lon"], df["lat"], c=df[color_col],
+            df["lon"], df["lat"], c=df[param_resolved],
             s=s, cmap=cmap, transform=transform, **scatter_kwargs
         )
         cb = plt.colorbar(sc, ax=ax, pad=0.02)
-        cb.set_label(nice_label(color_col))
+        cb.set_label(nice_label(param_resolved))
         if (minVal is not None) or (maxVal is not None):
             sc.set_clim(vmin=minVal, vmax=maxVal)
 
@@ -1180,6 +1050,7 @@ class diagPlotter:
     # ------------------------------------------------------------------
     # ptmap (conv) — multi-KX, legacy-style, fast
     # ------------------------------------------------------------------
+    @check_kind("conv")
     def plot_ptmap(
         self,
         varName: str,
@@ -1199,43 +1070,9 @@ class diagPlotter:
     ) -> plt.Axes:
         """Point-map by KX for a conventional variable.
 
-        Parameters
-        ----------
-        varName : str
-            Variable key (e.g., ``"t"``, ``"q"``, ``"ps"``).
-        varType : int or list of int, optional
-            One or multiple KX codes. If ``None``, plot all available KX.
-        mask : str, optional
-            ``pandas.DataFrame.query`` expression to filter rows.
-        area : list of float, optional
-            Bounding box ``[lon_min, lat_min, lon_max, lat_max]``.
-        backend : {"auto", "gpd", "cartopy"}, default: "auto"
-            Preferred basemap engine. ``"auto"`` tries GeoPandas first.
-        world_path : str, optional
-            Path to world polygons (GeoPandas).
-        style : str, default: "seaborn-v0_8"
-            Matplotlib style to apply for this plot.
-        legend : bool, optional
-            If ``None``, auto-enable when multiple KX are plotted.
-        strict : bool, default: False
-            If ``True``, error on missing KX; otherwise skip.
-        verbose : bool, default: True
-            Print skips for missing/empty KX.
-        ax : matplotlib.axes.Axes, optional
-            Existing axes or ``None``.
-        lon_wrap : {"auto", "pm180", "360", "none"}, default: "auto"
-            Longitude wrapping mode.
-        **kwargs
-            Forwarded to the underlying ``Axes.plot`` (marker, alpha, etc.).
-
-        Returns
-        -------
-        matplotlib.axes.Axes
-            The axes with the point map.
-
         Examples
         --------
-        >>> ax = p.plot_ptmap("t", varType=[120,130], mask="iuse >= 1", legend=True)
+        >>> p.plot_ptmap("t", varType=[120,130], mask="iuse >= 1", legend=True)
         """
         # (1) style and visual defaults
         plt.style.use(style)
@@ -1339,50 +1176,17 @@ class diagPlotter:
     ) -> plt.Axes:
         """Point-map grouped by variable (sums all KX per variable).
 
-        Parameters
-        ----------
-        varName : list of str or str, optional
-            Variables to plot. If ``None``, variables are ordered by total
-            count (descending) and the whole set is used.
-        mask : str, optional
-            ``pandas.DataFrame.query`` expression applied to each KX frame.
-        area : list of float, optional
-            Bounding box ``[lon_min, lat_min, lon_max, lat_max]``.
-        backend : {"auto","gpd","cartopy"}, default: "auto"
-            Basemap backend to use (GeoPandas first if available).
-        world_path : str, optional
-            Path to world polygons (GeoPandas).
-        style : str, default: "seaborn-v0_8"
-            Matplotlib style name.
-        legend : bool, optional
-            Force legend on/off. If ``None``, enabled when multiple variables.
-        ax : matplotlib.axes.Axes, optional
-            Existing axes or ``None``.
-        lon_wrap : {"auto","pm180","360","none"}, default: "auto"
-            Longitude wrapping strategy.
-        verbose : bool, default: True
-            Print skips for variables with no valid points.
-        **kwargs
-            Forwarded to the underlying ``Axes.plot`` (marker, alpha, etc.).
-
-        Returns
-        -------
-        matplotlib.axes.Axes
-            The axes with the point map.
-
         Examples
         --------
-        >>> ax = p.plot_pvmap(["t","q"], mask="iuse>=1 and idqc==0", legend=True)
+        >>> p.plot_pvmap(["t","q"], mask="iuse>=1 and idqc==0", legend=True)
         """
         plt.style.use(style)
-        # legacy-like defaults
         kwargs.setdefault("alpha", 0.5)
         kwargs.setdefault("marker", "*")
         kwargs.setdefault("markersize", 5)
         kwargs.setdefault("linewidth", 1)
         want_legend = True if legend is None else bool(legend)
-    
-        # decide backend and plot function
+
         use = backend
         if use == "auto":
             try:
@@ -1390,7 +1194,7 @@ class diagPlotter:
                 use = "gpd"
             except Exception:
                 use = "cartopy"
-    
+
         if use == "gpd":
             ax = ensure_axes_gpd(ax, area, world_path=world_path)
             def scatter_fn(x, y, color):
@@ -1399,8 +1203,7 @@ class diagPlotter:
             ax, _ = ensure_axes_cartopy(ax, area)
             def scatter_fn(x, y, color):
                 ax.plot(x, y, linestyle="None", c=color, **kwargs)
-    
-        # resolve which variables to use
+
         if varName is None:
             vars_all: list[str] = list(getattr(self.diag, "get_variables", lambda: [])())
             def _total(v: str) -> int:
@@ -1414,14 +1217,12 @@ class diagPlotter:
             var_list = sorted(vars_all, key=_total, reverse=True)
         else:
             var_list = varName if isinstance(varName, list) else [varName]
-    
-        # fixed palette (legacy-consistent)
+
         colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
                   '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22']
-    
+
         patches: list = []
         for i, var in enumerate(var_list):
-            # collect all KX frames of this variable
             frames: list[pd.DataFrame] = []
             for kx in _available_kx(self.diag, var):
                 try:
@@ -1432,180 +1233,288 @@ class diagPlotter:
                     try:
                         df = df.query(mask)
                     except Exception:
-                        # invalid mask for this var → skip this KX
                         continue
                 if df.empty or not {"lat", "lon"}.issubset(df.columns):
                     continue
                 frames.append(df[["lon", "lat"]])
-    
+
             if not frames:
                 if verbose:
                     print(f"[pvmap] no points for var={var} (after mask/lon check)")
                 continue
-    
+
             dfv = pd.concat(frames, ignore_index=True)
             x = wrap_lon(dfv["lon"].to_numpy(dtype=float), mode=lon_wrap)
             y = dfv["lat"].to_numpy(dtype=float)
-    
+
             color = colors[i % len(colors)]
             patches.append(plt.matplotlib.patches.Patch(color=color, label=var))
             scatter_fn(x, y, color)
-    
+
         if want_legend and patches:
             ax.legend(
                 handles=patches, numpoints=1, loc="best",
                 bbox_to_anchor=(1.1, 0.6), frameon=False, ncol=1, prop={"size": 10}
             )
-    
+
         ax.set_xlabel("Longitude")
         ax.set_ylabel("Latitude")
         return ax
+
     # -----------------------------
-    # NOVOS PLOTS - CONVENCIONAL
+    # NEW PLOTS - CONVENTIONAL
     # -----------------------------
     def plot_spatial_conv_auto(self, var: str, kx: int, prefer=None, **kwargs):
-        """
-        Mapa espacial para conv escolhendo automaticamente o parâmetro disponível.
-        Ordem padrão: ["oma", "omf", "obs", "ges", "hofx"].
-        Retorna: matplotlib.axes.Axes
+        """Quick spatial map for the *first available* conventional parameter.
+
+        Parameters
+        ----------
+        var : str
+        kx : int
+        prefer : list of str, optional
+            Ordered list of parameter candidates. Defaults to
+            ``["oma", "omf", "obs", "ges", "hofx"]``.
+
+        Returns
+        -------
+        matplotlib.axes.Axes
+
+        Examples
+        --------
+        >>> p.plot_spatial_conv_auto("t", 120, area=[-90,-60,0,15])
         """
         prefer = prefer or ["oma", "omf", "obs", "ges", "hofx"]
         df = self.diag.frame_conv(var, kx)
         cols = set(df.columns)
-        col = next((c for c in prefer if c in cols), None)
-        if col is None:
-            raise ValueError(f"Nenhuma de {prefer} nas colunas: {sorted(cols)}")
-        return self.plot_spatial_conv(var, kx, param=col, **kwargs)
+        param_found = next((c for c in prefer if c in cols), None)
+        if param_found is None:
+            raise ValueError(f"None of {prefer} found in columns: {sorted(cols)}")
+        return self.plot_spatial_conv(var, kx, param=param_found, **kwargs)
 
+    @check_kind("conv")
     def plot_coverage_conv(self, var: str, kx: int, s: int = 2):
+        """Quick coverage map (lat/lon) for conventional diagnostics.
+
+        Examples
+        --------
+        >>> p.plot_coverage_conv("t", 120, s=1)
         """
-        Mapa rápido de cobertura (lat/lon) para conv.
-        Retorna: matplotlib.axes.Axes
-        """
-        import matplotlib.pyplot as plt
         df = self.diag.frame_conv(var, kx)
         need = {"lat", "lon"}
         if not need <= set(df.columns):
-            raise ValueError(f"Faltam colunas {need} em {sorted(df.columns)}")
+            raise ValueError(f"Missing columns {need} in {sorted(df.columns)}")
         ax = plt.gca()
         ax.scatter(df["lon"], df["lat"], s=s)
         ax.set_xlabel("Longitude"); ax.set_ylabel("Latitude")
         ax.set_title(f"Coverage ({var}, kx={kx})")
         return ax
 
+    @check_kind("conv")
     def plot_scatter_conv(self, var: str, kx: int, x: str, y: str, s: int = 3, **kwargs):
-        """
-        Dispersão genérica para conv (ex.: hofx vs omf).
-        Retorna: matplotlib.axes.Axes
+        """Generic scatter for conventional diagnostics (e.g., ``hofx`` vs ``omf``).
+
+        Parameters
+        ----------
+        var : str
+        kx : int
+        x, y : str
+            Column names (legacy or canonical). Resolved against DataFrame.
+        s : int, default 3
+            Marker size.
+
+        Returns
+        -------
+        matplotlib.axes.Axes
+
+        Examples
+        --------
+        >>> p.plot_scatter_conv("t", 120, x="hofx", y="omf", s=2, alpha=0.6)
         """
         df = self.diag.frame_conv(var, kx)
-        need = {x, y}
+        x_res = resolve_col_in_df(df.columns, x, domain="conv")
+        y_res = resolve_col_in_df(df.columns, y, domain="conv")
+        need = {x_res, y_res}
         if not need <= set(df.columns):
-            raise ValueError(f"Faltam {need} em {sorted(df.columns)}")
-        ax = df.plot.scatter(x=x, y=y, s=s, **kwargs)
-        ax.set_title(f"{y} vs {x} ({var}, kx={kx})")
+            raise ValueError(f"Missing {need} in {sorted(df.columns)}")
+        ax = df.plot.scatter(x=x_res, y=y_res, s=s, **kwargs)
+        ax.set_title(f"{y_res} vs {x_res} ({var}, kx={kx})")
         return ax
 
-    def plot_hist_conv(self, var: str, kx: int, param: str, bins: int = 50, **kwargs):
-        """
-        Histograma de um parâmetro para conv (ex.: omf).
-        Retorna: matplotlib.axes.Axes
-        """
-        df = self.diag.frame_conv(var, kx)
-        if param not in df.columns:
-            raise ValueError(f"Coluna '{param}' não encontrada em {sorted(df.columns)}")
-        ax = df[param].plot.hist(bins=bins, **kwargs)
-        ax.set_xlabel(param); ax.set_ylabel("count")
-        ax.set_title(f"Histogram of {param} ({var}, kx={kx})")
-        return ax
-
+    @check_kind("conv")
     def plot_box_by_kx(self, var: str, param: str, kx_limit: int | None = None):
+        """Boxplot of a parameter by KX (for a single variable).
+
+        Parameters
+        ----------
+        var : str
+        param : str
+            Column to plot (legacy or canonical).
+        kx_limit : int, optional
+            If provided, limit the number of KX boxes.
+
+        Returns
+        -------
+        matplotlib.axes.Axes
+
+        Examples
+        --------
+        >>> p.plot_box_by_kx("q", param="omf", kx_limit=10)
         """
-        Boxplot do parâmetro por KX (para uma variável).
-        Retorna: matplotlib.axes.Axes
-        """
-        import matplotlib.pyplot as plt
         kxs = self.diag.kx_list(var)
         if kx_limit:
             kxs = kxs[:kx_limit]
         data, labels = [], []
-        for kx in kxs:
-            df = self.diag.frame_conv(var, kx)
-            if param in df.columns and len(df[param]) > 0:
-                data.append(df[param].values)
-                labels.append(str(kx))
+        param_label: Optional[str] = None
+        for k in kxs:
+            df = self.diag.frame_conv(var, k)
+            pr = resolve_col_in_df(df.columns, param, domain="conv")
+            param_label = pr
+            if pr in df.columns and len(df[pr]) > 0:
+                data.append(df[pr].values)
+                labels.append(str(k))
         if not data:
-            raise ValueError(f"Nenhum dado para '{param}' em var={var}")
+            raise ValueError(f"No data for '{param}' in var={var}")
         ax = plt.gca()
         ax.boxplot(data, labels=labels, showfliers=False)
-        ax.set_title(f"{param} by KX — {var}")
-        ax.set_xlabel("KX"); ax.set_ylabel(param)
+        ax.set_title(f"{param_label or param} by KX — {var}")
+        ax.set_xlabel("KX"); ax.set_ylabel(param_label or param)
         return ax
 
     # -----------------------------
-    # NOVOS PLOTS - RADIÂNCIA
+    # NEW PLOTS - RADIANCE
     # -----------------------------
+    @check_kind("rad")
     def plot_hist_channel(self, channel: int, param: str | None = None, bins: int = 50):
-        """
-        Histograma por canal (param padrão: omf→oma).
-        Retorna: matplotlib.axes.Axes
+        """Histogram of a parameter for a single radiance channel.
+
+        Parameters
+        ----------
+        channel : int
+            1-based channel number.
+        param : str, optional
+            If ``None``, prefer ``"omf"`` then fallback to ``"oma"``.
+        bins : int, default 50
+
+        Returns
+        -------
+        matplotlib.axes.Axes
+
+        Examples
+        --------
+        >>> p.plot_hist_channel(5, param="omf", bins=40)
         """
         df = self.diag.frame_channel(channel)
         if param is None:
-            param = "omf" if "omf" in df.columns else ("oma" if "oma" in df.columns else None)
-        if param is None or param not in df.columns:
-            raise ValueError(f"Nenhum de ['omf','oma'] disponível em {sorted(df.columns)}")
-        ax = df[param].plot.hist(bins=bins)
-        ax.set_title(f"Histogram of {param} (channel {channel})")
-        ax.set_xlabel(param); ax.set_ylabel("count")
+            # prefer 'omf', fallback 'oma'
+            param_candidate = "omf" if "omf" in df.columns else ("oma" if "oma" in df.columns else None)
+            if param_candidate is None:
+                raise ValueError(f"None of ['omf','oma'] available in {sorted(df.columns)}")
+            param_resolved = param_candidate
+        else:
+            param_resolved = resolve_col_in_df(df.columns, param, domain="rad")
+
+        ax = df[param_resolved].plot.hist(bins=bins)
+        ax.set_title(f"Histogram of {param_resolved} (channel {channel})")
+        ax.set_xlabel(param_resolved); ax.set_ylabel("count")
         return ax
 
     def plot_scatter_channel(self, channel: int, x: str, y: str, s: int = 3, **kwargs):
+        """Generic scatter for a radiance channel (e.g., ``omf`` vs ``sat_zen``).
+
+        Parameters
+        ----------
+        channel : int
+        x, y : str
+            Column names (legacy or canonical). Resolved per-channel.
+        s : int, default 3
+
+        Returns
+        -------
+        matplotlib.axes.Axes
+
+        Examples
+        --------
+        >>> p.plot_scatter_channel(7, x="omf", y="sat_zen", s=2, alpha=0.5)
         """
-        Dispersão por canal (ex.: omf vs sat_zen).
-        Retorna: matplotlib.axes.Axes
-        """
-        df = self.diag.frame_channel(channel)
-        need = {x, y}
-        if not need <= set(df.columns):
-            raise ValueError(f"Faltam {need} em {sorted(df.columns)}")
-        ax = df.plot.scatter(x=x, y=y, s=s, **kwargs)
-        ax.set_title(f"{y} vs {x} (channel {channel})")
+        # Bring DF first (may be legacy-named)
+        df = self.diag.bring(channel, [x, y])
+
+        # Resolve *to the actual column names present in df*
+        x_res = resolve_col_in_df(df.columns, x, domain="rad")
+        y_res = resolve_col_in_df(df.columns, y, domain="rad")
+
+        ax = df.plot.scatter(x=x_res, y=y_res, s=s, **kwargs)
+        ax.set_title(f"{y} vs {x} (channel {channel})")  # keep semantic labels for the title
         return ax
 
+    @check_kind("rad")
     def plot_abs_omf_map_channel(self, channel: int, param: str | None = None, s: int = 3):
+        """Quick map of absolute O–F (or fallback to O–A) per channel.
+
+        Parameters
+        ----------
+        channel : int
+        param : str, optional
+            If provided, resolved against DF. If ``None``, prefer ``"omf"`` then ``"oma"``.
+        s : int, default 3
+            Marker size.
+
+        Returns
+        -------
+        matplotlib.axes.Axes
+
+        Examples
+        --------
+        >>> p.plot_abs_omf_map_channel(10, s=1)
         """
-        Mapa rápido de |omf| (fallback oma) por canal.
-        Retorna: matplotlib.axes.Axes
-        """
-        import numpy as np
-        import matplotlib.pyplot as plt
-        df = self.diag.frame_channel(channel)
+        df = self.diag.bring(channel, ["lat", "lon"])
         if {"lat", "lon"} - set(df.columns):
-            raise ValueError("lat/lon ausentes no DataFrame")
+            raise ValueError("lat/lon missing in the DataFrame")
+
         if param is None:
-            param = "omf" if "omf" in df.columns else ("oma" if "oma" in df.columns else None)
-        if param is None or param not in df.columns:
-            raise ValueError("nem 'omf' nem 'oma' disponíveis para mapear")
+            param_resolved = None
+            for cand in ("omf", "oma"):
+                try:
+                    param_resolved = resolve_col_in_df(df.columns, cand, domain="rad")
+                    break
+                except ValueError:
+                    continue
+            if param_resolved is None:
+                raise ValueError("neither 'omf' nor 'oma' available for mapping")
+        else:
+            param_resolved = resolve_col_in_df(df.columns, param, domain="rad")
+
         ax = plt.gca()
-        sc = ax.scatter(df["lon"], df["lat"], s=s, c=np.abs(df[param].values))
+        sc = ax.scatter(df["lon"], df["lat"], s=s, c=np.abs(df[param_resolved].values))
         ax.set_xlabel("Longitude"); ax.set_ylabel("Latitude")
-        ax.set_title(f"|{param}| map (channel {channel})")
-        import matplotlib.pyplot as _plt  # noqa: E401 (apelido interno)
-        _plt.colorbar(sc, label=f"|{param}|")
+        ax.set_title(f"|{param_resolved}| map (channel {channel})")
+        plt.colorbar(sc, label=f"|{param_resolved}|")
         return ax
 
-    def plot_qc_hist_channel(self, channel: int, col: str = "qcflag"):
-        """
-        Distribuição (barras) de uma coluna de QC por canal.
-        Retorna: matplotlib.axes.Axes
+    def plot_qc_hist_channel(self, channel: int, param: str = "qcflag"):
+        """Bar distribution of a QC-like column for a radiance channel.
+
+        Parameters
+        ----------
+        channel : int
+        param : str, default "qcflag"
+            Column name (legacy/canonical) resolved per-channel.
+
+        Returns
+        -------
+        matplotlib.axes.Axes
+
+        Examples
+        --------
+        >>> p.plot_qc_hist_channel(4, param="idqc")
         """
         df = self.diag.frame_channel(channel)
-        if col not in df.columns:
-            raise ValueError(f"Coluna '{col}' ausente em {sorted(df.columns)}")
-        counts = df[col].value_counts().sort_index()
+        param_resolved = resolve_col_in_df(df.columns, param, domain="rad")
+        if param_resolved not in df.columns:
+            raise ValueError(f"Column '{param_resolved}' missing in {sorted(df.columns)}")
+        counts = df[param_resolved].value_counts().sort_index()
         ax = counts.plot.bar()
-        ax.set_xlabel(col); ax.set_ylabel("count")
-        ax.set_title(f"{col} distribution (channel {channel})")
+        ax.set_xlabel(param_resolved); ax.set_ylabel("count")
+        ax.set_title(f"{param_resolved} distribution (channel {channel})")
         return ax
 
