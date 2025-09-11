@@ -5,6 +5,37 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
+## [2.0.0-rc.3] - 2025-09-10 (Pre-release)
+
+### ✨ Features
+- **CLI**: Added `--version` and `--show-versions` options (with `--json`/`--extra`); preserved quick file inspection mode; updated README usage examples. (d0c7537)
+- **Surface/Adapters**: Consolidated exports and introduced **modern + compatibility adapters** to simplify migration and usage of the new stable API layer. (dedb9ad)
+
+### 🐛 Fixes
+- **Legacy compatibility**: multiple shims added (`gsidiag.utils`, `gsidiag.plotting`, `readDiag.adapters.access`, `readDiag.reader`, import bridges), fixed relative imports and exports (`diagAccess`, `__version__`, `show_versions`), and restored aliases such as `top_k`/`n` for impact metrics. (d12480f, bb7c7f6, ea0e271, af64b72, 9236a45, e5e2420, 92044fa, c0594bc, 7106b6d, f3b8b2d, 4d009ca, 0596c99)
+- **Plotting/Core**: adjusted imports to `_utils`, added fallback for `get_cycle`, centralized utils, and ensured wrappers now properly delegate to the correct core modules. (880a6c4, af90869, f4ff36d, 5585495, 3db086c, 3877a78)
+- **Generic I/O**: consolidated `api.read_any` to return **dict-of-dict** outputs and fixed shape mismatches for `rad/conv` datasets. (92044fa, c0594bc, 4d009ca, 0596c99)
+
+### 🔧 Refactors
+- **Boundary cleanup (legacy)**: removed outdated scripts and reorganized the entire test suite, migrating relevant components into `gsidiag/`. (7ec31d8, 9930481)
+- **Unified plotting wrappers**: wrappers now delegate directly to the **core** and **Surface API**; improved naming consistency and unified method signatures. (51abba4, 6ce6f8d)
+- **Architecture**: clear separation between **LEGACY** under `gsidiag` (with a `read_diag` class and deprecation warnings) and **NEW** under `readDiag` (`open_diagnostic` + `DiagnosticAPI`); continued the split of **io/plot/analysis** layers. (3ce38b1, 24a051a)
+- **I/O improvements**: added docstrings, input validations, and consistent APIs for `conv/rad/reader`. (3df5470)
+- **Examples**: removed outdated examples and introduced a new structured suite under `examples/basic/plots`. (e2f5a7e)
+
+### 📝 Documentation
+- Added **NumPy-style docstrings** for the `Metadata` dataclass with practical usage examples. (6e75c45)
+- Overhauled **plotting documentation** with updated examples, safer helper functions, and clarified usage of legacy wrappers. (15c2162)
+
+### 🗑️ Removed / Cleanup
+- Removed unnecessary files and obsolete scripts tied to the legacy workflow; updated Makefile and related references accordingly. (3d58d7d, 7ec31d8)
+
+> **Migration Note**  
+> Projects relying on legacy modules should now reference `gsidiag.*` temporarily.  
+> Migration to the **Surface API** under `readDiag.*` is recommended moving forward.
+
+---
+
 ## [2.0.0-rc.2] - 2025-09-04 (Pre-release)
 
 ### 🚨 Breaking changes
