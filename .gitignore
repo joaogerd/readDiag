@@ -39,12 +39,14 @@ readDiag.egg-info/
 *.log
 log
 
+
 # -----------------------------------------------------
 # Python cache and temp files
 # -----------------------------------------------------
 __pycache__/
 .pytest_cache/
 .DS_Store
+.coverage
 
 # -----------------------------------------------------
 # Development / legacy scripts (kept local only)

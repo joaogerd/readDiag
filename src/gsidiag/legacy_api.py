@@ -503,6 +503,10 @@ class read_diag:
         kx = kwargs.get("kx")
         if var is None or kx is None:
             raise ValueError("pvmap requires 'var' and 'kx'.")
+        # Evita duplicação de chaves quando repassado para _plot_oma_map
+        kwargs = dict(kwargs)
+        kwargs.pop("kx", None)
+        kwargs.pop("var", None)
         return _plot_oma_map(self, var=var, kx=kx, **kwargs)
 
     def pcount(self, varName, **kwargs):

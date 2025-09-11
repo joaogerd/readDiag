@@ -246,6 +246,19 @@ class AccessAdapter(DiagnosticAPI):
         """
         return self._meta.kind
 
+    def bring(self, *args, **kwargs) -> pd.DataFrame:
+        """Polimórfico:
+        - conv: bring(var: str, kx: int, cols: Sequence[str])
+        - rad : bring(ch: int, cols: Union[str, Sequence[str]], *, on=None, how='inner',
+                      allow_many_to_one=True, suffix_map=None)
+        """
+        k = self.kind()
+        if k == "conv":
+            return self._bring_conv(*args, **kwargs)
+        if k == "rad":
+            return self._bring_rad(*args, **kwargs)
+        raise ValueError(f"Unknown diagnostics kind: {k!r}")
+
     # ---------------------------------------------------------------------
     # Conventional (conv) API
     # ---------------------------------------------------------------------
@@ -265,7 +278,12 @@ class AccessAdapter(DiagnosticAPI):
         """
         if self.kind() != "conv":
             return []
-        return list(self._b.get_variables())
+        get_vars = getattr(self._b, "get_variables", None)
+        if callable(get_vars):
+            return list(get_vars())
+        # fallback super defensivo se algum backend velho expõe 'variables()'
+        vars_attr = getattr(self._b, "variables", None)
+        return list(vars_attr()) if callable(vars_attr) else []
 
     @check_kind("conv")
     def kx_list(self, var: Optional[str] = None) -> Union[List[int], Dict[str, List[int]]]:
@@ -302,6 +320,10 @@ class AccessAdapter(DiagnosticAPI):
         """
         # Fast path: specific variable
         if var is not None:
+            if var not in self.variables():
+                raise ValueError(
+                    f"Variable {var!r} not found. Available variables: {sorted(self.variables())}"
+                )
             kxs = self._b.get_kx_list(var)  # backend method
             return sorted(set(kxs))
 
@@ -339,6 +361,72 @@ class AccessAdapter(DiagnosticAPI):
         if self.kind() != "conv":
             raise ValueError("frame_conv only valid for conventional data.")
         return self._b.get_dataframe(var, kx)
+
+    @check_kind("conv")
+    def _bring_conv(self, var: str, kx: int, cols: Sequence[str]) -> pd.DataFrame:
+        """
+        Retrieve a subset of columns for **conventional** diagnostics data.
+    
+        This method fetches the DataFrame corresponding to a given variable and
+        `kx` (observation type code), applies alias resolution for backward
+        compatibility (e.g., ``qc_flag`` ↔ ``idqc``), and returns only the
+        requested columns that actually exist in the DataFrame.
+    
+        Parameters
+        ----------
+        var : str
+            Variable name (e.g., "t", "q", "ps").
+        kx : int
+            Observation type code.
+        cols : sequence of str
+            List of desired column names. Aliases are resolved automatically.
+            Only columns present in the DataFrame are returned.
+    
+        Returns
+        -------
+        pandas.DataFrame
+            A DataFrame containing only the requested columns that are present
+            in the dataset. If some requested columns are missing, they are
+            silently ignored.
+    
+        Notes
+        -----
+        - This method enforces a **filtering behavior**: only requested columns
+          are included in the result.
+        - Aliases are supported for legacy compatibility. For example, some
+          tests expect ``qc_flag`` even though the underlying column is ``idqc``.
+    
+        Examples
+        --------
+        Basic usage:
+    
+        >>> df = api._bring_conv("t", 120, ["obs", "ges", "qc_flag"])
+        >>> list(df.columns)
+        ['obs', 'ges', 'qc_flag']
+    
+        Requesting non-existent columns (ignored gracefully):
+    
+        >>> df = api._bring_conv("t", 120, ["obs", "nonexistent"])
+        >>> list(df.columns)
+        ['obs']
+        """
+        # Get a copy of the DataFrame for the variable/kx pair
+        df = self.frame_conv(var, kx).copy()
+    
+        # Normalize the list of requested columns
+        wanted = list(cols)
+    
+        # Mapping of legacy aliases to canonical names
+        alias = {"qc_flag": "idqc"}  # compatibility for tests expecting qc_flag
+    
+        # If a requested alias exists only under a different name, create it
+        for out_col, src_col in alias.items():
+            if out_col in wanted and out_col not in df.columns and src_col in df.columns:
+                df[out_col] = df[src_col]
+    
+        # Filter: return only the requested columns that exist in DataFrame
+        existing = [c for c in wanted if c in df.columns]
+        return df[existing]
 
     # ---------------------------------------------------------------------
     # Radiance (rad) API
@@ -386,7 +474,7 @@ class AccessAdapter(DiagnosticAPI):
 
         # Backend stores a list of per-channel frames at:
         # get_data_frame()["dataframes"]["diagbufchan_df"]
-        store = self._b.get_data_frame()["dataframes"]["diagbufchan_df"]
+        store = self._b.get_dataframe()["dataframes"]["diagbufchan_df"]
         # Public API is 1-based; backend list is 0-based
         i0 = ch_index - 1
         return store[i0]
@@ -421,7 +509,7 @@ class AccessAdapter(DiagnosticAPI):
         if self.kind() != "rad":
             raise ValueError("table() only for radiance data.")
 
-        df_store: Dict[str, object] = self._b.get_data_frame()["dataframes"]
+        df_store: Dict[str, object] = self._b.get_dataframe()["dataframes"]
 
         # Direct pass-through for single-DataFrame tables.
         if name == "channel_df":
@@ -437,8 +525,9 @@ class AccessAdapter(DiagnosticAPI):
             return {i: df for i, df in enumerate(lst, start=1)}
 
         raise KeyError(f"Unknown table '{name}'")
-
-    def bring(
+    
+    @check_kind("rad")
+    def _bring_rad(
         self,
         ch: int,
         cols: Union[str, Sequence[str]],
@@ -485,7 +574,7 @@ class AccessAdapter(DiagnosticAPI):
         # candidate tables in priority order
         candidate_tables = ("diagbuf_df", "diagbufex_df", "channel_df")
 
-        default_keys = ["seqno", "obs_id", "iobs", "obsnum", "scanpos", "row", "index"]
+        default_keys = ["lat", "lon", "elev", "time", "tb_obs", "omf", "idqc"]
         candidates = list(on) if on is not None else default_keys
 
         for col in wanted:

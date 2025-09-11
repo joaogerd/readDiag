@@ -466,14 +466,76 @@ def read_radiance(path: str | os.PathLike, use_memmap: bool = True) -> Dict[str,
     Returns
     -------
     dict
-        A mapping with the following keys:
-        - ``'header'``      : dict with decoded strings and native-endian numbers
-        - ``'file_size'``   : int, file size in bytes
-        - ``'channels'``    : pandas.DataFrame (per-channel metadata)
-        - ``'diagbuf_df'``  : pandas.DataFrame (per-record geometry/header)
-        - ``'channels_df'`` : List[pandas.DataFrame] (one per channel)
-        - ``'extra_df'``    : pandas.DataFrame (may be empty)
-
+        A mapping with structured radiance data and preprocessed DataFrames.
+    
+        **Main keys**
+        ------------
+        - **"header"** : `dict`
+            Parsed radiance file header with decoded strings and native-endian numbers.
+        - **"file_size"** : `int`
+            Total file size in bytes.
+        - **"dataframes"** : `dict`
+            Dictionary containing four pandas objects for direct access:
+    
+            * **"channel_df"** : `pandas.DataFrame`
+                Per-channel metadata table, one row per radiance channel.
+    
+                **Columns**
+                ----------
+                - `freq`   : Channel center frequency (GHz)
+                - `pol`    : Polarization
+                - `wave`   : Wavelength (m)
+                - `varch`  : Channel variance
+                - `tlap`   : Equivalent brightness temperature (K)
+                - `iuse`   : Channel usage flag in GSI
+                - `nuchan` : Internal channel number
+                - `ich`    : Channel index
+    
+            * **"diagbuf_df"** : `pandas.DataFrame`
+                Per-record geometry and scan-level metadata.  
+                Represents the **DB** block.
+    
+                **Columns**
+                ----------
+                - `lat` / `lon` : Observation latitude/longitude (degrees)
+                - `elev`        : Surface elevation (m)
+                - `time`        : Observation time offset (hours)
+                - `iscanp`      : Scan position index
+                - `zasat`       : Zenith angle at satellite (degrees)
+                - `ilazi`       : Instrument azimuth index
+                - `pangs`       : Platform scanning angle
+                - `isazi`       : Scan azimuth index
+                - `sgagl`       : Satellite-ground geometry angle
+                - `sfcwc`…`cldpORtpwc` : Various surface and cloud properties from GSI header.
+    
+            * **"diagbufchan_df"** : `list[pandas.DataFrame]`
+                List of **per-channel** DataFrames, each containing flattened
+                payload data sliced along `idiag`.  
+                Each entry corresponds to a single radiance channel.
+    
+                **Columns**
+                ----------
+                - `tb_obs`  : Observed brightness temperature (K)
+                - `omf`     : Observed minus forecast (O − F)
+                - `omf_nbc` : O − F without bias correction
+                - `errinv`  : Inverse of observation error variance
+                - `idqc`    : Quality-control flag
+                - `emiss`   : Surface emissivity
+                - `tlach`   : Channel layer temperature (K)
+                - `ts`      : Surface skin temperature (K)
+                - `pred1` … `pred(N+3)` : Dynamically generated predictors
+                - `spread`  : Ensemble spread estimate
+                - `extra1` … `extraM` : Additional per-channel fields (only if `idiag` > default)
+                - `end_err` : Computed as `1 / errinv` (NaN when `errinv == 0`)
+                - `oma`     : Observed minus analysis residual (always present, NaN if missing)
+    
+            * **"diagbufex_df"** : `pandas.DataFrame`
+                Optional extra block from **dbe** records.  
+                May be empty if `iextra == 0`.
+    
+                **Columns**
+                ----------
+                - `extra0` … `extraK` : Dynamically generated fields when `iextra > 0`.
     Raises
     ------
     ValueError

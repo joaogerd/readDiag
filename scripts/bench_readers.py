@@ -36,8 +36,6 @@ Example output:
     │ modern conv (memmap=True)     │   0.305 │   0.015 │
     │ modern rad  (memmap=False)    │   0.012 │   0.001 │
     │ modern rad  (memmap=True)     │   0.011 │   0.001 │
-    │ legacy conv                   │   0.520 │   0.030 │
-    │ legacy rad                    │   0.020 │   0.002 │
     └───────────────────────────────┴─────────┴─────────┘
 
 """
@@ -92,20 +90,6 @@ def load_modern_diagaccess() -> type:
                 return _import_from_file(p, "diagAccess")
     raise ImportError("modern diagAccess not found (tried installed, reader.py near script/root/src).")
 
-def load_legacy_diagaccess() -> type:
-    # 1) módulo legado instalado
-    try:
-        return getattr(importlib.import_module("diagAccess"), "diagAccess")
-    except Exception:
-        pass
-    # 2) arquivos próximos (diagAccess.py ou diagAccess_legacy.py)
-    CANDIDATES = ["diagAccess.py", "diagAccess_legacy.py"]
-    for d in SEARCH_DIRS:
-        for name in CANDIDATES:
-            p = d / name
-            if p.exists():
-                return _import_from_file(p, "diagAccess")
-    raise ImportError("legacy diagAccess not found (tried installed and nearby files).")
 # ---------- Timing helpers ----------
 
 @dataclass
@@ -175,11 +159,6 @@ def make_modern_runner(diag_cls: type, file_path: Path, *, use_memmap: bool | No
         return obj.get_data_frame()
     return _run
 
-def make_legacy_runner(diag_cls: type, file_path: Path) -> Callable[[], object]:
-    def _run():
-        obj = diag_cls(str(file_path))
-        return obj.get_data_frame()
-    return _run
 
 # ---------- Table formatting ----------
 
@@ -242,7 +221,6 @@ def main():
 
     # Load readers
     Modern = load_modern_diagaccess()
-    Legacy = load_legacy_diagaccess()
 
     # ---------- COLD START ----------
     if args.cold:
@@ -262,10 +240,6 @@ def main():
         if not args.skip_memmap:
             run_mm = make_modern_runner(Modern, rad, use_memmap=True, conv_mode=None)
             cold_results.append(_bench_case("modern rad cold (memmap=True)", run_mm, args.repeats, warmup=0))
-
-        # Legacy conv/rad
-        cold_results.append(_bench_case("legacy conv cold", make_legacy_runner(Legacy, conv), args.repeats, warmup=0))
-        cold_results.append(_bench_case("legacy rad cold",  make_legacy_runner(Legacy, rad),  args.repeats, warmup=0))
 
         print("\n[COLD START]")
         print_table(cold_results)
@@ -288,10 +262,6 @@ def main():
     if not args.skip_memmap:
         run_mm = make_modern_runner(Modern, rad, use_memmap=True, conv_mode=None)
         results.append(_bench_case("modern rad (memmap=True)", run_mm, args.repeats, args.warmup))
-
-    # Legacy conv/rad
-    results.append(_bench_case("legacy conv", make_legacy_runner(Legacy, conv), args.repeats, args.warmup))
-    results.append(_bench_case("legacy rad",  make_legacy_runner(Legacy, rad),  args.repeats, args.warmup))
 
     print()
     print_table(results)
@@ -342,16 +312,11 @@ def main():
         for mode in conv_modes:
             m_conv = _new_modern(conv, memmap=False, mode=mode)
             print(f"[verify] modern conv[{mode}] rows:", conv_rows_any(m_conv))
-        l_conv = load_legacy_diagaccess()(str(conv))
-        print("[verify] legacy conv rows:", conv_rows_any(l_conv))
 
         # rad
         m_rad = _new_modern(rad, memmap=False, mode="split")
-        l_rad = load_legacy_diagaccess()(str(rad))
         ch_m, rows_m = rad_shape(m_rad)
-        ch_l, rows_l = rad_shape(l_rad)
         print(f"[verify] modern rad channels={ch_m} rows={rows_m}")
-        print(f"[verify] legacy rad channels={ch_l} rows={rows_l})")
 
 if __name__ == "__main__":
     main()

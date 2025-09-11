@@ -231,7 +231,7 @@ class diagAccess:
         """
         return self._data_type  # type: ignore[attr-defined]
 
-    def get_data_frame(self) -> Any:
+    def get_dataframe(self, *args, **kwargs) -> Any:
         """
         Return the decoded data structure.
 
@@ -242,7 +242,10 @@ class diagAccess:
             - **Conventional**: nested dict of DataFrames (or raw arrays if
               ``raw_numpy=True``) with shape ``{var -> {kx -> DataFrame}}``.
         """
-        return self._data_frame  # type: ignore[attr-defined]
+        if self._data_type != 1:
+            return self._data_frame  # type: ignore[attr-defined]
+
+        return self._get_conv_dataframe(*args, **kwargs)
 
     def get_variables(self) -> List[str]:
         """
@@ -330,29 +333,6 @@ class diagAccess:
             meta["kx"] = self._data_frame.get("kx")
         return meta
 
-    def get_dataframe(self, var: str, kx: int) -> pd.DataFrame:
-        """
-        Return a conventional DataFrame for a given variable and ``kx``.
-
-        Parameters
-        ----------
-        var : str
-            Variable present in the dataset (e.g., ``'t'``).
-        kx : int
-            Observation type code.
-
-        Returns
-        -------
-        pandas.DataFrame
-
-        Raises
-        ------
-        ValueError
-            If not a conventional file.
-        """
-        if self._data_type != 1:
-            raise ValueError("get_dataframe only valid for conventional diagnostics.")
-        return self._data_frame[var][kx]
 
     def get_overview(self) -> str:
         """
@@ -492,6 +472,29 @@ class diagAccess:
         return self.export_to_csv(*args, **kwargs)
 
     # =============================== Internals =============================== #
+    def _get_conv_dataframe(self, var: str, kx: int) -> pd.DataFrame:
+        """
+        Return a conventional DataFrame for a given variable and ``kx``.
+
+        Parameters
+        ----------
+        var : str
+            Variable present in the dataset (e.g., ``'t'``).
+        kx : int
+            Observation type code.
+
+        Returns
+        -------
+        pandas.DataFrame
+
+        Raises
+        ------
+        ValueError
+            If not a conventional file.
+        """
+        if self._data_type != 1:
+            raise ValueError("get_dataframe only valid for conventional diagnostics.")
+        return self._data_frame[var][kx]
 
     @staticmethod
     def _detect_format_file(file_name: str) -> str:

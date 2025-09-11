@@ -4,8 +4,8 @@ PY ?= python
 BENCH := bench_readers.py
 
 # Default config (override at invocation: make bench CONV=... RAD=...)
-CONV ?= ../data/diag_conv_01.2020010100
-RAD  ?= ../data/diag_amsua_metop-a_01.2020010100
+CONV ?= ../data/diag_conv_01.2024013018
+RAD  ?= ../data/diag_amsua_metop-b_01.2024013018
 REPEATS ?= 3
 WARMUP  ?= 1
 CONV_MODES ?= split,compact,raw
