@@ -156,6 +156,25 @@ def _apply_legacy_aliases(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def _apply_uv_magnitude(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    For UV variables, compute vector magnitudes to provide legacy-compatible columns.
+
+    Adds (when columns are present):
+    - ``obs``     = sqrt(obs_u^2 + obs_v^2)
+    - ``omf_wob`` = sqrt(omf_wob_u^2 + omf_wob_v^2)
+    """
+    import numpy as _np  # local import to avoid top-level changes
+
+    if all(c in df.columns for c in ("obs_u", "obs_v")) and "obs" not in df.columns:
+        df["obs"] = _np.sqrt(df["obs_u"] ** 2 + df["obs_v"] ** 2)
+
+    if all(c in df.columns for c in ("omf_wob_u", "omf_wob_v")) and "omf_wob" not in df.columns:
+        df["omf_wob"] = _np.sqrt(df["omf_wob_u"] ** 2 + df["omf_wob_v"] ** 2)
+
+    return df
+
+
 def _read_conv_header(f) -> Optional[Tuple[str, int, int, int, int, int, Dict[str, int]]]:
     """
     Read a single conventional block header.
@@ -487,6 +506,8 @@ def read_conv_file(
             df = pd.DataFrame(a, columns=cols[:n_take])
             if read_sids and sids is not None:
                 df.insert(0, 'sid', sids)
+            if vid == 'uv':
+                df = _apply_uv_magnitude(df)
             df = _apply_legacy_aliases(df) if compat_legacy else df
             out[vid] = {'__ALL__': df.reset_index(drop=True)}
             continue
@@ -512,6 +533,8 @@ def read_conv_file(
                 nrows = rows.shape[0]
                 df.insert(0, 'sid', sids_sorted[offset : offset + nrows])
                 offset += nrows
+            if vid == 'uv':
+                df = _apply_uv_magnitude(df)
             df = _apply_legacy_aliases(df) if compat_legacy else df
             out[vid][k] = df.reset_index(drop=True)
 

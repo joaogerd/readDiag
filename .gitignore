@@ -58,7 +58,11 @@ reader.py3
 reader_funcionando.py
 diagAccess.log
 0001-radiance.patch
-
+tmp_ds/
+msg.txt
+teste.py
+__gsidiag/
+RELEASE_NOTES.md
 # -----------------------------------------------------
 # Test artifacts
 # -----------------------------------------------------

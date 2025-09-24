@@ -12,9 +12,12 @@ _w.warn(
     stacklevel=2,
 )
 
-from .legacy_api import read_diag  # noqa: F401
+from .legacy_api.read import read_diag
+from .legacy_api.plot import plot_diag  # noqa: F401
+from .datasources import getVarInfo  # noqa: F401
 
-__all__ = ["read_diag"]
+__all__ = ["read_diag", "plot_diag", "getVarInfo"]
+
 
 
 """
