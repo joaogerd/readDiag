@@ -71,3 +71,4 @@ gsidiag = "gsidiag.__main__:cli"
 
 [tool.setuptools.package-data]
 readDiag = ["*.yml", "*.yaml", "*.json", "*.csv"]
+gsidiag = ["table.yml"]

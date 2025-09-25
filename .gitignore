@@ -63,6 +63,9 @@ msg.txt
 teste.py
 __gsidiag/
 RELEASE_NOTES.md
+build/
+listar_metodos.py
+src/gsidiag/normalize_table_yml.py
 # -----------------------------------------------------
 # Test artifacts
 # -----------------------------------------------------

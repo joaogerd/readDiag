@@ -64,12 +64,20 @@ import numpy as np
 import pandas as pd
 
 # GeoDataFrame para lat/lon → geometry (se quiser tornar opcional, ver nota abaixo)
-import geopandas as gpd
+try:
+    import geopandas as gpd
+except Exception:  # ImportError, RuntimeError…
+    gpd = None
 
 # --- Project (local) ---
 from readDiag.reader import diagAccess
 from readDiag.schema.naming import resolve_col_in_df
 from ..datasources import getVarInfo
+
+# --- Logging ---
+import logging
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 __all__ = [
     "read_diag",
@@ -154,39 +162,50 @@ def _inject_oma_from_anl(
     # Conventional mode (stacked by kx/points):
     lvl0: Optional[int] = None,
 ) -> None:
-    """Copy ``anl_df['omf']`` into ``bg_df['oma']`` **positionally**.
+    """
+    Copy ``omf`` from an analysis diagnostic into ``oma`` in the background table.
 
-    This helper supports **two modes** to remain compatible with legacy calls
-    already present in older scripts:
+    Supports two legacy-compatible modes, copying values **positionally** and
+    tolerating minor shape differences:
 
-    - **Radiance mode**: pass ``sat_id`` and ``channel_value`` to target rows
-      belonging to a given satellite (``SatId``) and channel number (``nchan``).
-    - **Conventional mode**: pass ``lvl0`` with the *kx* integer. In this case
-      ``bg_df`` is expected to be a stacked frame with level‑0 ``'kx'``.
+    Conventional mode
+        Set ``lvl0`` to a *kx* integer. The function targets rows in ``bg_df``
+        whose level-0 index matches ``lvl0`` and copies the first
+        ``min(len(bg_slice), len(anl_df))`` values from ``anl_df['omf']`` into
+        ``bg_df['oma']``.
+
+    Radiance mode
+        Set both ``sat_id`` and ``channel_value`` (``nchan``). The function
+        locates rows for ``sat_id`` (level-0 index) filtered by the given
+        channel and copies the first ``min(#dest, len(anl_df))`` values.
 
     Parameters
     ----------
     bg_df : pandas.DataFrame
-        The *background* concatenated DataFrame into which ``oma`` will be
-        injected. If the ``oma`` column does not exist, it will be created.
+        Background, stacked long table (conventional or radiance). If ``'oma'``
+        is missing, the column is created and filled with ``NaN`` before
+        injection.
     anl_df : pandas.DataFrame
-        The *analysis* DataFrame (same variable/channel or kx) from which the
-        ``omf`` values will be copied.
+        Analysis table providing the ``'omf'`` values.
     sat_id : str, optional
-        Satellite/platform id used as level‑0 in radiance tables (e.g., ``'n19'``).
-        Required in **radiance mode**.
+        Radiance mode level-0 key (e.g., ``'n19'``).
     channel_value : int, optional
-        Channel number (``1..N``). Required in **radiance mode**.
-    channel_col : str, default ``"nchan"``
-        Column that encodes the channel number in the radiance table.
+        Channel number for radiance mode (``1..N``).
+    channel_col : str, default "nchan"
+        Column name carrying the channel number.
     lvl0 : int, optional
-        *kx* value for **conventional mode** when level‑0 is ``'kx'``.
+        Conventional mode level-0 key (``kx``).
 
     Notes
     -----
-    - The copy is **positional** (first *N* rows) to preserve the legacy shape
-      assumptions; lengths may differ and we copy ``min(len(bg_slice), len(anl))``.
-    - Missing inputs, columns, or index keys are tolerated silently.
+    The copy is strictly **positional** to preserve legacy assumptions. Missing
+    inputs, columns, or index keys are tolerated silently. If neither ``lvl0``
+    nor ``(sat_id, channel_value)`` is provided, the function returns without
+    modifying ``bg_df``.
+
+    Returns
+    -------
+    None
     """
     if bg_df is None or anl_df is None or bg_df.empty or anl_df.empty:
         return
@@ -245,51 +264,83 @@ _inject_oma_from_anl_rad = _inject_oma_from_anl
 # Public class: read_diag (legacy‑shaped facade)
 # ============================================================================
 class read_diag(object):
-    """Read a **GSI diagnostic** file and expose legacy‑shaped tables.
 
-    Parameters
-    ----------
-    diagFile : str or path-like
-        Path to the *background* (or single) GSI diagnostic file.
-    diagFileAnl : str or path-like, optional
-        Path to the matching *analysis* diagnostic file. If supplied, the
-        function will copy ``omf(ANL)`` into ``oma(BG)`` positionally for the
-        same variable/kx (conventional) or channel (radiance).
-    isisList : Any, optional
-        Kept for signature compatibility; currently unused.
-    zlevs : sequence of float, optional
-        Pressure levels (hPa) used by some legacy routines. If omitted, a
-        default set is provided.
-    zchan : Any, optional
-        Kept for signature compatibility; currently unused.
-
-    Attributes
-    ----------
-    obsInfo : mapping
-        Dict-like object keyed by variable name (conventional) or sensor name
-        (radiance). It also exposes a ``.df`` attribute that points to the
-        concatenated long table (``self.obs``) for convenience.
-    obs : pandas.DataFrame
-        Concatenated long table across variables/sensors with legacy aliases
-        (``obs``, ``omf_nobc``, ``inverr``) when resolvable.
-    df : pandas.DataFrame
-        Alias to :attr:`obs` for older scripts.
-    varNames : list[str]
-        Variables (conventional) or sensor names (radiance) present in the file.
-    _FNumber : int or None
-        Synthetic handle id used to emulate the legacy "open file" counter.
-
-    Notes
-    -----
-    - The constructor attempts to **reuse** an already opened instance for the
-      same ``(diagFile, diagFileAnl)`` pair within the same process.
-    - Undefined fill values from older readers are normalized to ``NaN``.
-    - When ``lat/lon`` exist, a ``GeoDataFrame`` is created with normalized
-      longitudes in ``[-180, 180)``.
-    """
 
     def __init__(self, diagFile, diagFileAnl=None, isisList=None, zlevs=None, zchan=None):
-
+        """
+        Initialize a legacy-shaped view of a GSI diagnostic file.
+    
+        Opens a background (*BG*) diagnostic and, optionally, a matching analysis
+        (*ANL*) diagnostic. Exposes legacy-friendly tables under ``obsInfo`` and a
+        concatenated long table in ``obs``, keeping common aliases (``obs``,
+        ``omf_nobc``, ``inverr``). When an analysis file is provided, attempts to
+        inject ``oma`` into the background table **positionally** (same kx/channel).
+    
+        Parameters
+        ----------
+        diagFile : str or path-like
+            Path to the background (or single) GSI diagnostic file.
+        diagFileAnl : str or path-like, optional
+            Path to the matching analysis diagnostic. If provided, ``omf(ANL)`` is
+            copied into ``oma(BG)`` for corresponding variable/kx (conventional) or
+            channel (radiance). Default is ``None``.
+        isisList : Any, optional
+            Kept for compatibility with older call signatures. Currently unused.
+        zlevs : sequence of float, optional
+            Pressure levels (hPa) required by some legacy routines. If ``None``,
+            a default set is used.
+        zchan : Any, optional
+            Kept for compatibility with older call signatures. Currently unused.
+    
+        Attributes
+        ----------
+        obsInfo : Mapping[str, pandas.DataFrame]
+            Mapping from variable/sensor to a stacked table indexed by level-0 key
+            (``kx`` or ``SatId``) and point number. Provides a ``.df`` attribute
+            for very old code.
+        obs : pandas.DataFrame
+            Concatenated long table across variables/sensors with common aliases
+            when resolvable (``obs``, ``omf_nobc``, ``inverr``).
+        df : pandas.DataFrame
+            Alias to :attr:`obs` for legacy parity.
+        varNames : list of str
+            Variables (conventional) or sensor names (radiance).
+        _FNumber : int or None
+            Synthetic handle id used to emulate the legacy "open file" counter.
+    
+        Notes
+        -----
+        * The constructor may **reuse** a previously opened instance for the same
+          ``(diagFile, diagFileAnl)`` pair within the process, shallow-copying its
+          internal state to avoid duplicate I/O.
+        * Undefined/fill values from older readers are normalized to ``NaN``.
+        * If ``lat/lon`` are present and GeoPandas is available, a ``GeoDataFrame``
+          is created with longitudes wrapped to ``[-180, 180)``.
+    
+        Raises
+        ------
+        FileNotFoundError
+            If a provided path does not exist.
+        KeyError
+            If required channel metadata is missing in radiance mode.
+        Exception
+            Any error propagated by the low-level reader.
+    
+        Examples
+        --------
+        Conventional
+            >>> # doctest: +SKIP
+            >>> gdf = read_diag("diag_conv_01.2024021000")
+            >>> list(gdf.varNames)
+            ['t', 'q', 'uv']
+    
+        Radiance with OMA injection
+            >>> # doctest: +SKIP
+            >>> gdf = read_diag("diag_amsua_n19_01.2024021000",
+            ...                 "diag_amsua_n19_01.2024021000.anl")
+            >>> 'oma' in gdf.obs.columns
+            True
+        """
         self._diagFile = diagFile
         self._diagFileAnl = diagFileAnl
 
@@ -324,13 +375,21 @@ class read_diag(object):
             try:
                 rd_anl = diagAccess(diagFileAnl, compat_legacy=True, base20_only=True, read_sids=False)
             except Exception as e:  # pragma: no cover - warn only
-                print(f"[WARN] Failed to read analysis file '{diagFileAnl}': {e}")
+                logger.warning("Failed to read analysis file '%s': %s", diagFileAnl, e)
+
                 rd_anl = None
 
         # File type and undef normalization
         self._FileType = rd.get_data_type()  # 1=conv, 2=rad
         self._undef = np.nan
         self._idate = rd._idate
+
+        logger.info(
+            "Opened diagnostic: type=%s idate=%s file=%s",
+            "conventional" if self._FileType == 1 else "radiance",
+            getattr(self, "_idate", None),
+            self._diagFile,
+        )
 
         # Default z‑levels (legacy callers may use self.zlevs)
         self.zlevs = (
@@ -358,7 +417,7 @@ class read_diag(object):
 
                     d.replace(to_replace=[-9.99e8, -9.0e33], value=np.nan, inplace=True)
 
-                    if {"lat", "lon"}.issubset(d.columns):
+                    if gpd is not None and {"lon", "lat"}.issubset(d.columns):
                         lon = (d["lon"] + 180) % 360 - 180
                         lat = d["lat"]
                         d = gpd.GeoDataFrame(d, geometry=gpd.points_from_xy(lon, lat))
@@ -368,8 +427,14 @@ class read_diag(object):
 
                 out = pd.concat(frames, keys=keys, names=["kx", "points"]) if frames else pd.DataFrame()
 
+                logger.debug(
+                    "Built conventional var=%s with kx=%s (rows=%d)",
+                    obsName, keys, sum(len(f) for f in frames)
+                )
+
                 # Inject OMA from ANL (copy posicional): kx by kx
                 if rd_anl is not None and not out.empty:
+                    logger.info("Injecting OMA from ANL for var=%s over %d kx blocks", obsName, len(keys))
                     try:  # pragma: no cover - tolerant path
                         for kx in keys:
                             d_anl = rd_anl.get_dataframe(obsName, kx).copy()
@@ -377,15 +442,19 @@ class read_diag(object):
                                 continue
                             _inject_oma_from_anl(out, d_anl, lvl0=kx)
                     except Exception as e:
-                        print(f"[WARN] OMA injection failed (conv, var={obsName}): {e}")
+                        logger.warning("OMA injection failed (radiance): %s", e)
 
                 self.obsInfo[obsName] = out
-                
+
+                logger.debug("Built conventional var=%s with kx=%s (rows=%d)",
+                             obsName, keys, sum(len(f) for f in frames) )
             # ------------- Concatenated table (previous behavior) -----------------
             self.obs = (
                 pd.concat(self.obsInfo, sort=False).reset_index(level=2, drop=True)
                 if self.obsInfo else pd.DataFrame()
             )
+
+            logger.debug("Concatenated table shape: %s", tuple(self.obs.shape))
 
         else:
             # ---------------------------- RADIANCE ---------------------------
@@ -421,7 +490,8 @@ class read_diag(object):
             not_covered = expected - set(iuse_map.index)
             if not_covered:
                 # Be tolerant: warn and fill missing with NaN during assignment
-                print(f"[WARN] 'chan' has no iuse values for channels: {sorted(not_covered)}")
+                logger.warning("'chan' has no iuse values for channels: %s", sorted(not_covered))
+
             
             # Precompute whether we can make a GeoDataFrame
             _has_gpd = "gpd" in globals() and getattr(gpd, "GeoDataFrame", None) is not None
@@ -451,11 +521,14 @@ class read_diag(object):
                         d.loc[: n - 1, common] = d_geom.loc[: n - 1, common].to_numpy()
             
                 # Build geometry if both lat/lon are available and geopandas is present
-                if {"lat", "lon"}.issubset(d.columns) and _has_gpd:
+                if gpd is not None and {"lat", "lon"}.issubset(d.columns) and _has_gpd:
                     lon = ((d["lon"] + 180) % 360) - 180  # wrap to [-180, 180)
                     lat = d["lat"]
                     d = gpd.GeoDataFrame(d, geometry=gpd.points_from_xy(lon, lat))
-            
+
+                logger.debug("Radiance sensor=%s satId=%s channel=%d rows=%d",
+                             sensor, varType_from_name, ich, len(d))
+
                 long_list.append(d)
             
             # Concatenate long table across channels
@@ -494,8 +567,8 @@ class read_diag(object):
                         )
                 except Exception as e:
                     # don't reference 'ich' here: it may be undefined if the failure happened before the loop
-                    print(f"[WARN] OMA injection failed (radiance): {e}")
-            
+                    logger.warning("OMA injection failed (radiance): %s", e)
+
             # --- Legacy aliases via schema.naming ---------------------------------
             _rad_df = self.obsInfo[sensor]
             
@@ -527,7 +600,9 @@ class read_diag(object):
                 pd.concat(self.obsInfo, sort=False).reset_index(level=2, drop=True)
                 if self.obsInfo else pd.DataFrame()
             )
-            
+
+            logger.debug("Concatenated table shape: %s", tuple(self.obs.shape))
+
             # Add aliases at the concatenated level as well
             if not self.obs.empty:
                 try:
@@ -581,17 +656,22 @@ class read_diag(object):
     # Lifecycle helpers (close/context manager)
     # ---------------------------------------------------------------------
     def close(self) -> int:
-        """Logically close this object (drop big tables and unregister handle).
-
+        """
+        Release resources and unregister this handle.
+    
+        Drops large internal tables (``obsInfo``, ``obs``, ``df``), unregisters the
+        synthetic file id, and triggers a garbage collection pass.
+    
         Returns
         -------
         int
             Always ``0`` (legacy status value).
-
+    
         Examples
         --------
-        >>> gdf = read_diag("diag_conv_01.2024021000")  # doctest: +SKIP
-        >>> gdf.close()  # doctest: +SKIP
+        >>> # doctest: +SKIP
+        >>> gdf = read_diag("diag_conv_01.2024021000")
+        >>> gdf.close()
         0
         """
         fid = getattr(self, "_FNumber", None)
@@ -614,40 +694,84 @@ class read_diag(object):
         gc.collect()
         return 0
 
+    def __enter__(self):
+        """
+        Enter the context manager and return ``self``.
+    
+        Returns
+        -------
+        read_diag
+            This instance, ready for use inside a ``with`` block.
+    
+        Examples
+        --------
+        >>> # doctest: +SKIP
+        >>> with read_diag("diag_conv_01.2024021000") as gdf:
+        ...     df = gdf.obs
+        """
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        """
+        Ensure resources are released when leaving a context.
+    
+        Calls :meth:`close` unconditionally and returns ``False`` so that any
+        exception raised inside the context is propagated to the caller.
+    
+        Parameters
+        ----------
+        exc_type : type or None
+            Exception type, if any.
+        exc : BaseException or None
+            Exception instance, if any.
+        tb : traceback or None
+            Traceback object, if any.
+    
+        Returns
+        -------
+        bool
+            Always ``False`` to propagate exceptions.
+        """
+        try:
+            self.close()
+        finally:
+            return False
+
     def __del__(self):  # pragma: no cover - destructor best effort
+        """
+        Best-effort destructor that releases large tables and unregisters the handle.
+    
+        Notes
+        -----
+        Destructors are not guaranteed to run immediately or at interpreter
+        shutdown time. Prefer explicit ``close()`` calls or context managers
+        (``with read_diag(...) as gdf: ...``) in production code.
+        """
         try:
             self.close()
         except Exception:
             pass
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc, tb):
-        try:
-            self.close()
-        finally:
-            return False  # propagate exceptions
-
     # ---------------------------------------------------------------------
     # Introspection (legacy)
     # ---------------------------------------------------------------------
     def overview(self) -> Dict[str, List[Any]]:
-        """Summarize variables and available *types* (kx or SatId).
-
+        """
+        Summarize variables and their available level-0 keys.
+    
         Returns
         -------
-        dict
-            Mapping ``{var_name: [types...]}`` where *types* are *kx* values for
-            conventional files and, for radiance, the first‑level keys (often a
-            single SatId like ``'n19'``).
-
+        dict of {str: list}
+            Mapping ``{var_name: [keys...]}`` where:
+            * For conventional diagnostics, keys are *kx* values (``int``).
+            * For radiance diagnostics, keys are first-level indices such as
+              satellite/platform identifiers (e.g., ``'n19'``).
+    
         Examples
         --------
-        >>> gdf = read_diag("diag_conv_01.2024021000")  # doctest: +SKIP
-        >>> ov = gdf.overview()  # doctest: +SKIP
-        >>> isinstance(ov, dict)
-        True
+        >>> # doctest: +SKIP
+        >>> gdf = read_diag("diag_conv_01.2024021000")
+        >>> gdf.overview()
+        {'t': [120, 130], 'q': [120]}
         """
         variablesList: Dict[str, List[Any]] = {}
         for var in self.varNames or []:
@@ -660,12 +784,20 @@ class read_diag(object):
         return variablesList
 
     def pfileinfo(self) -> None:
-        """Print a simple list of variables and available *kx* values.
-
+        """
+        Print a simple list of variables and available level-0 keys.
+    
+        For conventional files, the level-0 key is the *kx* integer.
+        For radiance files, it is typically the ``SatId`` (e.g., ``'n19'``).
+    
         Notes
         -----
-        - This is a convenience **printing** routine kept for legacy parity.
-        - For programmatic use prefer :meth:`overview`.
+        This is a convenience **printing** routine for ad-hoc inspection.
+        For programmatic access, prefer :meth:`overview`.
+    
+        Returns
+        -------
+        None
         """
         for name in self.varNames or []:
             print("Variable Name :", name)
@@ -696,84 +828,96 @@ class read_diag(object):
         na_value: float = -99.0,
         verbose: bool = True,
     ):
-        """Export time-series aggregates to CSV (legacy routine, optimized).
+        """
+        Export legacy time-series aggregates to CSV.
     
-        This preserves the legacy calling convention where the first positional
-        argument (named ``self`` for historical reasons) is actually a **sequence**
-        of per-cycle ``read_diag`` objects. Only performance/robustness were improved.
+        Preserves the legacy calling convention where the first positional argument
+        (historically named ``self``) is a **sequence** of per-cycle ``read_diag``
+        objects. Computes OmF/OmA statistics by pressure level (or a single level/
+        layer) for each date in the requested range.
     
         Parameters
         ----------
-        self : Sequence[read_diag]
-            Sequence of per-cycle objects (e.g., BG files sampled each ``nHour``).
+        self : sequence of read_diag
+            Sequence of per-cycle objects (e.g., BG files sampled every ``nHour``).
         varName : str, optional
-            Conventional variable or sensor name key inside ``.obsInfo``.
+            Conventional variable or sensor key inside ``.obsInfo``.
         varType : str or int, optional
-            For conventional files, this is the *kx*; for radiance, the SatId
-            (e.g., ``'n19'``) or equivalent key.
+            For conventional, the *kx*; for radiance, the ``SatId`` (e.g., ``'n19'``).
         dateIni, dateFin : str or int
-            Bounds as ``YYYYMMDDHH`` (must match the number of items in ``self``
-            when stepping by ``nHour``).
-        nHour : str or int, default ``"06"``
+            Bounds as ``YYYYMMDDHH``. The number of generated timestamps should
+            match the number of items in ``self`` when stepping by ``nHour``.
+        nHour : str or int, default "06"
             Step (hours) between successive objects in ``self``.
         Level : int or str, optional
-            If ``None`` or ``"Zlevs"``, aggregate by standard z-levels. Otherwise,
-            use the provided level (hPa).
+            If ``None`` or ``"Zlevs"``, aggregate by all available levels.
+            Otherwise, use the provided level (hPa).
         Lay : int, optional
-            Half-width for layer selection around ``Level`` when
+            Half-width (hPa) for layer selection around ``Level`` when
             ``SingleL == "OneL"``.
         SingleL : {None, "All", "OneL"}, optional
-            Layer aggregation mode (entire atmosphere vs. a single layer).
-        outdir : str | pathlib.Path, optional
-            Output directory for CSV files. Defaults to current directory.
+            Layer aggregation mode. ``None``/``"Zlevs"`` means per-level; ``"All"``
+            aggregates everything into a single bucket; ``"OneL"`` selects a band
+            around ``Level`` with half-width ``Lay``.
+        outdir : str or path-like, optional
+            Output directory for CSV files. Default is current directory.
         na_value : float, default -99.0
             Fill value for missing aggregates.
         verbose : bool, default True
-            If True, prints legacy progress messages; if False, runs silent.
+            If ``True``, log at INFO level; otherwise, log at DEBUG.
     
         Returns
         -------
-        tuple[str, str]
+        tuple of (str, str)
             Filenames of the two CSV files written (``OmF`` and ``OmA``).
     
         Notes
         -----
-        - Keeps legacy column layout: for each level, exports ``mean``, ``std`` and
-          ``count`` triplets.
-        - Uses vectorized grouping and minimizes Python-level loops.
+        Keeps the legacy layout: for each level, exports triplets ``mean``, ``std``,
+        and ``count``. Uses vectorized grouping and minimizes Python-level loops.
         """
         import numpy as np
         import pandas as pd
         from datetime import datetime, timedelta
         from pathlib import Path
+        import logging
     
-        def _p(msg: str) -> None:
+        # Use module-level logger if available, otherwise create one
+        log = logging.getLogger(__name__)
+    
+        def _log_info(msg: str) -> None:
+            # preserve "verbosity switch": INFO when verbose, DEBUG otherwise
             if verbose:
-                print(msg)
+                log.info(msg)
+            else:
+                log.debug(msg)
     
-        # ---------- setup & banner ----------
+        # ---------- setup ----------
         outdir = Path(outdir)
         outdir.mkdir(parents=True, exist_ok=True)
     
         omflag, omflaga = "OmF", "OmA"
         Laydef = 50
         delta_h = int(nHour)
-        sep = " " + "=" * 100
     
+        logger.info(
+            "Exporting CSV var=%s type=%s range=%s..%s step=%sh",
+            varName, varType, dateIni, dateFin, nHour
+        )
+        
         varInfo = None
         try:
-            # getVarInfo pode não existir em todos os ambientes/variáveis
+            # getVarInfo may not exist in all environments
             from .datasources import getVarInfo  # type: ignore
             varInfo = getVarInfo(varType, varName, "instrument")
         except Exception:
             pass
     
-        _p("\n" + sep)
-        _p(
-            f" Analyzing data of variable: {varName}  ||  type: {varType}  ||  "
-            f"{(varInfo if varInfo is not None else 'Unknown instrument')}  ||  check: {omflag}"
+        _log_info(
+            f"Analyzing var={varName} type={varType} "
+            f"instrument={varInfo if varInfo is not None else 'Unknown'} "
+            f"metric={omflag}"
         )
-        _p(sep + "\n")
     
         # ---------- range & consistency ----------
         datei = datetime.strptime(str(dateIni), "%Y%m%d%H")
@@ -781,7 +925,7 @@ class read_diag(object):
         if datef < datei:
             raise ValueError("dateFin < dateIni")
     
-        # constrói a linha do tempo esperada pelo passo
+        # Build expected timeline by step
         dates = []
         d = datei
         while d <= datef:
@@ -789,100 +933,92 @@ class read_diag(object):
             d += timedelta(hours=delta_h)
     
         if len(dates) != len(self):
-            # Mantém compatibilidade, mas reclama se houver divergência de contagem
-            _p(
-                f"[WARN] Number of dates ({len(dates)}) != number of objects in self ({len(self)}). "
-                "Proceeding with min length."
+            log.warning(
+                "Number of dates (%d) != number of objects in self (%d). Proceeding with min length.",
+                len(dates), len(self)
             )
         n = min(len(dates), len(self))
         dates = dates[:n]
         seq = list(self[:n])
     
-        # ---------- níveis padrão ----------
+        # ---------- default pressure levels ----------
         try:
-            zlevs_def = list(map(int, seq[0].zlevs))  # legado
+            zlevs_def = list(map(int, seq[0].zlevs))  # legacy
         except Exception:
             zlevs_def = [1000, 925, 850, 700, 600, 500, 400, 300, 250, 200, 150, 100, 70, 50, 30]
     
-        # ---------- utilitários de filtragem ----------
+        # ---------- helpers ----------
         def _mk_df(obj) -> pd.DataFrame | None:
-            """Retorna DataFrame com colunas padronizadas ou None se indisponível."""
+            """Return standardized DataFrame or None if unavailable."""
             try:
                 data = obj.obsInfo[varName].loc[varType]
             except Exception:
                 return None
-            # Esperado: arrays/Series p/ 'prs', 'omf', 'oma'
             try:
                 df = pd.DataFrame({"prs": data["prs"], "omf": data["omf"], "oma": data["oma"]})
-                # força inteiros nos níveis para chavear corretamente
                 df["prs"] = df["prs"].astype(int, copy=False)
                 return df
             except Exception:
                 return None
     
         def _select_values(df: pd.DataFrame, level_sel, lay, single_mode) -> dict[int, pd.DataFrame]:
-            """Seleciona dados por nível conforme regras de Level/Lay/SingleL."""
+            """Select rows by level according to Level/Lay/SingleL rules."""
             if Level is None or Level == "Zlevs":
-                # agrega por cada nível presente
                 return {int(p): g for p, g in df.groupby("prs")}
-            # Level específico
             L = int(level_sel)
             if single_mode is None:
                 return {L: df[df["prs"] == L]}
             if single_mode == "All":
-                # tudo num único balde com rótulo L
                 return {L: df}
             if single_mode == "OneL":
                 if lay is None:
-                    _p(f"\n Variable Lay is None, resetting to default: {Laydef} hPa.\n")
+                    log.warning("Variable Lay is None; resetting to default: %d hPa.", Laydef)
                     lay = Laydef
                 lo, hi = L - int(lay), L + int(lay)
                 return {L: df[(df["prs"] >= lo) & (df["prs"] < hi)]}
-            # modo inválido: retorna vazio para cair no preenchimento com NA
-            _p(" Wrong value for variable SingleL. Please, check it and rerun the script.")
+            log.warning("Wrong value for SingleL=%r. Please check and rerun.", single_mode)
             return {int(L): df.iloc[0:0]}
     
-        # ---------- primeira passada: descobrir níveis efetivos e datas com info ----------
+        # ---------- first pass: discover effective levels and dates ----------
         info_ok = []
         levs_seen: set[int] = set()
         for d, obj in zip(dates, seq):
             df = _mk_df(obj)
             if df is None or df.empty:
                 info_ok.append(False)
-                _p(d.strftime("  >>> No information on this date: %Y-%m-%d:%H"))
+                _log_info(d.strftime("No data on %Y-%m-%d:%H"))
                 continue
     
             if "prs" in df:
                 if Level is None or Level == "Zlevs":
                     levs_seen.update(map(int, df["prs"].unique()))
-                    _p(d.strftime(" Preparing data for: %Y-%m-%d:%H"))
-                    _p(f" Levels: {sorted(levs_seen)}\n")
+                    _log_info(d.strftime("Preparing %Y-%m-%d:%H"))
+                    _log_info(f"Levels so far: {sorted(levs_seen)}")
                 else:
                     if isinstance(Level, str) and Level == "Zlevs":
                         levs_seen.update(map(int, df["prs"].unique()))
                     else:
                         levs_seen.add(int(Level))
-                        _p(d.strftime(" Preparing data for: %Y-%m-%d:%H") + f" - Level: {Level}")
+                        _log_info(d.strftime(f"Preparing %Y-%m-%d:%H - Level: {Level}"))
             info_ok.append(True)
     
-        # ordem final de níveis (mantém padrão + garante colunas “vazias” para ausentes)
+        # final level order (keep defaults + ensure consistent columns)
         if Level is None or Level == "Zlevs":
             levs = sorted(set(levs_seen) | set(zlevs_def))
         else:
             levs = sorted(set([int(Level)]) | set(zlevs_def))
     
-        # cabeçalhos (datetime + tripletas por nível)
+        # headers (datetime + triplets per level)
         head_levs = ["datetime"]
         for lv in levs:
             head_levs.extend([f"mean{lv}", f"std{lv}", f"count{lv}"])
     
-        # ---------- segunda passada: agrega por data ----------
+        # ---------- second pass: aggregate per date ----------
         rows_f, rows_a = [], []
         for ok, d, obj in zip(info_ok, dates, seq):
-            _p(d.strftime(" Calculating for %Y-%m-%d:%H"))
+            _log_info(d.strftime("Calculating %Y-%m-%d:%H"))
             stamp = d.strftime("%Y%m%d%H")
             if not ok:
-                # linha só com NA
                 vals = [stamp] + list(np.r_[np.repeat([na_value, na_value, -99], len(levs))])
                 rows_f.append(vals)
                 rows_a.append(vals.copy())
@@ -897,7 +1033,7 @@ class read_diag(object):
     
             buckets = _select_values(df, Level, Lay, SingleL)
     
-            # pré-computa estatísticas por nível disponível
+            # precompute stats per available level
             stats_f: dict[int, tuple[float, float, int]] = {}
             stats_a: dict[int, tuple[float, float, int]] = {}
     
@@ -908,17 +1044,18 @@ class read_diag(object):
                     continue
                 omf = g["omf"].to_numpy()
                 oma = g["oma"].to_numpy()
-                # estatística robusta e vetorizada
-                if omf.size:
-                    stats_f[lv] = (float(np.mean(omf)), float(np.std(omf)), int(omf.size))
-                else:
-                    stats_f[lv] = (na_value, na_value, -99)
-                if oma.size:
-                    stats_a[lv] = (float(np.mean(oma)), float(np.std(oma)), int(oma.size))
-                else:
-                    stats_a[lv] = (na_value, na_value, -99)
+                stats_f[lv] = (
+                    float(np.mean(omf)) if omf.size else na_value,
+                    float(np.std(omf)) if omf.size else na_value,
+                    int(omf.size) if omf.size else -99,
+                )
+                stats_a[lv] = (
+                    float(np.mean(oma)) if oma.size else na_value,
+                    float(np.std(oma)) if oma.size else na_value,
+                    int(oma.size) if oma.size else -99,
+                )
     
-            # monta linha garantindo todos os níveis em `levs`
+            # build row guaranteeing all levels in `levs`
             row_f = [stamp]
             row_a = [stamp]
             for lv in levs:
@@ -929,16 +1066,18 @@ class read_diag(object):
             rows_f.append(row_f)
             rows_a.append(row_a)
     
-        _p("\n" + sep + "\n")
-    
-        # ---------- gravação ----------
-        _p("\n Saving Dataset in CSV File...  ")
+        # ---------- write ----------
+        log.info(
+            "Saving CSVs for var=%s type=%s to directory: %s", varName, varType, outdir.as_posix()
+        )
         dataout_file = outdir / f"dataout_{varName}_{varType}_{omflag}.csv"
         dataout_filea = outdir / f"dataout_{varName}_{varType}_{omflaga}.csv"
     
         pd.DataFrame.from_records(rows_f, columns=head_levs).to_csv(dataout_file, index=False)
         pd.DataFrame.from_records(rows_a, columns=head_levs).to_csv(dataout_filea, index=False)
     
-        _p(" Done \n")
+        log.info("CSV written: %s", dataout_file.as_posix())
+        log.info("CSV written: %s", dataout_filea.as_posix())
+    
         return str(dataout_file), str(dataout_filea)
-
+    
