@@ -64,6 +64,7 @@ True
 from datetime import datetime
 from typing import Callable, Dict, List, Optional, Tuple
 
+import logging
 import numpy as np
 import pandas as pd
 
@@ -76,6 +77,48 @@ BASE20_COLS: List[str] = [
     'errinv_inp','errinv_adj','errinv_fin',
     'obs','omf','omf_wob','spread'
 ]
+
+#
+UV_TAIL: List[str] = [
+    # 17..22
+    'obs_u','omf_u','omf_wob_u',
+    'obs_v','omf_v','omf_wob_v',
+    # 23..25
+    'factw', 'spread_u', 'spread_v',
+]
+
+def _normalize_uv_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """Ensure a complete UV schema and compute magnitudes.
+
+    - If only one component (U or V) exists and generic fields ('obs','omf','omf_wob')
+      are present, promote generics to the missing component.
+    - Compute magnitudes 'obs', 'omf', 'omf_wob' as hypot(U, V) when both components exist.
+    - Keep 'factw', 'spread_u', 'spread_v' as written by the binary diag.
+    """
+    import numpy as _np
+    u = ('obs_u','omf_u','omf_wob_u')
+    v = ('obs_v','omf_v','omf_wob_v')
+
+    have_u = all(c in df.columns for c in u)
+    have_v = all(c in df.columns for c in v)
+
+    # Promote generics → missing component when possible
+    if have_u and not have_v:
+        if 'obs' in df and 'obs_v' not in df: df['obs_v'] = df['obs']
+        if 'omf' in df and 'omf_v' not in df: df['omf_v'] = df['omf']
+        if 'omf_wob' in df and 'omf_wob_v' not in df: df['omf_wob_v'] = df['omf_wob']
+        have_v = all(c in df.columns for c in v)
+    elif have_v and not have_u:
+        if 'obs' in df and 'obs_u' not in df: df['obs_u'] = df['obs']
+        if 'omf' in df and 'omf_u' not in df: df['omf_u'] = df['omf']
+        if 'omf_wob' in df and 'omf_wob_u' not in df: df['omf_wob_u'] = df['omf_wob']
+        have_u = all(c in df.columns for c in u)
+
+    # Magnitudes
+    if {'obs_u','obs_v'}.issubset(df.columns):       df['obs']     = _np.hypot(df['obs_u'], df['obs_v'])
+    if {'omf_u','omf_v'}.issubset(df.columns):       df['omf']     = _np.hypot(df['omf_u'], df['omf_v'])
+    if {'omf_wob_u','omf_wob_v'}.issubset(df.columns): df['omf_wob'] = _np.hypot(df['omf_wob_u'], df['omf_wob_v'])
+    return df
 
 
 def _columns_for(var: str, nreal: int, fast: bool) -> List[str]:
@@ -105,8 +148,9 @@ def _columns_for(var: str, nreal: int, fast: bool) -> List[str]:
     """
     if fast:
         if var == 'uv':
-            tail = ['obs_u','omf_u','omf_wob_u','obs_v','omf_v','omf_wob_v']
-            return BASE20_COLS[:16] + tail[:max(0, nreal - 16)]
+            # 16 base + 9 uv-specific = 25 minimum columns when present in file.
+            cols = BASE20_COLS[:16] + UV_TAIL
+            return cols[:min(len(cols), nreal)]
         if var == 'wst':
             cols = BASE20_COLS.copy()
             cols[-1] = 'factw'
@@ -114,7 +158,6 @@ def _columns_for(var: str, nreal: int, fast: bool) -> List[str]:
         return BASE20_COLS[:min(20, nreal)]
     # TODO: implement full column map when fast=False
     return BASE20_COLS[:min(20, nreal)]
-
 
 def _apply_legacy_aliases(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -153,25 +196,6 @@ def _apply_legacy_aliases(df: pd.DataFrame) -> pd.DataFrame:
     for old, new in alias.items():
         if new in df.columns and old not in df.columns:
             df[old] = df[new]
-    return df
-
-
-def _apply_uv_magnitude(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    For UV variables, compute vector magnitudes to provide legacy-compatible columns.
-
-    Adds (when columns are present):
-    - ``obs``     = sqrt(obs_u^2 + obs_v^2)
-    - ``omf_wob`` = sqrt(omf_wob_u^2 + omf_wob_v^2)
-    """
-    import numpy as _np  # local import to avoid top-level changes
-
-    if all(c in df.columns for c in ("obs_u", "obs_v")) and "obs" not in df.columns:
-        df["obs"] = _np.sqrt(df["obs_u"] ** 2 + df["obs_v"] ** 2)
-
-    if all(c in df.columns for c in ("omf_wob_u", "omf_wob_v")) and "omf_wob" not in df.columns:
-        df["omf_wob"] = _np.sqrt(df["omf_wob_u"] ** 2 + df["omf_wob_v"] ** 2)
-
     return df
 
 
@@ -346,6 +370,13 @@ def _read_block_full(f, nobs: int, nreal: int, read_sids: bool, rkind: str = '>f
     return sids, rb
 
 
+
+
+
+
+# ---------------------------------------------------------------------------
+# read_conv_file with robust UV debugging and safer DataFrame construction
+# ---------------------------------------------------------------------------
 @log_time
 def read_conv_file(
     file_name: str,
@@ -397,13 +428,6 @@ def read_conv_file(
           - ``compact=True`` → ``{var -> {'__ALL__': DataFrame}}``
           - default (split) → ``{var -> {kx -> DataFrame}}``
 
-    Raises
-    ------
-    ValueError
-        If Fortran record markers mismatch (header or data).
-    EOFError
-        If a data record is truncated on read.
-
     Notes
     -----
     - The function reads all blocks and vertically stacks them per variable.
@@ -411,35 +435,6 @@ def read_conv_file(
       when ``extras['iip'] > 0`` in the file, preserving order.
     - The first column is assumed to be ``'kx'``; split-mode sorts by ``kx``
       (stable sort) and returns contiguous chunks per code.
-
-    Examples
-    --------
-    Read and split by ``kx``:
-
-    >>> out = read_conv_file("diag_conv_01.2024013018")
-    >>> sorted(out.keys())
-    ['ps', 'q', 't', 'uv', 'wst']
-    >>> df_t_120 = out['t'][120]
-    >>> df_t_120[['kx', 'lat', 'lon', 'obs', 'omf']].head(3)
-
-    Compact per variable:
-
-    >>> out = read_conv_file("diag_conv_01.2024013018", compact=True, read_sids=True)
-    >>> df_q = out['q']['__ALL__']
-    >>> df_q.columns[:5].tolist()
-    ['sid', 'kx', 'ksub', 'lat', 'lon']
-
-    Raw NumPy:
-
-    >>> out = read_conv_file("diag_conv_01.2024013018", raw_numpy=True)
-    >>> out['ps']['data'].ndim
-    2
-
-    Filtering a single variable (materialization):
-
-    >>> out = read_conv_file("diag_conv_01.2024013018", var='t', compact=True)
-    >>> list(out.keys())
-    ['t']
     """
     stash: Dict[str, List[np.ndarray]] = {}
     stash_sid: Dict[str, List[np.ndarray]] = {}
@@ -462,10 +457,48 @@ def read_conv_file(
             if nobs <= 0:
                 continue
 
-            # Choose fast skim (<=20) or full matrix
-            reader = _read_block_base20 if (base20_only and nreal > 20) else _read_block_full
-            sids, rb = reader(f, nobs, nreal, read_sids, rkind='>f4')
+            # For wind ('uv'), force the full record reader to ensure both U and V components
+            # and uv-specific metadata are available even when base20-only mode is enabled.
+            # Other variables keep the base-20 skim to save I/O.
             vid = var_id.strip()
+
+            # If the caller requested a single variable, skip others while staying in-sync
+            if var is not None and vid != var:
+                force_full_skip = (vid == 'uv')
+                reader_skip = _read_block_full if (force_full_skip or not (base20_only and nreal > 20)) else _read_block_base20
+                _sids_skip, _rb_skip = reader_skip(f, nobs, nreal, read_sids=False, rkind='>f4')
+                # Optional PBL pseudo-obs (t/q) controlled by 'iip'
+                iip = extras.get('iip', 0)
+                if vid in ('t', 'q') and iip > 0:
+                    _sids_p, _rb_p = reader_skip(f, iip, nreal, read_sids=False, rkind='>f4')
+                continue
+
+            force_full = (vid == 'uv')
+            reader = _read_block_full if (force_full or not (base20_only and nreal > 20)) else _read_block_base20
+
+            sids, rb = reader(f, nobs, nreal, read_sids, rkind='>f4')
+
+            # ------------------------ UV per-block debug ------------------------
+            if vid == 'uv':
+                logger.debug("UV header: nobs=%d, nreal=%d, base20_only=%s", nobs, nreal, base20_only)
+                logger.debug("UV reader: %s", "FULL" if (force_full or not (base20_only and nreal > 20)) else "BASE20")
+                logger.debug("UV raw matrix shape: %s", getattr(rb, "shape", None))
+                try:
+                    np.set_printoptions(edgeitems=8, linewidth=140, suppress=True)
+                    logger.debug("UV first-row raw (up to 32): %s", rb[0, :min(rb.shape[1], 32)])
+                except Exception as _e:
+                    logger.debug("UV raw row dump skipped: %s", _e)
+                # Resolve columns for this *block* based on effective width
+                cols_block = _columns_for(vid, rb.shape[1], fast)
+                logger.debug("UV resolved columns (wanted=%d, got=%d): %s", len(cols_block), rb.shape[1], cols_block[: rb.shape[1]])
+                # Dump last up-to-10 name/value pairs for a quick glance
+                n_take_blk = rb.shape[1]
+                idxmap = {i: name for i, name in enumerate(cols_block[:n_take_blk], start=1)}
+                start = max(1, n_take_blk - 10 + 1)
+                pairs = [(idxmap[i], float(rb[0, i - 1])) for i in range(start, n_take_blk + 1)]
+                logger.debug("UV last fields row0 (effective): %s", pairs)
+            # -------------------------------------------------------------------
+
             stash.setdefault(vid, []).append(rb)
             if read_sids and sids is not None:
                 stash_sid.setdefault(vid, []).append(np.asarray(sids))
@@ -492,31 +525,61 @@ def read_conv_file(
     # Materialize pandas DataFrames
     out: Dict[str, Dict[str, pd.DataFrame]] = {}
     for vid, parts in stash.items():
+        if var is not None and vid != var:
+            # Skip materializing other variables if a single var was requested
+            continue
+
         arr = parts[0] if len(parts) == 1 else np.vstack(parts)
         sids = None
         if read_sids and vid in stash_sid:
             sids = np.concatenate(stash_sid[vid], axis=0)
 
         cols = _columns_for(vid, arr.shape[1], fast)
-        n_take = min(arr.shape[1], len(cols))
-        a = arr[:, :n_take]
+
+        # ------------------------ UV stacked-level debug ------------------------
+        if vid == 'uv':
+            logger.debug("UV stacked width: got=%d, names=%d", arr.shape[1], len(cols))
+            logger.debug("UV final colnames (effective first %d): %s", arr.shape[1], cols[:arr.shape[1]])
+        # -----------------------------------------------------------------------
 
         # Compact: one DataFrame per variable
         if compact:
-            df = pd.DataFrame(a, columns=cols[:n_take])
+            num_vals = arr.shape[1]
+            num_names = len(cols)
+
+            if num_vals > num_names:
+                # more data columns than known names → add generic placeholders
+                extra = [f"extra_{i}" for i in range(num_names + 1, num_vals + 1)]
+                cols_eff = cols + extra
+                if vid != 'uv':
+                    logger.debug(
+                        "Expanding columns for %s: values=%d > names=%d → %s",
+                        vid, num_vals, num_names, extra,
+                    )
+            else:
+                cols_eff = cols[:num_vals]
+
+            df = pd.DataFrame(arr[:, :num_vals], columns=cols_eff)
+
             if read_sids and sids is not None:
                 df.insert(0, 'sid', sids)
+
+            # For uv: if the file came short (missing uv-tail items), expose them as NaN
+            if vid == 'uv' and num_vals < len(cols):
+                for name in cols[num_vals:]:
+                    df[name] = np.nan
             if vid == 'uv':
-                df = _apply_uv_magnitude(df)
+                df = _normalize_uv_columns(df)
+
             df = _apply_legacy_aliases(df) if compat_legacy else df
             out[vid] = {'__ALL__': df.reset_index(drop=True)}
             continue
 
         # Split by kx efficiently:
         # 1) compute integer kx; 2) stable sort; 3) split along boundaries
-        kx = np.rint(a[:, 0]).astype(np.int32, copy=False)
+        kx = np.rint(arr[:, 0]).astype(np.int32, copy=False)
         order = np.argsort(kx, kind='stable')
-        a_sorted = a[order]
+        a_sorted = arr[order]
         kx_sorted = kx[order]
         sids_sorted = sids[order] if (read_sids and sids is not None) else None
 
@@ -528,13 +591,33 @@ def read_conv_file(
         offset = 0
         for k_arr, rows in zip(kxs, chunks):
             k = int(k_arr[0])
-            df = pd.DataFrame(rows, columns=cols[:n_take])
-            if sids_sorted is not None:
+            num_vals = rows.shape[1]
+            num_names = len(cols)
+
+            if num_vals > num_names:
+                extra = [f"extra_{i}" for i in range(num_names + 1, num_vals + 1)]
+                cols_eff = cols + extra
+                if vid != 'uv':
+                    logger.debug(
+                        "Expanding columns for %s(kx=%d): values=%d > names=%d → %s",
+                        vid, k, num_vals, num_names, extra,
+                    )
+            else:
+                cols_eff = cols[:num_vals]
+
+            df = pd.DataFrame(rows[:, :num_vals], columns=cols_eff)
+
+            if read_sids and sids_sorted is not None:
                 nrows = rows.shape[0]
-                df.insert(0, 'sid', sids_sorted[offset : offset + nrows])
+                df.insert(0, 'sid', sids_sorted[offset: offset + nrows])
                 offset += nrows
+
+            if vid == 'uv' and num_vals < len(cols):
+                for name in cols[num_vals:]:
+                    df[name] = np.nan
             if vid == 'uv':
-                df = _apply_uv_magnitude(df)
+                df = _normalize_uv_columns(df)
+
             df = _apply_legacy_aliases(df) if compat_legacy else df
             out[vid][k] = df.reset_index(drop=True)
 
