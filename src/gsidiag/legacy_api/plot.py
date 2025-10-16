@@ -1716,18 +1716,30 @@ class plot_diag(object):
                 return np.array([], dtype=float)
             return np.asarray(df[name]).astype(float, copy=False)
     
-        def _ensure_iterable_channels(ch) -> Tuple[List[int], int, List[int]]:
+        def _ensure_iterable_channels(ch, name: str) -> Tuple[List[int], int, List[int]]:
             """
             Normalize `channel` parameter.
             Returns (zchan_list, chanList_flag, zchans_def).
             """
+            # Carol: no caso do atms são 22 canais
+            if name == 'amsua':
+                total_chan = list(range(1, 16))
+            elif name == 'atms':
+                total_chan = list(range(1, 23))
+            else:
+                total_chan = [0] # Carol: não sei o que colocar - precisa melhorar!
+                _safe_print(
+                    f"    >>> total_chan not defined for {name} sensor in _ensure_iterable_channels <<< ",
+                    color="WARNING",
+                )
+            
             if isinstance(ch, list):
                 return [int(c) for c in ch], 1, [int(c) for c in ch]
             if ch is None:
                 # AMSU-A typical default 1..15 kept for legacy behavior
-                return list(range(1, 16)), 0, list(range(1, 16))
+                return total_chan, 0, total_chan
             # single int
-            return [int(ch)], 0, list(range(1, 16))
+            return [int(ch)], 0, total_chan
     
         # -------------------- defaults & inputs --------------------
         Clean = True if Clean is None else bool(Clean)
@@ -1752,7 +1764,7 @@ class plot_diag(object):
         print()
     
         # channels normalization
-        zchan, chanList, zchans_def = _ensure_iterable_channels(channel)
+        zchan, chanList, zchans_def = _ensure_iterable_channels(channel,varName) # Carol: problema atms
     
         # dates
         datei = datetime.strptime(str(dateIni), "%Y%m%d%H")
@@ -1788,12 +1800,15 @@ class plot_diag(object):
                 continue
     
             chs = _chan_series(df)
+            print('chs = ', chs)
             if chs.size:
                 info_check[key] = True
                 if channel is None or chanList == 1:
                     # aggregate any present channels
                     # np.unique is faster and avoids repeated set ops
                     found_channels.update(np.unique(chs).tolist())
+                    print('found channels = ', found_channels)
+                    print('')
                 print(dt.strftime(" Preparing data for: Canais de radiancia %Y-%m-%d:%H"))
             else:
                 info_check[key] = False
@@ -1802,18 +1817,25 @@ class plot_diag(object):
                     color="WARNING",
                 )
     
+        # Carol: a variável levs precisa ser igual a zchan se não o eixo y (zlevs) fica errado.
+        # Por exemplo: levs = found_channels = [8, 9, 10] como zlevs = [1, 2, ..., 15] 
+        # o resultado do canal 8 estava sendo plotado na linha do canal 1 no diagrama. Por isso comentei a linha 1825 e inseri a 1826
         # final channel list
         if found_channels:
-            levs = sorted(int(c) for c in found_channels)
+            #levs = sorted(int(c) for c in found_channels)
+            levs = zchan
         else:
             # if nothing found, keep default definition
             levs = sorted(set(zchans_def))
+        
+        print('levs = ', levs)
         # labels printed on Y for Hovmöller
         if channel is None or chanList == 1:
             zlevs = [z if z in zchans_def else "" for z in sorted(set(levs + zchans_def))]
         else:
             zlevs = [int(zchan[0])]  # single-channel mode uses 1 column
     
+        print('zlevs = ', zlevs)
         print()
         print(separator)
         print()
@@ -2017,6 +2039,7 @@ class plot_diag(object):
                 plt.colorbar(im, orientation="horizontal", pad=0.18, shrink=1.0)
                 ax.set_title(title_left, loc="left", fontsize=10)
                 ax.set_title(title_right, loc="right", fontsize=10)
+                ax.set_xlabel(xlabel) # carol -> inseri, estava faltando!
                 ax.set_ylabel(ylabel)
                 ax.set_xticks(x_ticks)
                 ax.set_yticks(y_ticks)
@@ -2032,13 +2055,16 @@ class plot_diag(object):
             fig = plt.figure(figsize=(6, 9))
             ax1 = plt.subplot(3, 1, 1)
             _common_panel(ax1, mean_final, -vmaxOMAabs, vmaxOMAabs, "seismic", instrument_title, date_title, "Channels", f"Mean ({omflag})")
+            plt.xlabel('Mean ('+omflag+')', labelpad=50) # carol -> inseri
     
             ax2 = plt.subplot(3, 1, 2)
             _common_panel(ax2, std_final, float(vminSTD), float(vmaxSTD), "Blues", instrument_title, date_title, "Channels", f"Standard Deviation ({omflag})")
+            plt.xlabel('Standard Deviation ('+omflag+')', labelpad=50) # carol -> inseri
     
             ax3 = plt.subplot(3, 1, 3)
             vmax_cnt = _finite_max(np.asarray([count_final.max()], dtype=float), 1.0)
             _common_panel(ax3, count_final, 0.0, vmax_cnt, "gist_heat_r", instrument_title, date_title, "Channels", f"Total Observations ({cmaski})")
+            plt.xlabel('Total Observations'+" ("+cmaski+")", labelpad=50) # carol -> inseri
     
             plt.tight_layout()
             plt.savefig(f"hovmoller_{varName}-{varType}_{omflag}.png", bbox_inches="tight", dpi=100)
@@ -2049,13 +2075,16 @@ class plot_diag(object):
             fig = plt.figure(figsize=(6, 9))
             ax1 = plt.subplot(3, 1, 1)
             _common_panel(ax1, mean_finala, -vmaxOMAabs, vmaxOMAabs, "seismic", instrument_title, date_title, "Channels", f"Mean ({omflaga})")
+            plt.xlabel('Mean ('+omflaga+')', labelpad=50) # carol -> inseri
     
             ax2 = plt.subplot(3, 1, 2)
             _common_panel(ax2, std_finala, float(vminSTD), float(vmaxSTD), "Blues", instrument_title, date_title, "Channels", f"Standard Deviation ({omflaga})")
+            plt.xlabel('Standard Deviation ('+omflaga+')', labelpad=50) # carol -> inseri
     
             ax3 = plt.subplot(3, 1, 3)
             vmax_cnta = _finite_max(np.asarray([count_finala.max()], dtype=float), 1.0)
             _common_panel(ax3, count_finala, 0.0, vmax_cnta, "gist_heat_r", instrument_title, date_title, "Channels", f"Total Observations ({cmaski})")
+            plt.xlabel('Total Observations'+" ("+cmaski+")", labelpad=50) # carol -> inseri
     
             plt.tight_layout()
             plt.savefig(f"hovmoller_{varName}-{varType}_{omflaga}.png", bbox_inches="tight", dpi=100)
