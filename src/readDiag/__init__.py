@@ -1,75 +1,126 @@
+"""
+readDiag
+========
+
+Top-level public API for the :mod:`readDiag` package.
+
+This module provides a **stable, minimal surface API** for users while
+keeping the internal package structure flexible. Most users should import
+objects directly from this module instead of internal submodules.
+
+The main entrypoint for working with diagnostics is :func:`open_diagnostic`,
+which returns an object implementing :class:`DiagnosticAPI`.
+
+Heavy components such as impact analysis tools are **lazily imported**
+to avoid unnecessary import overhead.
+
+Primary API
+-----------
+
+Opening diagnostics
+~~~~~~~~~~~~~~~~~~~
+
+>>> from readDiag import open_diagnostic
+>>> diag = open_diagnostic("data/diag_conv_01.2024013018")
+>>> meta = diag.meta()
+>>> print(meta.kind)
+
+Impact analysis
+~~~~~~~~~~~~~~~
+
+>>> from readDiag import ImpactAnalyzer
+>>> ia = ImpactAnalyzer.from_pair("diag_omf", "diag_oma", var="t")
+>>> df = ia.compute_all_metrics()  # doctest: +SKIP
+
+Notes
+-----
+- Users should prefer importing from :mod:`readDiag` rather than internal
+  modules (e.g. ``readDiag.analysis`` or ``readDiag.surface``).
+- This guarantees compatibility with future refactors of the internal
+  architecture.
+"""
+
 from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+# ---------------------------------------------------------------------
+# Core public API (lightweight imports)
+# ---------------------------------------------------------------------
+
 from .open import open_diagnostic
 from .surface.api import DiagnosticAPI, Metadata, Kind
 from .surface.access_adapter import AccessAdapter
 
-__all__ = ["open_diagnostic", "DiagnosticAPI", "Metadata", "Kind", "AccessAdapter"]
 
-"""
-Top-level package exports for readDiag
-======================================
+# ---------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------
 
-This module centralizes the most common entrypoints for users of the
-:mod:`readDiag` package. By exposing a curated set of names, it provides
-a **clean, stable interface** while keeping the internal package structure
-flexible.
+__all__ = [
+    # Core access
+    "open_diagnostic",
 
-Exports
--------
-- :func:`open_diagnostic`
-    High-level entrypoint to open GSI diagnostic files and return a
-    :class:`DiagnosticAPI` instance.
-- :class:`DiagnosticAPI`
-    Abstract interface for interacting with diagnostic backends.
-- :class:`Metadata`
-    Container for stable dataset metadata (file name, date, kind, etc.).
-- :class:`Kind`
-    Enumeration of dataset kinds (``"conv"`` or ``"rad"``).
-- :class:`AccessAdapter`
-    Adapter that normalizes the low-level backend output into the
-    :class:`DiagnosticAPI` interface.
+    # Stable API contracts
+    "DiagnosticAPI",
+    "Metadata",
+    "Kind",
 
-Notes
------
-- End-users are expected to import from this top-level module rather than
-  deep submodules. For example::
+    # Backend adapters
+    "AccessAdapter",
 
-      from readDiag import open_diagnostic
+    # Impact analysis (lazy-loaded)
+    "ImpactAnalyzer",
+    "ExperimentComparator",
+    "ComparisonPlotter",
+]
 
-- This indirection ensures that refactors of the internal organization do
-  not break downstream scripts and notebooks.
 
-Examples
---------
-Open a conventional diagnostic file:
+# ---------------------------------------------------------------------
+# Type-checking support
+# ---------------------------------------------------------------------
+# These imports are only evaluated by type checkers and IDEs
+# (mypy, pylance, pyright, etc.), not at runtime.
 
->>> from readDiag import open_diagnostic
->>> diag = open_diagnostic("data/diag_conv_01.2024013018")
->>> meta = diag.meta()
->>> print(meta.kind)
-conv
+if TYPE_CHECKING:
+    from .analysis.impact import (
+        ImpactAnalyzer,
+        ExperimentComparator,
+        ComparisonPlotter,
+    )
 
-Open a radiance diagnostic file:
 
->>> from readDiag import open_diagnostic
->>> diag = open_diagnostic("data/diag_amsua_n15_03.2024013018")
->>> meta = diag.meta()
->>> print(meta.kind)
-rad
+# ---------------------------------------------------------------------
+# Lazy import system
+# ---------------------------------------------------------------------
 
-Access dataset metadata:
+_LAZY_IMPORTS = {
+    "ImpactAnalyzer": "analysis.impact",
+    "ExperimentComparator": "analysis.impact",
+    "ComparisonPlotter": "analysis.impact",
+}
 
->>> from readDiag import open_diagnostic
->>> diag = open_diagnostic("data/diag_conv_01.2024013018")
->>> m = diag.meta()
->>> print(m.file_name, m.date, m.n_obs)
-data/diag_conv_01.2024013018 2024-01-30 18:00:00 15234
 
-Use the API for plotting (if plotting dependencies are available):
+def __getattr__(name: str):
+    """
+    Lazily import optional submodules.
 
->>> from readDiag import open_diagnostic
->>> from readDiag.plotting.wrappers import plot_kx_count
->>> diag = open_diagnostic("data/diag_conv_01.2024013018")
->>> plot_kx_count(diag)  # doctest: +SKIP
-"""
+    This mechanism prevents heavy dependencies (e.g. NumPy, Matplotlib,
+    or analysis utilities) from being imported during a simple
+    ``import readDiag``.
 
+    The requested attribute is imported only when accessed.
+
+    Examples
+    --------
+    >>> from readDiag import ImpactAnalyzer
+    >>> ia = ImpactAnalyzer(...)  # module imported here
+    """
+
+    if name in _LAZY_IMPORTS:
+        import importlib
+
+        module = importlib.import_module(f".{_LAZY_IMPORTS[name]}", __name__)
+        return getattr(module, name)
+
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")

@@ -29,7 +29,7 @@ Examples
 
 from pathlib import Path
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, Literal
 
 import os
 import struct
@@ -48,9 +48,13 @@ from .rad_reader import (
     init_rad_dtypes,
     read_radiance,
 )
+from .aod_reader import read_aod  # NEW
+
 
 __all__ = ["diagAccess", "DiagAccess"]
 
+def _read_be_i4(b: bytes, off: int) -> int:
+    return struct.unpack_from(">i", b, off)[0]
 
 class diagAccess:
     """
@@ -183,17 +187,24 @@ class diagAccess:
             self._data_frame = raw_data
 
         else:
-            # ---------------------- Radiance path ----------------------- #
+            # ---------------------- Radiance-family path (AOD/RAD) ----------------------- #
             if not type(self)._rad_inited:
                 init_rad_dtypes()
                 type(self)._rad_inited = True
 
             self._data_type = 2
 
-            idate, data_frame = read_radiance(
-                    path = file_name,
-                    use_memmap = use_memmap,
-                    )
+            if fmt == "aod":
+                idate, data_frame = read_aod(
+                        path=file_name, 
+                        use_memmap=use_memmap
+                        )
+            else:
+                idate, data_frame = read_radiance(
+                        path = file_name,
+                        use_memmap = use_memmap,
+                        )
+            
             # Header date is an integer like 2024013018
             self._idate = idate
 
@@ -496,29 +507,84 @@ class diagAccess:
             raise ValueError("get_dataframe only valid for conventional diagnostics.")
         return self._data_frame[var][kx]
 
+
     @staticmethod
-    def _detect_format_file(file_name: str) -> str:
+    def _detect_format_file(file_name: str) -> Literal["conv", "aod", "rad"]:
         """
-        Sniff file type by reading the first big-endian int32.
-
-        Parameters
-        ----------
-        file_name : str
-            Path to the diagnostic file.
-
+        Detect file type by peeking the first Fortran unformatted record.
+    
         Returns
         -------
-        str
-            ``'conv'`` if first big-endian int32 equals 4; otherwise ``'rad'``.
-
-        Notes
+        "conv" | "aod" | "rad"
+    
+        Logic
         -----
-        - Conventional diagnostics begin with a record marker ``4`` (big-endian).
-        - Radiance diagnostics typically do not match this sentinel.
+        - Conventional: first record length == 4 (legacy sentinel).
+        - AOD: first record decodes as [20c,10c,10c,7*i4] with plausibility checks:
+            * 'aod' substring in obstype (case-insensitive)
+            * ireal == 5 and ipchan == 4 (as in setupaod.f90)
+            * 0 < nchanl < 1024
+            * ianldate looks like YYYYMMDDHH
+          If these checks pass → "aod".
+        - Otherwise fallback → "rad".
         """
         with open(file_name, "rb") as f:
-            val = struct.unpack(">I", f.read(4))[0]
-        return "conv" if val == 4 else "rad"
+            # Fortran unformatted: [len_be][payload...][len_be]
+            header = f.read(4)
+            if len(header) < 4:
+                raise ValueError("File too small to detect format")
+            rec_len = struct.unpack(">I", header)[0]
+    
+            # Quick legacy check for conventional
+            if rec_len == 4:
+                return "conv"
+    
+            # Try parse as AOD header (expected ~68 bytes payload)
+            # 20c (isis) + 10c (dplat) + 10c (obstype) + 7*i4
+            # Tolerar pequenos desvios, mas exigir pelo menos 20+10+10+7*4 bytes.
+            MIN_AOD_LEN = 20 + 10 + 10 + 7 * 4  # 68
+            payload = f.read(rec_len)
+            tail = f.read(4)
+            if len(payload) == rec_len and len(tail) == 4:
+                (trail_len,) = struct.unpack(">I", tail)
+                if trail_len == rec_len and rec_len >= MIN_AOD_LEN:
+                    try:
+                        isis    = payload[0:20].decode("ascii", errors="ignore").strip()
+                        dplat   = payload[20:30].decode("ascii", errors="ignore").strip()
+                        obstype = payload[30:40].decode("ascii", errors="ignore").strip().lower()
+    
+                        off = 40
+                        jiter    = _read_be_i4(payload, off); off += 4
+                        nchanl   = _read_be_i4(payload, off); off += 4
+                        ianldate = _read_be_i4(payload, off); off += 4
+                        ireal    = _read_be_i4(payload, off); off += 4
+                        ipchan   = _read_be_i4(payload, off); off += 4
+                        nsig     = _read_be_i4(payload, off); off += 4
+                        ioff0    = _read_be_i4(payload, off); off += 4
+    
+                        def looks_like_yyyymmddhh(v: int) -> bool:
+                            s = f"{v:010d}"
+                            return (
+                                len(s) == 10 and
+                                1 <= int(s[4:6]) <= 12 and
+                                1 <= int(s[6:8]) <= 31 and
+                                0 <= int(s[8:10]) <= 23
+                            )
+    
+                        if (
+                            "aod" in obstype
+                            and 0 < nchanl < 1024
+                            and ireal == 5
+                            and ipchan == 4
+                            and looks_like_yyyymmddhh(ianldate)
+                        ):
+                            return "aod"
+                    except Exception:
+                        # not AOD, fall through to rad
+                        pass
+    
+            # If we got here: not conv and not AOD by header signature → treat as radiance
+            return "rad"
 
 
 # Backward compatibility alias

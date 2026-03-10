@@ -1,6 +1,6 @@
 # src/readDiag/impact.py
 """
-Module: readDiag.impact
+Module: readDiag.analysis.impact
 =======================
 
 Tools to quantify and visualize the *impact of observations* using GSI-style
@@ -30,7 +30,7 @@ Examples
 --------
 Minimal one-cycle impact for conventional diagnostics:
 
->>> from readDiag.impact import ImpactAnalyzer
+>>> from readDiag import ImpactAnalyzer
 >>> ia = ImpactAnalyzer.from_pair("diag_conv_t_omf", "diag_conv_t_oma", var="t")
 >>> table = ia.compute_all_metrics()
 >>> table.head()
@@ -93,7 +93,7 @@ except Exception:  # pragma: no cover - compat shim
         return float(binom_test(n_greater, n_total, p=0.5)) if n_total > 0 else np.nan
 
 # Public reader (high-level) used by this module
-from .reader import diagAccess
+from ..io.reader import diagAccess
 
 # Small constant to avoid division-by-zero in fractional metrics
 EPSILON: float = 1e-15
@@ -194,8 +194,8 @@ class ImpactAnalyzer:
         if dtype == 1:
             # Conventional: dict[var][kx] -> DataFrame with columns incl. 'omf'
             v = omf.var
-            df_omf = omf.get_data_frame()[v]
-            df_oma = oma.get_data_frame()[v]
+            df_omf = omf.get_dataframe()[v]
+            df_oma = oma.get_dataframe()[v]
             # Inject per-KX 'oma' alongside 'omf'
             for kx, frame in df_omf.items():
                 if isinstance(frame, pd.DataFrame) and kx in df_oma:
@@ -204,8 +204,8 @@ class ImpactAnalyzer:
             omf._data_frame[v] = df_omf  # type: ignore[attr-defined]
         else:
             # Radiance: list-like of channel DataFrames under 'diagbufchan_df'
-            list_omf = omf.get_data_frame()["dataframes"]["diagbufchan_df"]
-            list_oma = oma.get_data_frame()["dataframes"]["diagbufchan_df"]
+            list_omf = omf.get_dataframe()["dataframes"]["diagbufchan_df"]
+            list_oma = oma.get_dataframe()["dataframes"]["diagbufchan_df"]
             for df1, df2 in zip(list_omf, list_oma):
                 if isinstance(df1, pd.DataFrame) and isinstance(df2, pd.DataFrame):
                     if "omf" in df2:
@@ -269,7 +269,7 @@ class ImpactAnalyzer:
 
         if is_conv:
             v = self.diag.var
-            df_dict = self.diag.get_data_frame()[v]
+            df_dict = self.diag.get_dataframe()[v]
             for kx, df in df_dict.items():
                 if not isinstance(df, pd.DataFrame) or df.empty:
                     continue
@@ -282,7 +282,7 @@ class ImpactAnalyzer:
                 ti[int(kx)] = self._calc_ti_component(df["oma"], df["omf"], err)
         else:
             # Radiance: make channels **1-based** to match typical practice/tests
-            df_list = self.diag.get_data_frame()["dataframes"]["diagbufchan_df"]
+            df_list = self.diag.get_dataframe()["dataframes"]["diagbufchan_df"]
             for ch, df in enumerate(df_list, start=1):
                 if not isinstance(df, pd.DataFrame) or df.empty:
                     continue
