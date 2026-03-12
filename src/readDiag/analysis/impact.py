@@ -133,7 +133,7 @@ class ImpactAnalyzer:
 
     def __init__(self, diag: diagAccess):
         self.diag = diag
-        self._validate()
+        #self._validate()
 
     # ------------------------------------------------------------------
     # Internal validation / helpers
@@ -186,52 +186,88 @@ class ImpactAnalyzer:
         """
         omf = diagAccess(omf_file, var=var)
         oma = diagAccess(oma_file, var=var)
-
+    
         if omf.get_data_type() != oma.get_data_type():
             raise ValueError("Files must be of the same type (conv or rad).")
-
+    
         dtype = omf.get_data_type()
+    
         if dtype == 1:
-            # Conventional: dict[var][kx] -> DataFrame with columns incl. 'omf'
-            v = omf.var
-            df_omf = omf.get_dataframe()[v]
-            df_oma = oma.get_dataframe()[v]
-            # Inject per-KX 'oma' alongside 'omf'
-            for kx, frame in df_omf.items():
-                if isinstance(frame, pd.DataFrame) and kx in df_oma:
-                    if "omf" in df_oma[kx]:
-                        frame["oma"] = df_oma[kx]["omf"]
-            omf._data_frame[v] = df_omf  # type: ignore[attr-defined]
+    
+            data_omf = omf.get_dataframe()
+            data_oma = oma.get_dataframe()
+    
+            for var, kx_dict in data_omf.items():
+    
+                if var not in data_oma:
+                    continue
+    
+                for kx, frame in kx_dict.items():
+    
+                    if kx not in data_oma[var]:
+                        continue
+    
+                    df_oma = data_oma[var][kx]
+    
+                    if "omf" not in df_oma:
+                        continue
+    
+                    frame["oma"] = df_oma["omf"].to_numpy()
+    
         else:
-            # Radiance: list-like of channel DataFrames under 'diagbufchan_df'
+    
             list_omf = omf.get_dataframe()["dataframes"]["diagbufchan_df"]
             list_oma = oma.get_dataframe()["dataframes"]["diagbufchan_df"]
+    
+            if len(list_omf) != len(list_oma):
+                raise ValueError("Radiance files have different number of channels.")
+    
             for df1, df2 in zip(list_omf, list_oma):
-                if isinstance(df1, pd.DataFrame) and isinstance(df2, pd.DataFrame):
-                    if "omf" in df2:
-                        df1["oma"] = df2["omf"]
-
+    
+                if "omf" not in df2:
+                    continue
+    
+                df1["oma"] = df2["omf"].to_numpy()
+    
         return cls(omf)
 
-    def _find_error_col(self, df: pd.DataFrame) -> Optional[str]:
-        """Return the best-matching error column name for a DataFrame.
-
+    def _extract_error(self, df):
+        """
+        Extract an error-related series from a DataFrame.
+    
+        Priority of columns:
+            1. "end_err" → returns 1 / end_err
+            2. "errinv"  → returns 1 / errinv
+            3. "error"   → returns error directly
+    
+        Zeros in inverted columns are replaced with NaN to avoid division by zero.
+    
         Parameters
         ----------
         df : pandas.DataFrame
-            Source frame where the error column should be located.
-
+            DataFrame that may contain error-related columns.
+    
         Returns
         -------
-        str or None
-            One of ``'error'`` or ``'end_err'`` if present; otherwise ``None``.
+        pandas.Series | None
+            Transformed error series if a supported column is found,
+            otherwise None.
         """
-        for col in ("error", "end_err"):
-            if col in df.columns:
-                return col
+    
+        cols = df.columns
+    
+        # Columns whose values must be inverted (1/x)
+        for col in ("end_err", "errinv"):
+            if col in cols:
+                return 1.0 / df[col].replace(0, np.nan)
+    
+        # Direct error column
+        if "error" in cols:
+            return df["error"]
+    
         return None
 
-    def _calc_ti_component(
+    def _calc_ti_component_(
         self, oma: pd.Series, omf: pd.Series, err: pd.Series
     ) -> float:
         """Compute TI contribution for a subset of valid entries.
@@ -253,74 +289,164 @@ class ImpactAnalyzer:
         valid = (err > 0) & np.isfinite(oma) & np.isfinite(omf)
         return ((oma[valid] ** 2 - omf[valid] ** 2) / (err[valid] ** 2)).sum()
 
-    # ------------------------------------------------------------------
+    def _calc_ti_component(
+        self,
+        oma: pd.Series,
+        omf: pd.Series,
+        err: pd.Series,
+    ) -> float:
+    
+        valid = (
+            np.isfinite(oma)
+            & np.isfinite(omf)
+            & np.isfinite(err)
+            & (err > 1e-6)     # evita divisão absurda
+            & (np.abs(oma) < 1e6)
+            & (np.abs(omf) < 1e6)
+        )
+    
+        if valid.sum() == 0:
+            return np.nan
+    
+        return ((oma[valid]**2 - omf[valid]**2) / (err[valid]**2)).sum()    # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
-    def compute_ti(self) -> Dict[int, float]:
-        """Compute Total Impact (TI) per *KX* (conv) or per channel (rad).
-
+    # ------------------------------------------------------------------
+    # Impact metrics
+    # ------------------------------------------------------------------
+    
+    def compute_ti(self) -> Dict[Tuple[str, int] | int, float]:
+        """
+        Compute Total Impact (TI).
+    
         Returns
         -------
-        dict[int, float]
-            Mapping from integer key (``kx`` or 1-based channel index) to TI value.
+        dict
+            Conventional diagnostics:
+                {(var, kx) : TI}
+    
+            Radiance diagnostics:
+                {channel : TI}
         """
+    
         is_conv = self.diag.get_data_type() == 1
-        ti: Dict[int, float] = {}
-
+        ti: Dict[Tuple[str, int] | int, float] = {}
+    
         if is_conv:
-            v = self.diag.var
-            df_dict = self.diag.get_dataframe()[v]
-            for kx, df in df_dict.items():
-                if not isinstance(df, pd.DataFrame) or df.empty:
+    
+            data = self.diag.get_dataframe()
+    
+            if self.diag.var is None:
+                variables = data.keys()
+            else:
+                variables = [self.diag.var]
+    
+            for var in variables:
+    
+                if var not in data:
                     continue
-                if not {"omf", "oma"}.issubset(df.columns):
-                    continue
-                error_col = self._find_error_col(df)
-                if error_col is None:
-                    continue
-                err = df[error_col].replace(0, np.nan)
-                ti[int(kx)] = self._calc_ti_component(df["oma"], df["omf"], err)
+    
+                for kx, df in data[var].items():
+    
+                    if not isinstance(df, pd.DataFrame) or df.empty:
+                        continue
+    
+                    if not {"omf", "oma"}.issubset(df.columns):
+                        continue
+    
+    
+                    err = self._extract_error(df)
+    
+                    ti[(var, int(kx))] = self._calc_ti_component(
+                        df["oma"],
+                        df["omf"],
+                        err,
+                    )
+    
         else:
-            # Radiance: make channels **1-based** to match typical practice/tests
+    
             df_list = self.diag.get_dataframe()["dataframes"]["diagbufchan_df"]
+    
             for ch, df in enumerate(df_list, start=1):
+    
                 if not isinstance(df, pd.DataFrame) or df.empty:
                     continue
+    
                 if not {"omf", "oma", "errinv"}.issubset(df.columns):
                     continue
-                # errinv = 1/σ → σ = 1/errinv (guard zeros)
+    
                 err = 1.0 / df["errinv"].replace(0, np.nan)
-                ti[int(ch)] = self._calc_ti_component(df["oma"], df["omf"], err)
-
+    
+                ti[int(ch)] = self._calc_ti_component(
+                    df["oma"],
+                    df["omf"],
+                    err,
+                )
+    
         return ti
-
+    
+    
+    # ------------------------------------------------------------------
+    # Metrics table
+    # ------------------------------------------------------------------
+    
     def compute_all_metrics(self) -> pd.DataFrame:
-        """Compute TI, FI and FBI per group.
-
+        """
+        Compute TI, FI and FBI.
+    
         Returns
         -------
         pandas.DataFrame
-            Sorted table with columns ``['kx', 'TI', 'FI', 'FBI']``.
-
-        Notes
-        -----
-        ``FI`` and ``FBI`` are computed relative to ``Σ|TI|`` to ensure a
-        meaningful partition of *magnitude* of impact across groups, even when
-        positive and negative TI coexist.
+    
+            Columns
+            -------
+            var     : variable name (None for radiance)
+            kx      : KX or channel
+            group   : label used for plotting
+            TI      : total impact
+            FI      : fractional impact
+            FBI     : fractional background impact
         """
+    
         ti_dict = self.compute_ti()
+    
         if not ti_dict:
-            return pd.DataFrame(columns=["kx", "TI", "FI", "FBI"])
-
-        df = pd.DataFrame([{"kx": k, "TI": v} for k, v in ti_dict.items()])
-        # Sum of absolute impacts avoids near-cancellation across groups
+            return pd.DataFrame(columns=["var", "kx", "group", "TI", "FI", "FBI"])
+    
+        rows = []
+    
+        for key, value in ti_dict.items():
+    
+            if isinstance(key, tuple):
+                var, kx = key
+            else:
+                var = None
+                kx = key
+    
+            rows.append(
+                {
+                    "var": var,
+                    "kx": int(kx),
+                    "group": f"{var}:{kx}" if var else str(kx),
+                    "TI": float(value),
+                }
+            )
+    
+        df = pd.DataFrame(rows)
+    
         denom = np.abs(df["TI"]).sum()
         denom = denom if denom > EPSILON else EPSILON
+    
         df["FI"] = df["TI"] / denom * 100.0
         df["FBI"] = -df["FI"]
-        # Sort: TI by ascending (often useful to see degradation→improvement)
-        return df.sort_values(by="TI", ascending=True, ignore_index=True)
-
+    
+        return df.sort_values("TI", ignore_index=True)
+    
+    
+    # ------------------------------------------------------------------
+    # Impact bar plot
+    # ------------------------------------------------------------------
+    
     def plot_impact_bar(
         self,
         metric: Literal["TI", "FI", "FBI"] = "TI",
@@ -329,119 +455,181 @@ class ImpactAnalyzer:
         title: Optional[str] = None,
         xlabel: Optional[str] = None,
         ylabel: Optional[str] = None,
-        rotation: int = 45,
         fontsize: int = 12,
         top_k: Optional[int] = None,
     ) -> plt.Axes:
-        """Plot a horizontal bar chart for the selected metric.
-
+        """
+        Plot impact per observation group.
+    
         Parameters
         ----------
-        metric : {'TI', 'FI', 'FBI'}, default: 'TI'
-            Which metric to display per bar.
+        metric : {'TI','FI','FBI'}
+            Metric to display.
         ax : matplotlib.axes.Axes, optional
-            Existing axes to draw on. If ``None``, a new figure/axes is created.
+            Existing axes.
         color : str, optional
-            Bar color. If ``None``, Matplotlib default is used.
-        title, xlabel, ylabel : str, optional
-            Axis texts (applied with ``loc='center'`` for tests compatibility).
-        rotation : int, default: 45
-            Rotation applied to Y tick labels (group identifiers).
-        fontsize : int, default: 12
-            Base font size for labels and title.
+            Bar color.
         top_k : int, optional
-            If set, keep only the *k* largest absolute values for the chosen metric.
-
+            Plot only the largest |metric| values.
+    
         Returns
         -------
         matplotlib.axes.Axes
-            The axes containing the bar chart.
-
-        Examples
-        --------
-        >>> ia = ImpactAnalyzer.from_pair("omf", "oma", var="t")
-        >>> _ = ia.plot_impact_bar(metric="FI", top_k=10)
         """
+    
         df = self.compute_all_metrics()
+    
         if df.empty:
             ax = ax or plt.subplots(figsize=(10, 2))[1]
-            ax.text(0.5, 0.5, "No data", ha="center", va="center", transform=ax.transAxes)
+            ax.text(0.5, 0.5, "No data", ha="center", va="center")
             ax.set_axis_off()
             return ax
-
-        # For TI, descending by magnitude can be more informative; FI/FBI keep natural order
-        df = df.sort_values(by=metric, ascending=(metric != "TI"))
-        if top_k is not None and top_k > 0:
-            # Keep items with largest absolute metric
-            df = df.loc[df[metric].abs().sort_values(ascending=False).head(top_k).index]
-
+    
+        if top_k:
+    
+            idx = df[metric].abs().sort_values(ascending=False).head(top_k).index
+            df = df.loc[idx]
+    
+        df = df.sort_values(metric)
+    
         ax = ax or plt.subplots(figsize=(10, 6))[1]
-        y_labels = df["kx"].astype(str)
-        ax.barh(y_labels, df[metric], color=color)
-
-        ax.set_title(title or f"{metric} per KX/Channel", fontsize=fontsize + 2, loc="center")
+    
+        values = df[metric]
+    
+        if metric == "TI":
+            colors = ["tab:red" if v < 0 else "tab:blue" for v in values]
+        else:
+            colors = color
+    
+        ax.barh(df["group"], values, color=colors)
+    
+        ax.axvline(0, color="black", linewidth=1)
+    
+        ax.set_title(title or f"{metric} per observation group", fontsize=fontsize + 2)
         ax.set_xlabel(xlabel or metric, fontsize=fontsize)
-        ax.set_ylabel(ylabel or "KX / Channel", fontsize=fontsize)
-        ax.tick_params(axis="x", labelsize=fontsize)
-        ax.tick_params(axis="y", labelsize=fontsize)
-        for tick in ax.get_yticklabels():
-            tick.set_rotation(rotation)
+        ax.set_ylabel(ylabel or "Observation group", fontsize=fontsize)
+    
         ax.grid(True, linestyle="--", alpha=0.6)
+    
         return ax
 
 
+# ------------------------------------------------------------------
+# Multi-analyzer subplot
+# ------------------------------------------------------------------
+
 def plot_all_impact_subplots(
-    analyzers: List[ImpactAnalyzer],
+    analyzers: List["ImpactAnalyzer"],
     labels: Optional[List[str]] = None,
     metric: Literal["TI", "FI", "FBI"] = "TI",
     suptitle: Optional[str] = None,
 ) -> plt.Axes:
-    """Plot aligned horizontal bar charts for multiple analyzers.
+    """
+    Plot impact charts for multiple analyzers.
 
-    Parameters
-    ----------
-    analyzers : list of ImpactAnalyzer
-        One analyzer per subplot (row).
-    labels : list of str, optional
-        Optional per-subplot label suffix.
-    metric : {'TI', 'FI', 'FBI'}, default: 'TI'
-        Metric rendered in each bar chart.
-    suptitle : str, optional
-        Figure super-title.
+    Each analyzer appears as a subplot.
 
     Returns
     -------
     matplotlib.axes.Axes
-        The last axes created (convenience for callers).
-
-    Raises
-    ------
-    RuntimeError
-        If no analyzer yields valid data.
-
-    Examples
-    --------
-    >>> axs_last = plot_all_impact_subplots([ia1, ia2], labels=["EXP1", "EXP2"], metric="FBI")
+        Last axes.
     """
-    dfs = [a.compute_all_metrics() for a in analyzers]
-    all_vals = [df[metric] for df in dfs if not df.empty]
-    if not all_vals:
-        raise RuntimeError("No valid data found in any analyzer.")
+
+    dfs = [a.compute_all_metrics().set_index("group") for a in analyzers]
+
+    groups = sorted(set().union(*[df.index for df in dfs]))
+
+    dfs = [df.reindex(groups) for df in dfs]
 
     n = len(analyzers)
-    fig, axs = plt.subplots(n, 1, figsize=(10, 3.5 * n), sharex=True)
+
+    fig, axs = plt.subplots(n, 1, figsize=(10, 4 * n), sharex=True)
+
     if n == 1:
         axs = [axs]
 
     for i, (ax, analyzer) in enumerate(zip(axs, analyzers)):
-        label = labels[i] if labels and i < len(labels) else f"Plot {i+1}"
-        analyzer.plot_impact_bar(metric=metric, ax=ax, title=f"Impact {label}")
+
+        label = labels[i] if labels and i < len(labels) else f"EXP{i+1}"
+
+        analyzer.plot_impact_bar(
+            metric=metric,
+            ax=ax,
+            title=f"{metric} — {label}",
+        )
 
     if suptitle:
-        fig.suptitle(suptitle, fontsize=16)
+        fig.suptitle(suptitle)
+
     plt.tight_layout()
+
     return axs[-1]
 
+
+# ------------------------------------------------------------------
+# Time-series metric plot
+# ------------------------------------------------------------------
+
+def plot_metric_series(
+    analyzers: List["ImpactAnalyzer"],
+    label: str,
+    metric: Literal["TI", "FI", "FBI"] = "TI",
+    color: Optional[str] = None,
+) -> plt.Axes:
+    """
+    Plot mean ± standard deviation of a metric across cycles.
+
+    Parameters
+    ----------
+    analyzers : list
+        One analyzer per cycle.
+
+    Returns
+    -------
+    matplotlib.axes.Axes
+    """
+
+    dfs = [a.compute_all_metrics().set_index("group") for a in analyzers]
+
+    groups = sorted(set().union(*[df.index for df in dfs]))
+
+    dfs = [df.reindex(groups) for df in dfs]
+
+    arr = np.stack([df[metric].values for df in dfs])
+
+    mu = arr.mean(axis=0)
+    sd = arr.std(axis=0)
+
+    fig, ax = plt.subplots(figsize=(12, 6))
+
+    for row in arr:
+        ax.plot(groups, row, color="lightgray", alpha=0.6)
+
+    base_color = color or "C0"
+
+    ax.plot(groups, mu, marker="o", color=base_color, label="Mean")
+
+    ax.fill_between(
+        groups,
+        mu - sd,
+        mu + sd,
+        color=base_color,
+        alpha=0.25,
+        label="±1 STD",
+    )
+
+    ax.set_title(f"{label} — {metric} (mean ± std)")
+    ax.set_xlabel("Observation group")
+    ax.set_ylabel(metric)
+
+    ax.grid(True, linestyle="--", alpha=0.6)
+
+    ax.legend()
+
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+
+    return ax
 
 class ExperimentComparator:
     """Compare the impact between **two experiments** across cycles.
@@ -719,69 +907,6 @@ class ComparisonPlotter:
         return ax
 
 
-def plot_metric_series(
-    analyzers: List[ImpactAnalyzer],
-    label: str,
-    metric: Literal["TI", "FI", "FBI"] = "TI",
-    color: Optional[str] = None,
-) -> plt.Axes:
-    """Plot mean ± std envelopes of a metric across a series of analyzers.
-
-    Parameters
-    ----------
-    analyzers : list of ImpactAnalyzer
-        One analyzer per cycle/time index (all must share the same groups).
-    label : str
-        Series label used in the plot title.
-    metric : {'TI', 'FI', 'FBI'}, default: 'TI'
-        Which metric to summarize.
-    color : str, optional
-        Base color for the mean line and the ±1 STD fill area.
-
-    Returns
-    -------
-    matplotlib.axes.Axes
-        The axes containing the plot.
-
-    Examples
-    --------
-    >>> axs = [ImpactAnalyzer.from_pair(o, a, var="t") for (o, a) in cycles]
-    >>> _ = plot_metric_series(axs, "EXP1", metric="FI")
-    """
-    # Concatenate per-cycle tables and extract the selected metric
-    dfs = [a.compute_all_metrics().set_index("kx") for a in analyzers]
-    if not dfs:
-        fig, ax = plt.subplots(figsize=(10, 2))
-        ax.text(0.5, 0.5, "No data", ha="center", va="center", transform=ax.transAxes)
-        ax.set_axis_off()
-        return ax
-
-    # Ensure consistent ordering by index (KX/channel)
-    dfs = [df.sort_index() for df in dfs]
-    # Stack into (n_cycles, n_groups); raises if groups differ
-    vals = [df[metric] for df in dfs]
-    arr = np.stack([v.values for v in vals])  # shape: n_cycles x n_groups
-    kx = dfs[0].index.values
-
-    fig, ax = plt.subplots(figsize=(12, 6))
-    # All individual series in light gray for context
-    for row in arr:
-        ax.plot(kx, row, color="lightgray", alpha=0.6, zorder=1)
-
-    # Mean ± std envelope
-    mu = arr.mean(axis=0)
-    sd = arr.std(axis=0)
-    base_color = color or "C0"
-    ax.plot(kx, mu, marker="o", color=base_color, label="Mean", zorder=2)
-    ax.fill_between(kx, mu - sd, mu + sd, color=base_color, alpha=0.25, label="±1 STD", zorder=1)
-
-    ax.set_title(f"{label} — {metric} (mean ± std)", loc="center")
-    ax.set_xlabel("Channel/KX")
-    ax.set_ylabel(metric)
-    ax.grid(True, linestyle="--", alpha=0.6)
-    ax.legend()
-    plt.tight_layout()
-    return ax
 
 
 # ---------------------------------------------------------------------------

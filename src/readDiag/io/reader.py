@@ -48,7 +48,6 @@ from .rad_reader import (
     init_rad_dtypes,
     read_radiance,
 )
-from .aod_reader import read_aod  # NEW
 
 
 __all__ = ["diagAccess", "DiagAccess"]
@@ -194,16 +193,11 @@ class diagAccess:
 
             self._data_type = 2
 
-            if fmt == "aod":
-                idate, data_frame = read_aod(
-                        path=file_name, 
-                        use_memmap=use_memmap
-                        )
-            else:
-                idate, data_frame = read_radiance(
-                        path = file_name,
-                        use_memmap = use_memmap,
-                        )
+
+            idate, data_frame = read_radiance(
+                    path = file_name,
+                    use_memmap = use_memmap,
+                    )
             
             # Header date is an integer like 2024013018
             self._idate = idate
@@ -242,21 +236,44 @@ class diagAccess:
         """
         return self._data_type  # type: ignore[attr-defined]
 
-    def get_dataframe(self, *args, **kwargs) -> Any:
+    def get_dataframe(
+        self,
+        var: str | None = None,
+        kx: int | None = None,
+    ) -> Any:
         """
-        Return the decoded data structure.
-
-        Returns
-        -------
-        Any
-            - **Radiance**: dict with keys ``sensor``, ``kx`` and ``dataframes``.
-            - **Conventional**: nested dict of DataFrames (or raw arrays if
-              ``raw_numpy=True``) with shape ``{var -> {kx -> DataFrame}}``.
+        Return diagnostic data.
+    
+        Radiance
+        --------
+        get_dataframe()
+            Returns the full radiance structure.
+    
+        Conventional
+        ------------
+        get_dataframe()
+            Returns the full structure {var -> {kx -> DataFrame}}
+    
+        get_dataframe(var, kx)
+            Returns the DataFrame corresponding to that variable and kx.
         """
+    
+        # Radiance → always return full structure
         if self._data_type != 1:
-            return self._data_frame  # type: ignore[attr-defined]
-
-        return self._get_conv_dataframe(*args, **kwargs)
+            return self._data_frame
+    
+        # Conventional → full structure
+        if var is None and kx is None:
+            return self._data_frame
+    
+        # Conventional → slice
+        if var is not None and kx is not None:
+            return self._data_frame[var][kx]
+    
+        raise ValueError(
+            "For conventional diagnostics either call get_dataframe() "
+            "or get_dataframe(var, kx)"
+        )
 
     def get_variables(self) -> List[str]:
         """
