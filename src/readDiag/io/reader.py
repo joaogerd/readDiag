@@ -233,16 +233,20 @@ class diagAccess:
 
     def get_dataframe(self, *args, **kwargs) -> Any:
         """
-        Return the decoded data structure.
+        Return the decoded data structure or a selected conventional slice.
 
         Returns
         -------
         Any
             - **Radiance**: dict with keys ``sensor``, ``kx`` and ``dataframes``.
-            - **Conventional**: nested dict of DataFrames (or raw arrays if
-              ``raw_numpy=True``) with shape ``{var -> {kx -> DataFrame}}``.
+            - **Conventional without arguments**: nested dict of DataFrames with
+              shape ``{var -> {kx -> DataFrame}}``.
+            - **Conventional with ``var`` and ``kx``**: selected DataFrame.
         """
         if self._data_type != 1:
+            return self._data_frame  # type: ignore[attr-defined]
+
+        if not args and not kwargs:
             return self._data_frame  # type: ignore[attr-defined]
 
         return self._get_conv_dataframe(*args, **kwargs)
