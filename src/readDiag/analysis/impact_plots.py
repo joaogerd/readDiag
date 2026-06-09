@@ -36,12 +36,10 @@ __all__ = [
 ]
 
 
-# Wong-style accessible colours used throughout the impact plots.
-NEGATIVE_COLOR = "#0072B2"      # blue
-POSITIVE_COLOR = "#D55E00"      # vermillion
+NEGATIVE_COLOR = "#0072B2"
+POSITIVE_COLOR = "#D55E00"
 NEUTRAL_COLOR = "#4D4D4D"
 SHADE_COLOR = "#F2F2F2"
-BAND_COLOR = "#DDEBF2"
 
 
 def signed_log10(values) -> np.ndarray:
@@ -71,8 +69,6 @@ def _style_or_default(style: Optional[NatureFigureStyle] = None) -> NatureFigure
         style.set_global_style()
         return style
 
-    # Slightly larger than strict Nature defaults because diagnostic plots are
-    # often inspected interactively before being prepared for manuscripts.
     style = NatureFigureStyle(
         base_fontsize=7.0,
         min_fontsize=6.0,
@@ -191,6 +187,15 @@ def _shade_negative_side(ax) -> None:
     ax.set_xlim(xmin, xmax)
 
 
+def _format_annotation_value(metric: str, value: float, use_signed_log: bool) -> str:
+    """Format annotation values without exposing internal column names."""
+    if use_signed_log:
+        return f"{metric}={value:.2e}"
+    if metric in {"FI", "FBI", "FI_mean", "FI_min", "FI_max", "FBI_mean", "FBI_min", "FBI_max"}:
+        return f"{metric}={value:.2f}%"
+    return f"{metric}={value:.2e}"
+
+
 def _annotate_extremes(
     ax,
     data: pd.DataFrame,
@@ -222,13 +227,7 @@ def _annotate_extremes(
         raw = float(row[metric]) if metric in row else x
         ha = "left" if x >= 0 else "right"
         dx = 0.025 * x_span if x >= 0 else -0.025 * x_span
-
-        if use_signed_log:
-            text = f"KX {kx_label}\n{metric}={raw:.2e}"
-        elif metric in {"FI", "FBI"}:
-            text = f"KX {kx_label}\n{metric}={raw:.2f}%"
-        else:
-            text = f"KX {kx_label}\n{metric}={raw:.2e}"
+        text = f"KX {kx_label}\n{_format_annotation_value(metric, raw, use_signed_log)}"
 
         ax.annotate(
             text,
@@ -284,7 +283,7 @@ def plot_impact_ranked_bar(
     colors = _bar_colors(values)
     y_labels = data["kx"].astype(str)
 
-    bars = ax.barh(
+    ax.barh(
         y_labels,
         values,
         color=colors,
@@ -293,8 +292,6 @@ def plot_impact_ranked_bar(
         alpha=0.92,
         zorder=2,
     )
-
-    # Endpoint markers give a cleaner modern look and help identify short bars.
     ax.scatter(
         values,
         np.arange(len(values)),
@@ -491,7 +488,6 @@ def plot_impact_heatmap(
     ax.set_yticks(range(len(pivot.index)))
     ax.set_yticklabels(pivot.index.astype(str))
 
-    # Thin separators improve readability without decorative grid clutter.
     ax.set_xticks(np.arange(-0.5, len(pivot.columns), 1), minor=True)
     ax.set_yticks(np.arange(-0.5, len(pivot.index), 1), minor=True)
     ax.grid(which="minor", color="white", linewidth=0.6)
@@ -603,13 +599,14 @@ def plot_impact_summary_bar(
         _format_scientific_x(ax)
 
     if annotate_extremes:
-        tmp = data.rename(columns={metric: "_summary_metric"}).copy()
+        tmp = data.copy()
+        tmp["_summary_metric"] = tmp[metric]
         tmp["kx"] = data["kx"].astype(int)
         _annotate_extremes(
             ax,
             tmp,
             "_summary_metric",
-            "_summary_metric",
+            metric,
             False,
             style,
         )
