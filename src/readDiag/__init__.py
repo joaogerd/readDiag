@@ -1,9 +1,4 @@
 from __future__ import annotations
-from .open import open_diagnostic
-from .surface.api import DiagnosticAPI, Metadata, Kind
-from .surface.access_adapter import AccessAdapter
-
-__all__ = ["open_diagnostic", "DiagnosticAPI", "Metadata", "Kind", "AccessAdapter"]
 
 """
 Top-level package exports for readDiag
@@ -28,16 +23,18 @@ Exports
 - :class:`AccessAdapter`
     Adapter that normalizes the low-level backend output into the
     :class:`DiagnosticAPI` interface.
+- :class:`ImpactAnalyzer`
+    Utility class for computing observation impact diagnostics.
 
 Notes
 -----
 - End-users are expected to import from this top-level module rather than
   deep submodules. For example::
 
-      from readDiag import open_diagnostic
+      from readDiag import open_diagnostic, ImpactAnalyzer
 
-- This indirection ensures that refactors of the internal organization do
-  not break downstream scripts and notebooks.
+- Some optional components are imported lazily to avoid loading heavy
+  dependencies during package import.
 
 Examples
 --------
@@ -65,6 +62,11 @@ Access dataset metadata:
 >>> print(m.file_name, m.date, m.n_obs)
 data/diag_conv_01.2024013018 2024-01-30 18:00:00 15234
 
+Use the impact analysis API:
+
+>>> from readDiag import ImpactAnalyzer
+>>> analyzer = ImpactAnalyzer  # doctest: +SKIP
+
 Use the API for plotting (if plotting dependencies are available):
 
 >>> from readDiag import open_diagnostic
@@ -73,3 +75,26 @@ Use the API for plotting (if plotting dependencies are available):
 >>> plot_kx_count(diag)  # doctest: +SKIP
 """
 
+from .open import open_diagnostic
+from .surface.api import DiagnosticAPI, Metadata, Kind
+from .surface.access_adapter import AccessAdapter
+
+__all__ = [
+    "open_diagnostic",
+    "DiagnosticAPI",
+    "Metadata",
+    "Kind",
+    "AccessAdapter",
+    "ImpactAnalyzer",
+]
+
+
+def __getattr__(name: str):
+    """Lazily expose optional or heavier top-level objects."""
+
+    if name == "ImpactAnalyzer":
+        from .analysis.impact import ImpactAnalyzer
+
+        return ImpactAnalyzer
+
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

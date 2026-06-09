@@ -93,7 +93,7 @@ except Exception:  # pragma: no cover - compat shim
         return float(binom_test(n_greater, n_total, p=0.5)) if n_total > 0 else np.nan
 
 # Public reader (high-level) used by this module
-from .reader import diagAccess
+from ..reader import diagAccess
 
 # Small constant to avoid division-by-zero in fractional metrics
 EPSILON: float = 1e-15
