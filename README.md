@@ -18,35 +18,107 @@ It focuses on a **stable high-level API** (the `DiagnosticAPI`) and clear separa
 
 ## 🚀 Installation
 
-### (Optional) Minimal Conda environment
+### Install the latest release candidate directly from GitHub
 
-```bash
-conda create --name readDiag python=3.11 --no-default-packages
-conda activate readDiag
-````
+The current release candidate is:
 
-### For Users (runtime)
-
-```bash
-git clone https://github.com/joaogerd/readDiag
-cd readDiag
-pip install .
+```text
+v2.0.0-rc5
 ```
 
-### For Development
+For a clean installation in a new Conda environment:
 
 ```bash
-git clone https://github.com/joaogerd/readDiag
-cd readDiag
-pip install -e .[dev]
+conda create -n readdiag python=3.12 -y
+conda activate readdiag
+
+python -m pip install --upgrade pip
+python -m pip install --force-reinstall \
+  "readDiag @ git+https://github.com/joaogerd/readDiag.git@v2.0.0-rc5"
+
+readDiag --version
 ```
 
-> The **dev** extras include tools for linting, testing and docs (if defined in `pyproject.toml`).
+Expected output:
+
+```text
+readDiag 2.0.0rc5
+```
+
+### Install on systems without Git LFS preconfigured, such as HPC/JACI
+
+The repository uses Git LFS for large diagnostic test files. On systems where
+`git-lfs` is not available by default, installation from Git may fail during
+checkout with an error similar to:
+
+```text
+git-lfs filter-process: git-lfs: command not found
+```
+
+In that case, install `git-lfs` in the Conda environment and skip downloading
+large LFS files during package installation:
+
+```bash
+conda create -n readdiag python=3.12 -y
+conda activate readdiag
+
+conda install -c conda-forge git-lfs -y
+git lfs install --skip-smudge
+
+python -m pip install --upgrade pip
+
+GIT_LFS_SKIP_SMUDGE=1 python -m pip install --force-reinstall \
+  "readDiag @ git+https://github.com/joaogerd/readDiag.git@v2.0.0-rc5"
+
+readDiag --version
+```
+
+Expected output:
+
+```text
+readDiag 2.0.0rc5
+```
+
+Quick import test:
+
+```bash
+python - <<'PY'
+from readDiag import ImpactAnalyzer
+from readDiag.analysis.impact_plots import plot_impact_ranked_bar
+print("readDiag import OK")
+print("ImpactAnalyzer OK:", ImpactAnalyzer)
+PY
+```
+
+### Install from a local clone
+
+If you need the full repository, including LFS-managed test/example files:
+
+```bash
+git lfs install
+git clone https://github.com/joaogerd/readDiag
+cd readDiag
+git lfs pull
+python -m pip install .
+```
+
+### For development
+
+```bash
+git lfs install
+git clone https://github.com/joaogerd/readDiag
+cd readDiag
+git lfs pull
+python -m pip install -e .[dev]
+```
+
+The **dev** extras include tools for linting, testing and documentation.
 
 ### Verify the install
 
 ```bash
 python -c "import readDiag; print('✅ import ok')"
+readDiag --version
 ```
 
 ---
@@ -69,6 +141,33 @@ if api.kind() == "conv":
 else:
     for ch in api.channels():
         df = api.frame_channel(ch)          # pandas.DataFrame for channel `ch`
+```
+
+### Observation-impact analysis
+
+```python
+from readDiag import ImpactAnalyzer
+
+analyzer = ImpactAnalyzer.from_pair(
+    "dataout/2025100100/diag_conv_01.2025100100",
+    "dataout/2025100100/diag_conv_03.2025100100",
+)
+
+metrics = analyzer.compute_all_metrics()
+print(metrics.head())
+```
+
+Nature-style / academic-modern impact plots:
+
+```python
+from readDiag.analysis.impact_plots import (
+    plot_impact_ranked_bar,
+    save_impact_figure,
+)
+
+ax = plot_impact_ranked_bar(metrics, metric="FI", top_k=15)
+save_impact_figure(ax, "impact_fi_top15.pdf", validate=False)
+save_impact_figure(ax, "impact_fi_top15.png", validate=False)
 ```
 
 ### Plotting helpers (wrappers)
@@ -102,7 +201,7 @@ python -m readDiag --show-versions --json
 
 # Include extra packages in the report (scipy, xarray, netCDF4, shapely, pyproj, cfgrib, eccodes)
 python -m readDiag --show-versions --extra
-````
+```
 
 ### Run via console script (if installed with entrypoint)
 
@@ -132,21 +231,21 @@ readDiag data/diag_conv_01.2024013018
 
 **Example output (show-versions):**
 
-```
-readDiag    : 2.1.0
-Python      : 3.12.2
+```text
+readDiag    : 2.0.0rc5
+Python      : 3.12.13
 OS          : Linux 6.8.0-...
-Executable  : /usr/bin/python3
-NumPy       : 2.0.2
-Pandas      : 2.2.3
-Matplotlib  : 3.9.2
-Cartopy     : not installed
-GeoPandas   : 0.14.4
+Executable  : /path/to/python
+NumPy       : 2.x
+Pandas      : 2.x
+Matplotlib  : 3.x
+Cartopy     : installed/not installed
+GeoPandas   : installed/not installed
 ```
 
 **Example output (conv):**
 
-```
+```text
 conv | date=2024-01-30 18:00:00 | file=data/diag_conv_01.2024013018
   var=t kx=[120, 220, ...]
   var=q kx=[...]
@@ -155,11 +254,11 @@ conv | date=2024-01-30 18:00:00 | file=data/diag_conv_01.2024013018
 
 **Example output (rad):**
 
-```
+```text
 rad | date=2024-01-30 18:00:00 | file=data/diag_amsua_n19_01.2024013018
   channels=[1, 2, 3, ...]
-
 ```
+
 ### Legacy CLI (compat only)
 
 ```bash
@@ -175,7 +274,7 @@ gsidiag data/diag_conv_01.2024013018 --var t --kx 120
 # run tests
 pytest -q
 
-# style/lint (if configured)
+# style/lint, if configured
 ruff check .
 black --check .
 ```
@@ -185,11 +284,11 @@ black --check .
 ## 📚 Examples
 
 See the `examples/` folder for quickstarts and scripts.
-(We’re organizing examples by **basic/**, **advanced/**, and **cli/**.)
+We are organizing examples by **basic/**, **advanced/**, and **cli/**.
 
 ---
 
-## 🧾 Legacy vs New (READ THIS)
+## 🧾 Legacy vs New
 
 * **LEGACY**: the `gsidiag/` package keeps the old `read_diag` class and methods for compatibility.
   Importing it triggers a **DeprecationWarning**.
@@ -200,83 +299,33 @@ See the `examples/` folder for quickstarts and scripts.
   api = rd.open_diagnostic("path/to/diag_file")  # -> DiagnosticAPI
   ```
 * The low-level reader **is modern** (not legacy): `readDiag.io.reader.diagAccess`.
-* For migration details and before/after mapping, see **[MIGRATION\_LEGACY.md](MIGRATION_LEGACY.md)**.
+* For migration details and before/after mapping, see **[MIGRATION_LEGACY.md](MIGRATION_LEGACY.md)**.
 
 ---
 
-### ⚠️ Large Files (Git LFS)
+## ⚠️ Large Files (Git LFS)
 
-Some diagnostic files used for testing or examples may exceed the default GitHub size limit.
-To ensure these files are downloaded correctly, **install and configure Git LFS** before cloning the repository:
+Some diagnostic files used for testing or examples may exceed the default
+GitHub size limit and are managed with Git LFS.
 
-#### **1. Install Git LFS**
-
-**Linux (Debian/Ubuntu):**
-
-```bash
-sudo apt-get install git-lfs
-```
-
-**macOS (Homebrew):**
-
-```bash
-brew install git-lfs
-```
-
-**Windows (Chocolatey):**
-
-```bash
-choco install git-lfs
-```
-
-### ⚠️ Large Files (Git LFS)
-
-Some diagnostic files used for testing or examples may exceed the default GitHub size limit.
-To ensure these files are downloaded correctly, **install and configure Git LFS** before cloning the repository:
-
-#### **1. Install Git LFS**
-
-**Linux (Debian/Ubuntu):**
-
-```bash
-sudo apt-get install git-lfs
-```
-
-**macOS (Homebrew):**
-
-```bash
-brew install git-lfs
-```
-
-**Windows (Chocolatey):**
-
-```bash
-choco install git-lfs
-```
-
-#### **2. Enable Git LFS**
-
-After installation, enable LFS in your local Git environment:
+Install Git LFS before cloning the full repository:
 
 ```bash
 git lfs install
-```
-
-#### **3. Clone the Repository**
-
-```bash
 git clone https://github.com/joaogerd/readDiag
 cd readDiag
 git lfs pull
 ```
 
-> **Tip**: If you already cloned the repo without LFS, just run:
->
-> ```bash
-> git lfs install
-> git lfs pull
-> ```
+If you only want to install the package and do not need large test/example
+files, use:
 
+```bash
+GIT_LFS_SKIP_SMUDGE=1 python -m pip install --force-reinstall \
+  "readDiag @ git+https://github.com/joaogerd/readDiag.git@v2.0.0-rc5"
+```
+
+---
 
 ## 📄 License
 
@@ -286,7 +335,5 @@ Distributed under the [LGPL-3.0-or-later](https://opensource.org/licenses/LGPL-3
 
 ## 👤 Author & Contact
 
-João Gerd Zell de Mattos
+João Gerd Zell de Mattos  
 Feel free to open issues or contribute!
-
-
