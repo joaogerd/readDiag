@@ -187,6 +187,28 @@ def _shade_negative_side(ax) -> None:
     ax.set_xlim(xmin, xmax)
 
 
+def _add_panel_cycle_label(ax, label: str, style: NatureFigureStyle) -> None:
+    """Add a cycle label inside the axes to avoid title/suptitle overlap."""
+    ax.text(
+        0.012,
+        0.955,
+        label,
+        transform=ax.transAxes,
+        ha="left",
+        va="top",
+        fontsize=style.max_fontsize,
+        fontweight="bold",
+        color="black",
+        bbox={
+            "facecolor": "white",
+            "edgecolor": "none",
+            "alpha": 0.88,
+            "pad": 1.8,
+        },
+        zorder=10,
+    )
+
+
 def _format_annotation_value(metric: str, value: float, use_signed_log: bool) -> str:
     """Format annotation values without exposing internal column names."""
     if use_signed_log:
@@ -355,7 +377,7 @@ def plot_impact_cycle_comparison(
     top_kx = select_top_kx(table, metric=metric, top_k=top_k)
     nrows = len(cycles)
 
-    height_mm = min(style.max_main_height_mm, max(75.0, 58.0 * nrows))
+    height_mm = min(style.max_main_height_mm, max(78.0, 58.0 * nrows + 8.0))
     fig, axes = style.create_figure(
         kind="double",
         height_mm=height_mm,
@@ -418,8 +440,10 @@ def plot_impact_cycle_comparison(
         _shade_negative_side(ax)
         ax.axvline(0.0, color="black", linewidth=0.7, zorder=3)
 
+        _apply_academic_axes(ax, style, ylabel="KX", title=None, show_xgrid=True)
         subtitle = f"Cycle {cycle}" if cycle is not None else "Impact"
-        _apply_academic_axes(ax, style, ylabel="KX", title=subtitle, show_xgrid=True)
+        _add_panel_cycle_label(ax, subtitle, style)
+
         if metric == "TI" and not use_signed_log:
             _format_scientific_x(ax)
         if annotate_extremes:
@@ -428,7 +452,7 @@ def plot_impact_cycle_comparison(
     axes_flat[-1].set_xlabel(_metric_label(metric, use_signed_log))
     fig.suptitle(
         f"{metric} impact by cycle — top {top_k} KX",
-        fontsize=style.max_fontsize,
+        fontsize=style.max_fontsize + 1,
         fontweight="bold",
         y=0.995,
     )
