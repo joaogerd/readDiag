@@ -199,7 +199,7 @@ class diagAccess:
 
             # Public structure for radiances: keep it explicit and predictable
             self._data_frame = data_frame
-     
+
     # ============================== Public API =============================== #
 
     def get_date(self) -> datetime:
@@ -246,6 +246,10 @@ class diagAccess:
             return self._data_frame  # type: ignore[attr-defined]
 
         return self._get_conv_dataframe(*args, **kwargs)
+
+    def get_data_frame(self, *args, **kwargs) -> Any:
+        """Backward-compatible alias for :meth:`get_dataframe`."""
+        return self.get_dataframe(*args, **kwargs)
 
     def get_variables(self) -> List[str]:
         """
@@ -523,4 +527,3 @@ class diagAccess:
 
 # Backward compatibility alias
 DiagAccess = diagAccess
-
