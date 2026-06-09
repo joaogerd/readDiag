@@ -5,7 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
-## [2.0.0-rc.3] - 2025-09-10 (Pre-release)
+## [2.0.0-rc4] - 2025-09-10 (Pre-release)
 
 ### ✨ Features
 - **CLI**: Added `--version` and `--show-versions` options (with `--json`/`--extra`); preserved quick file inspection mode; updated README usage examples. (d0c7537)
