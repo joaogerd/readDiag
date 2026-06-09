@@ -1,101 +1,58 @@
-# src/readDiag/impact.py
+# src/readDiag/analysis/impact.py
 """
-Module: readDiag.impact
-=======================
+Observation-impact analysis utilities for readDiag.
 
-Tools to quantify and visualize the *impact of observations* using GSI-style
-OmF/OmA diagnostics. The central class :class:`ImpactAnalyzer` derives TI, FI
-and FBI per group (conventional KX or radiance channel) and exposes convenience
-plotting. Additional helpers support multi-experiment comparison and
-time-series summaries.
+This module computes GSI-style observation impact metrics from OmF/OmA
+pairs. It supports:
+
+- conventional diagnostics, either for one selected variable or for the full
+  ``diag_conv`` file when ``var=None``;
+- radiance diagnostics, grouped by 1-based channel;
+- simple plotting helpers and multi-experiment comparison utilities.
 
 Notes
 -----
-- This module **does not** alter diagnostic content in files. It *consumes*
-  :class:`~readDiag.reader.diagAccess` DataFrames produced by
-  :mod:`readDiag.reader`.
-- Metrics follow common definitions:
-
-  ``TI``   (Total Impact)                = Σ ((OMA² − OMF²) / σ²)
-
-  ``FI``   (Fractional Impact, %)        = 100 · TI / Σ|TI|
-
-  ``FBI``  (Frac. Background Impact, %)  = −FI
-
-  The sign of TI comes from (OMA² − OMF²). Positive TI indicates improvement
-  (analysis closer to the observation than the background), while negative TI
-  indicates degradation.
-
-Examples
---------
-Minimal one-cycle impact for conventional diagnostics:
-
->>> from readDiag.impact import ImpactAnalyzer
->>> ia = ImpactAnalyzer.from_pair("diag_conv_t_omf", "diag_conv_t_oma", var="t")
->>> table = ia.compute_all_metrics()
->>> table.head()
->>> ax = ia.plot_impact_bar(metric="FI", title="Fractional Impact (conv)")
->>> ax.figure.savefig("impact_conv_fi.png", dpi=150)
-
-Radiance diagnostics (per channel), with 1-based channel indexing:
-
->>> ia = ImpactAnalyzer.from_pair("diag_amsua_omf", "diag_amsua_oma")
->>> ti = ia.compute_ti()          # {1: ..., 2: ..., 3: ...}
->>> ax = ia.plot_impact_bar("TI", top_k=10, title="Top-10 |TI| channels")
-
-Compare two experiments over multiple cycles:
-
->>> exp1 = [("omf_0000", "oma_0000"), ("omf_0006", "oma_0006")]
->>> exp2 = [("omf2_0000", "oma2_0000"), ("omf2_0006", "oma2_0006")]
->>> from readDiag.impact import ExperimentComparator, ComparisonPlotter
->>> cmpx = ExperimentComparator(exp1, exp2, var="t")
->>> cmpx.compare()
->>> dfc = cmpx.comparison_df
->>> plotter = ComparisonPlotter(dfc)
->>> ax = plotter.plot_diff(metric="mean_diff")
->>> ax.figure.savefig("exp_comparison_mean_diff.png", dpi=150)
+For conventional diagnostics, the default reader returns a nested mapping with
+shape ``{var -> {kx -> DataFrame}}``. When ``var=None``, impact is accumulated
+across all common variables and grouped by KX. When ``var`` is provided, only
+that variable is used.
 """
 
 from __future__ import annotations
 
-from typing import Optional, List, Dict, Literal, Tuple
+from typing import Dict, Iterable, List, Literal, Optional, Tuple
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 from scipy.stats import (
-    skew,
     kurtosis,
     linregress,
-    wilcoxon,
-    ttest_rel,
     median_abs_deviation,
+    skew,
+    ttest_rel,
+    wilcoxon,
 )
 
-# Multiple-testing correction for paired tests
 from statsmodels.stats.multitest import multipletests
-
-# Simple bootstrap via resampling
 from sklearn.utils import resample
 
-# Import a compatible binomial sign-test across SciPy versions
-try:  # pragma: no cover - compat shim
+try:  # pragma: no cover - SciPy compatibility shim
     from scipy.stats import binomtest
 
     def binom_p(n_greater: int, n_total: int) -> float:
-        """Return binomial p-value (two-sided) with p=0.5 null."""
+        """Return a two-sided binomial p-value under p=0.5."""
         return binomtest(n_greater, n_total, p=0.5).pvalue if n_total > 0 else np.nan
-except Exception:  # pragma: no cover - compat shim
+
+except Exception:  # pragma: no cover - older SciPy compatibility shim
     from scipy.stats import binom_test
 
     def binom_p(n_greater: int, n_total: int) -> float:
-        """Return binomial p-value (two-sided) with p=0.5 null."""
+        """Return a two-sided binomial p-value under p=0.5."""
         return float(binom_test(n_greater, n_total, p=0.5)) if n_total > 0 else np.nan
 
-# Public reader (high-level) used by this module
 from ..reader import diagAccess
 
-# Small constant to avoid division-by-zero in fractional metrics
 EPSILON: float = 1e-15
 
 __all__ = [
@@ -108,48 +65,32 @@ __all__ = [
 
 
 class ImpactAnalyzer:
-    """Analyze observation impact (TI/FI/FBI) from OmF/OmA diagnostics.
-
-    Operates on a :class:`~readDiag.reader.diagAccess` instance and supports both
-    **conventional** (conv) and **radiance** (rad) diagnostics. For conv files,
-    metrics are computed per *KX*; for rad files, per *channel* (1-based).
+    """Analyze observation impact from OmF/OmA diagnostic pairs.
 
     Parameters
     ----------
     diag : diagAccess
-        An initialized diagnostic reader instance (already opened).
-
-    Raises
-    ------
-    ValueError
-        If the diagnostic is conventional but ``diag.var`` is not set (required
-        to access the per-variable KX dictionary).
-
-    See Also
-    --------
-    ImpactAnalyzer.from_pair : Convenience constructor to merge OmF/OmA fields.
-    ExperimentComparator : Multi-cycle comparison between two experiments.
+        Diagnostic reader instance already containing OmF and injected OmA
+        columns. For conventional diagnostics this may represent either one
+        variable or a complete ``diag_conv`` file.
     """
 
     def __init__(self, diag: diagAccess):
         self.diag = diag
         self._validate()
 
-    # ------------------------------------------------------------------
-    # Internal validation / helpers
-    # ------------------------------------------------------------------
     def _validate(self) -> None:
-        """Validate prerequisite fields on the underlying ``diagAccess``.
+        """Validate the underlying diagnostic object."""
+        dtype = self.diag.get_data_type()
+        if dtype not in (1, 2):
+            raise ValueError("Unsupported diagnostic type. Expected conv=1 or rad=2.")
 
-        Notes
-        -----
-        Conventional diagnostics (``get_data_type() == 1``) require a selected
-        variable (``diag.var``) to reach the KX→DataFrame mapping.
-        """
-        if self.diag.get_data_type() == 1 and not getattr(self.diag, "var", None):
-            raise ValueError(
-                "diagAccess must be initialized with a var for conventional files."
-            )
+        data = self.diag.get_data_frame()
+        if data is None:
+            raise ValueError("Diagnostic object does not contain decoded data.")
+
+        if dtype == 1 and not isinstance(data, dict):
+            raise ValueError("Conventional diagnostics must expose a variable mapping.")
 
     @classmethod
     def from_pair(
@@ -158,31 +99,23 @@ class ImpactAnalyzer:
         oma_file: str,
         var: Optional[str] = None,
     ) -> "ImpactAnalyzer":
-        """Build an analyzer from a pair of OmF and OmA diagnostic files.
-
-        This constructor loads both files via :class:`diagAccess`, then **injects
-        the OmA values** into the OmF structure (new column ``'oma'`` in the same
-        per-KX or per-channel frames). The returned :class:`ImpactAnalyzer` holds
-        a single reader instance containing both OmF and OmA.
+        """Build an analyzer from paired OmF and OmA diagnostic files.
 
         Parameters
         ----------
         omf_file : str
-            Path to the diagnostic file containing OmF.
+            Path to the diagnostic file containing OmF values.
         oma_file : str
-            Path to the diagnostic file containing OmA (stored as ``'omf'`` on disk).
+            Path to the diagnostic file containing OmA values. In GSI diagnostic
+            files this value is stored in the same ``omf``-style column layout.
         var : str, optional
-            Variable of interest (required for conventional diagnostics).
+            Conventional variable to analyze. If omitted for conventional files,
+            all common variables are analyzed and accumulated by KX.
 
         Returns
         -------
         ImpactAnalyzer
-            Analyzer whose internal ``diag`` holds both OmF and OmA.
-
-        Raises
-        ------
-        ValueError
-            If the two files are not the same diagnostic type (conv vs. rad).
+            Analyzer whose internal diagnostic contains both OmF and OmA columns.
         """
         omf = diagAccess(omf_file, var=var)
         oma = diagAccess(oma_file, var=var)
@@ -190,135 +123,254 @@ class ImpactAnalyzer:
         if omf.get_data_type() != oma.get_data_type():
             raise ValueError("Files must be of the same type (conv or rad).")
 
-        dtype = omf.get_data_type()
-        if dtype == 1:
-            # Conventional: dict[var][kx] -> DataFrame with columns incl. 'omf'
-            v = omf.var
-            df_omf = omf.get_data_frame()[v]
-            df_oma = oma.get_data_frame()[v]
-            # Inject per-KX 'oma' alongside 'omf'
-            for kx, frame in df_omf.items():
-                if isinstance(frame, pd.DataFrame) and kx in df_oma:
-                    if "omf" in df_oma[kx]:
-                        frame["oma"] = df_oma[kx]["omf"]
-            omf._data_frame[v] = df_omf  # type: ignore[attr-defined]
+        if omf.get_data_type() == 1:
+            cls._inject_conv_oma(omf, oma, var=var)
         else:
-            # Radiance: list-like of channel DataFrames under 'diagbufchan_df'
-            list_omf = omf.get_data_frame()["dataframes"]["diagbufchan_df"]
-            list_oma = oma.get_data_frame()["dataframes"]["diagbufchan_df"]
-            for df1, df2 in zip(list_omf, list_oma):
-                if isinstance(df1, pd.DataFrame) and isinstance(df2, pd.DataFrame):
-                    if "omf" in df2:
-                        df1["oma"] = df2["omf"]
+            cls._inject_rad_oma(omf, oma)
 
         return cls(omf)
 
-    def _find_error_col(self, df: pd.DataFrame) -> Optional[str]:
-        """Return the best-matching error column name for a DataFrame.
+    @staticmethod
+    def _common_conv_variables(
+        omf_data: Dict[str, Dict[int, pd.DataFrame]],
+        oma_data: Dict[str, Dict[int, pd.DataFrame]],
+        var: Optional[str],
+    ) -> List[str]:
+        """Return variables that can be paired between OmF and OmA data."""
+        if var is not None:
+            if var not in omf_data:
+                raise ValueError(f"Variable {var!r} not found in OmF diagnostic.")
+            if var not in oma_data:
+                raise ValueError(f"Variable {var!r} not found in OmA diagnostic.")
+            return [var]
 
-        Parameters
-        ----------
-        df : pandas.DataFrame
-            Source frame where the error column should be located.
+        variables = sorted(set(omf_data) & set(oma_data))
+        if not variables:
+            raise ValueError("No common conventional variables found between OmF and OmA.")
+        return variables
+
+    @staticmethod
+    def _inject_conv_oma(omf: diagAccess, oma: diagAccess, var: Optional[str]) -> None:
+        """Inject OmA columns into conventional OmF frames in-place."""
+        omf_data = omf.get_data_frame()
+        oma_data = oma.get_data_frame()
+        variables = ImpactAnalyzer._common_conv_variables(omf_data, oma_data, var)
+
+        for variable in variables:
+            omf_groups = omf_data[variable]
+            oma_groups = oma_data[variable]
+            for kx, frame in omf_groups.items():
+                oma_frame = oma_groups.get(kx)
+                if not isinstance(frame, pd.DataFrame):
+                    continue
+                if not isinstance(oma_frame, pd.DataFrame):
+                    continue
+
+                # Scalar conventional variables: t, q, ps, wst, etc.
+                if "omf" in frame.columns and "omf" in oma_frame.columns:
+                    frame["oma"] = oma_frame["omf"].to_numpy(copy=False)
+
+                # Vector wind conventional variable. Depending on reader settings,
+                # both components may or may not be available.
+                for component in ("u", "v"):
+                    omf_col = f"omf_{component}"
+                    oma_col = f"oma_{component}"
+                    if omf_col in frame.columns and omf_col in oma_frame.columns:
+                        frame[oma_col] = oma_frame[omf_col].to_numpy(copy=False)
+
+            omf._data_frame[variable] = omf_groups  # type: ignore[attr-defined]
+
+    @staticmethod
+    def _inject_rad_oma(omf: diagAccess, oma: diagAccess) -> None:
+        """Inject OmA columns into radiance channel frames in-place."""
+        omf_data = omf.get_data_frame()
+        oma_data = oma.get_data_frame()
+        list_omf = omf_data["dataframes"]["diagbufchan_df"]
+        list_oma = oma_data["dataframes"]["diagbufchan_df"]
+
+        for df_omf, df_oma in zip(list_omf, list_oma):
+            if not isinstance(df_omf, pd.DataFrame):
+                continue
+            if not isinstance(df_oma, pd.DataFrame):
+                continue
+            if "omf" in df_omf.columns and "omf" in df_oma.columns:
+                df_omf["oma"] = df_oma["omf"].to_numpy(copy=False)
+
+    @staticmethod
+    def _iter_conv_frames(
+        data: Dict[str, Dict[int, pd.DataFrame]],
+        var: Optional[str],
+    ) -> Iterable[Tuple[str, int, pd.DataFrame]]:
+        """Yield ``(variable, kx, DataFrame)`` tuples from conventional data."""
+        variables = [var] if var is not None else sorted(data.keys())
+
+        for variable in variables:
+            if variable not in data:
+                continue
+            groups = data[variable]
+            for kx, frame in groups.items():
+                if not isinstance(frame, pd.DataFrame) or frame.empty:
+                    continue
+
+                if kx == "__ALL__" and "kx" in frame.columns:
+                    for group_kx, group_df in frame.groupby(frame["kx"].astype(int)):
+                        yield variable, int(group_kx), group_df
+                    continue
+
+                try:
+                    kx_int = int(kx)
+                except (TypeError, ValueError):
+                    if "kx" not in frame.columns:
+                        continue
+                    for group_kx, group_df in frame.groupby(frame["kx"].astype(int)):
+                        yield variable, int(group_kx), group_df
+                    continue
+
+                yield variable, kx_int, frame
+
+    @staticmethod
+    def _omf_oma_pairs(df: pd.DataFrame) -> List[Tuple[str, str]]:
+        """Return OmF/OmA column pairs available in a frame."""
+        pairs: List[Tuple[str, str]] = []
+
+        if {"omf", "oma"}.issubset(df.columns):
+            pairs.append(("omf", "oma"))
+
+        for component in ("u", "v"):
+            omf_col = f"omf_{component}"
+            oma_col = f"oma_{component}"
+            if {omf_col, oma_col}.issubset(df.columns):
+                pairs.append((omf_col, oma_col))
+
+        return pairs
+
+    @staticmethod
+    def _find_error_weight(df: pd.DataFrame) -> Tuple[Optional[str], bool]:
+        """Return an error column and whether it is inverse-error.
 
         Returns
         -------
-        str or None
-            One of ``'error'`` or ``'end_err'`` if present; otherwise ``None``.
+        tuple
+            ``(column_name, is_inverse_error)``. For inverse-error columns, TI is
+            computed as ``(OMA² - OMF²) * errinv²``. For sigma/error columns, TI
+            is computed as ``(OMA² - OMF²) / sigma²``.
         """
-        for col in ("error", "end_err"):
+        inverse_candidates = (
+            "errinv",
+            "errinv_fin",
+            "end_err",
+            "errinv_adj",
+            "adj_err",
+            "errinv_inp",
+            "inp_err",
+        )
+        sigma_candidates = (
+            "error",
+            "obs_error",
+            "obserr",
+            "sigma",
+            "stddev",
+        )
+
+        for col in inverse_candidates:
             if col in df.columns:
-                return col
-        return None
+                return col, True
 
+        for col in sigma_candidates:
+            if col in df.columns:
+                return col, False
+
+        return None, False
+
+    @staticmethod
     def _calc_ti_component(
-        self, oma: pd.Series, omf: pd.Series, err: pd.Series
+        oma: pd.Series,
+        omf: pd.Series,
+        error_value: pd.Series,
+        *,
+        inverse_error: bool,
     ) -> float:
-        """Compute TI contribution for a subset of valid entries.
+        """Compute one TI contribution from aligned OmA/OmF/error vectors."""
+        oma_arr = pd.to_numeric(oma, errors="coerce")
+        omf_arr = pd.to_numeric(omf, errors="coerce")
+        err_arr = pd.to_numeric(error_value, errors="coerce").replace(0, np.nan)
 
-        Parameters
-        ----------
-        oma : pandas.Series
-            Analysis-minus-observation values.
-        omf : pandas.Series
-            Forecast-minus-observation values.
-        err : pandas.Series
-            Standard deviation (σ) of observation error for each entry.
+        valid = np.isfinite(oma_arr) & np.isfinite(omf_arr) & np.isfinite(err_arr)
+        valid &= err_arr > 0
 
-        Returns
-        -------
-        float
-            Σ((OMA² − OMF²) / σ²) over finite entries with positive error.
-        """
-        valid = (err > 0) & np.isfinite(oma) & np.isfinite(omf)
-        return ((oma[valid] ** 2 - omf[valid] ** 2) / (err[valid] ** 2)).sum()
+        if not valid.any():
+            return 0.0
 
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
+        diff = oma_arr[valid] ** 2 - omf_arr[valid] ** 2
+        if inverse_error:
+            return float((diff * (err_arr[valid] ** 2)).sum())
+
+        return float((diff / (err_arr[valid] ** 2)).sum())
+
     def compute_ti(self) -> Dict[int, float]:
-        """Compute Total Impact (TI) per *KX* (conv) or per channel (rad).
+        """Compute Total Impact (TI) by KX or channel.
 
         Returns
         -------
         dict[int, float]
-            Mapping from integer key (``kx`` or 1-based channel index) to TI value.
+            For conventional diagnostics, keys are KX codes. If ``diag.var`` is
+            ``None``, TI is accumulated across all conventional variables. For
+            radiance diagnostics, keys are 1-based channel numbers.
         """
-        is_conv = self.diag.get_data_type() == 1
         ti: Dict[int, float] = {}
 
-        if is_conv:
-            v = self.diag.var
-            df_dict = self.diag.get_data_frame()[v]
-            for kx, df in df_dict.items():
-                if not isinstance(df, pd.DataFrame) or df.empty:
+        if self.diag.get_data_type() == 1:
+            data = self.diag.get_data_frame()
+            selected_var = getattr(self.diag, "var", None)
+
+            for _variable, kx, df in self._iter_conv_frames(data, selected_var):
+                pairs = self._omf_oma_pairs(df)
+                if not pairs:
                     continue
-                if not {"omf", "oma"}.issubset(df.columns):
+
+                err_col, inverse_error = self._find_error_weight(df)
+                if err_col is None:
                     continue
-                error_col = self._find_error_col(df)
-                if error_col is None:
-                    continue
-                err = df[error_col].replace(0, np.nan)
-                ti[int(kx)] = self._calc_ti_component(df["oma"], df["omf"], err)
-        else:
-            # Radiance: make channels **1-based** to match typical practice/tests
-            df_list = self.diag.get_data_frame()["dataframes"]["diagbufchan_df"]
-            for ch, df in enumerate(df_list, start=1):
-                if not isinstance(df, pd.DataFrame) or df.empty:
-                    continue
-                if not {"omf", "oma", "errinv"}.issubset(df.columns):
-                    continue
-                # errinv = 1/σ → σ = 1/errinv (guard zeros)
-                err = 1.0 / df["errinv"].replace(0, np.nan)
-                ti[int(ch)] = self._calc_ti_component(df["oma"], df["omf"], err)
+
+                group_ti = 0.0
+                for omf_col, oma_col in pairs:
+                    group_ti += self._calc_ti_component(
+                        df[oma_col],
+                        df[omf_col],
+                        df[err_col],
+                        inverse_error=inverse_error,
+                    )
+
+                ti[kx] = ti.get(kx, 0.0) + group_ti
+
+            return ti
+
+        df_list = self.diag.get_data_frame()["dataframes"]["diagbufchan_df"]
+        for ch, df in enumerate(df_list, start=1):
+            if not isinstance(df, pd.DataFrame) or df.empty:
+                continue
+            if not {"omf", "oma", "errinv"}.issubset(df.columns):
+                continue
+            ti[int(ch)] = self._calc_ti_component(
+                df["oma"],
+                df["omf"],
+                df["errinv"],
+                inverse_error=True,
+            )
 
         return ti
 
     def compute_all_metrics(self) -> pd.DataFrame:
-        """Compute TI, FI and FBI per group.
-
-        Returns
-        -------
-        pandas.DataFrame
-            Sorted table with columns ``['kx', 'TI', 'FI', 'FBI']``.
-
-        Notes
-        -----
-        ``FI`` and ``FBI`` are computed relative to ``Σ|TI|`` to ensure a
-        meaningful partition of *magnitude* of impact across groups, even when
-        positive and negative TI coexist.
-        """
+        """Compute TI, FI and FBI per group."""
         ti_dict = self.compute_ti()
         if not ti_dict:
             return pd.DataFrame(columns=["kx", "TI", "FI", "FBI"])
 
-        df = pd.DataFrame([{"kx": k, "TI": v} for k, v in ti_dict.items()])
-        # Sum of absolute impacts avoids near-cancellation across groups
+        df = pd.DataFrame([{"kx": int(k), "TI": float(v)} for k, v in ti_dict.items()])
         denom = np.abs(df["TI"]).sum()
         denom = denom if denom > EPSILON else EPSILON
         df["FI"] = df["TI"] / denom * 100.0
         df["FBI"] = -df["FI"]
-        # Sort: TI by ascending (often useful to see degradation→improvement)
         return df.sort_values(by="TI", ascending=True, ignore_index=True)
 
     def plot_impact_bar(
@@ -333,35 +385,7 @@ class ImpactAnalyzer:
         fontsize: int = 12,
         top_k: Optional[int] = None,
     ) -> plt.Axes:
-        """Plot a horizontal bar chart for the selected metric.
-
-        Parameters
-        ----------
-        metric : {'TI', 'FI', 'FBI'}, default: 'TI'
-            Which metric to display per bar.
-        ax : matplotlib.axes.Axes, optional
-            Existing axes to draw on. If ``None``, a new figure/axes is created.
-        color : str, optional
-            Bar color. If ``None``, Matplotlib default is used.
-        title, xlabel, ylabel : str, optional
-            Axis texts (applied with ``loc='center'`` for tests compatibility).
-        rotation : int, default: 45
-            Rotation applied to Y tick labels (group identifiers).
-        fontsize : int, default: 12
-            Base font size for labels and title.
-        top_k : int, optional
-            If set, keep only the *k* largest absolute values for the chosen metric.
-
-        Returns
-        -------
-        matplotlib.axes.Axes
-            The axes containing the bar chart.
-
-        Examples
-        --------
-        >>> ia = ImpactAnalyzer.from_pair("omf", "oma", var="t")
-        >>> _ = ia.plot_impact_bar(metric="FI", top_k=10)
-        """
+        """Plot a horizontal bar chart for the selected metric."""
         df = self.compute_all_metrics()
         if df.empty:
             ax = ax or plt.subplots(figsize=(10, 2))[1]
@@ -369,16 +393,13 @@ class ImpactAnalyzer:
             ax.set_axis_off()
             return ax
 
-        # For TI, descending by magnitude can be more informative; FI/FBI keep natural order
         df = df.sort_values(by=metric, ascending=(metric != "TI"))
         if top_k is not None and top_k > 0:
-            # Keep items with largest absolute metric
             df = df.loc[df[metric].abs().sort_values(ascending=False).head(top_k).index]
 
         ax = ax or plt.subplots(figsize=(10, 6))[1]
         y_labels = df["kx"].astype(str)
         ax.barh(y_labels, df[metric], color=color)
-
         ax.set_title(title or f"{metric} per KX/Channel", fontsize=fontsize + 2, loc="center")
         ax.set_xlabel(xlabel or metric, fontsize=fontsize)
         ax.set_ylabel(ylabel or "KX / Channel", fontsize=fontsize)
@@ -396,33 +417,7 @@ def plot_all_impact_subplots(
     metric: Literal["TI", "FI", "FBI"] = "TI",
     suptitle: Optional[str] = None,
 ) -> plt.Axes:
-    """Plot aligned horizontal bar charts for multiple analyzers.
-
-    Parameters
-    ----------
-    analyzers : list of ImpactAnalyzer
-        One analyzer per subplot (row).
-    labels : list of str, optional
-        Optional per-subplot label suffix.
-    metric : {'TI', 'FI', 'FBI'}, default: 'TI'
-        Metric rendered in each bar chart.
-    suptitle : str, optional
-        Figure super-title.
-
-    Returns
-    -------
-    matplotlib.axes.Axes
-        The last axes created (convenience for callers).
-
-    Raises
-    ------
-    RuntimeError
-        If no analyzer yields valid data.
-
-    Examples
-    --------
-    >>> axs_last = plot_all_impact_subplots([ia1, ia2], labels=["EXP1", "EXP2"], metric="FBI")
-    """
+    """Plot aligned horizontal bar charts for multiple analyzers."""
     dfs = [a.compute_all_metrics() for a in analyzers]
     all_vals = [df[metric] for df in dfs if not df.empty]
     if not all_vals:
@@ -434,7 +429,7 @@ def plot_all_impact_subplots(
         axs = [axs]
 
     for i, (ax, analyzer) in enumerate(zip(axs, analyzers)):
-        label = labels[i] if labels and i < len(labels) else f"Plot {i+1}"
+        label = labels[i] if labels and i < len(labels) else f"Plot {i + 1}"
         analyzer.plot_impact_bar(metric=metric, ax=ax, title=f"Impact {label}")
 
     if suptitle:
@@ -444,26 +439,7 @@ def plot_all_impact_subplots(
 
 
 class ExperimentComparator:
-    """Compare the impact between **two experiments** across cycles.
-
-    Two lists of ``(OmF, OmA)`` file pairs are provided for experiment 1 and
-    experiment 2. The comparator computes per-cycle TI, aggregates per KX/
-    channel, and then produces a set of descriptive and inferential statistics.
-
-    Parameters
-    ----------
-    exp1_files, exp2_files : list of (str, str)
-        Pairs of ``(omf_file, oma_file)`` in chronological order.
-    var : str, optional
-        Variable name for conventional diagnostics.
-
-    Attributes
-    ----------
-    per_cycle_df : pandas.DataFrame
-        Columns: ``['cycle', 'experiment', 'kx', 'TI']``.
-    comparison_df : pandas.DataFrame or None
-        Summary metrics per KX/channel filled after :meth:`compare`.
-    """
+    """Compare impact between two experiments across cycles."""
 
     def __init__(
         self,
@@ -478,15 +454,10 @@ class ExperimentComparator:
         self.comparison_df: Optional[pd.DataFrame] = None
 
     def _gather_per_cycle(self) -> pd.DataFrame:
-        """Load TI values per cycle and per KX/channel for both experiments.
-
-        Returns
-        -------
-        pandas.DataFrame
-            Columns: ``['cycle', 'experiment', 'kx', 'TI']``.
-        """
+        """Load TI values per cycle and per KX/channel for both experiments."""
         rows: List[Dict[str, float]] = []
         n_cycles = min(len(self.exp1_files), len(self.exp2_files))
+
         for idx in range(n_cycles):
             omf1, oma1 = self.exp1_files[idx]
             omf2, oma2 = self.exp2_files[idx]
@@ -494,29 +465,20 @@ class ExperimentComparator:
             ia2 = ImpactAnalyzer.from_pair(omf2, oma2, var=self.var)
             ti1 = ia1.compute_ti()
             ti2 = ia2.compute_ti()
-            # Only intersect keys to ensure aligned comparison
+
             for kx in sorted(set(ti1) & set(ti2)):
                 rows.append({"cycle": idx, "experiment": 1, "kx": int(kx), "TI": float(ti1[kx])})
                 rows.append({"cycle": idx, "experiment": 2, "kx": int(kx), "TI": float(ti2[kx])})
+
         return pd.DataFrame(rows)
 
     def compare(self) -> None:
-        """Compute statistics comparing experiment 2 vs. experiment 1.
-
-        For each KX/channel, the method derives:
-
-        - Descriptive stats (mean, std, median, IQR, skewness, kurtosis, MAD)
-          for both experiments and for their difference (exp2 − exp1).
-        - Effect size (Cohen's d), Pearson correlation, and linear trend (slope)
-          of the per-cycle differences.
-        - Proportion of cycles where exp2 > exp1 and the corresponding binomial
-          sign-test p-value.
-        - Paired t-test and Wilcoxon signed-rank test with FDR correction.
-        - Bootstrap 95% CI for the mean difference.
-
-        Results are stored in :attr:`comparison_df`.
-        """
+        """Compute statistics comparing experiment 2 against experiment 1."""
         df = self.per_cycle_df
+        if df.empty:
+            self.comparison_df = pd.DataFrame()
+            return
+
         all_kx = sorted(df["kx"].unique())
         results: List[Dict[str, float]] = []
 
@@ -527,25 +489,24 @@ class ExperimentComparator:
             if n < 2:
                 continue
 
-            diffs = d2[:n] - d1[:n]
+            d1 = d1[:n]
+            d2 = d2[:n]
+            diffs = d2 - d1
 
-            # Bootstrap CI for mean difference (2.5–97.5%)
             boots = [resample(diffs, n_samples=n) for _ in range(1000)]
             means = np.asarray([b.mean() for b in boots])
             ci_low = float(np.percentile(means, 2.5))
             ci_high = float(np.percentile(means, 97.5))
 
-            # Descriptive statistics (per experiment)
-            mean1, mean2 = float(d1[:n].mean()), float(d2[:n].mean())
-            std1, std2 = float(d1[:n].std()), float(d2[:n].std())
-            median1, median2 = float(np.median(d1[:n])), float(np.median(d2[:n]))
-            iqr1 = float(np.percentile(d1[:n], 75) - np.percentile(d1[:n], 25))
-            iqr2 = float(np.percentile(d2[:n], 75) - np.percentile(d2[:n], 25))
-            skew1, skew2 = float(skew(d1[:n])), float(skew(d2[:n]))
-            kurt1, kurt2 = float(kurtosis(d1[:n])), float(kurtosis(d2[:n]))
-            mad1, mad2 = float(median_abs_deviation(d1[:n])), float(median_abs_deviation(d2[:n]))
+            mean1, mean2 = float(d1.mean()), float(d2.mean())
+            std1, std2 = float(d1.std()), float(d2.std())
+            median1, median2 = float(np.median(d1)), float(np.median(d2))
+            iqr1 = float(np.percentile(d1, 75) - np.percentile(d1, 25))
+            iqr2 = float(np.percentile(d2, 75) - np.percentile(d2, 25))
+            skew1, skew2 = float(skew(d1)), float(skew(d2))
+            kurt1, kurt2 = float(kurtosis(d1)), float(kurtosis(d2))
+            mad1, mad2 = float(median_abs_deviation(d1)), float(median_abs_deviation(d2))
 
-            # Descriptive statistics (differences)
             mean_diff = float(diffs.mean())
             std_diff = float(diffs.std())
             median_diff = float(np.median(diffs))
@@ -553,29 +514,19 @@ class ExperimentComparator:
             skew_diff = float(skew(diffs))
             kurt_diff = float(kurtosis(diffs))
             mad_diff = float(median_abs_deviation(diffs))
-
-            # Effect size (Cohen's d) based on difference distribution
             cohens_d = float(mean_diff / (std_diff if std_diff > 0 else 1e-12))
 
-            # Correlation across cycles (guard zero-variance)
-            if std1 > 0 and std2 > 0:
-                corr_pearson = float(np.corrcoef(d1[:n], d2[:n])[0, 1])
-            else:
-                corr_pearson = np.nan
-
-            # Temporal trend (slope of differences across cycles)
+            corr_pearson = float(np.corrcoef(d1, d2)[0, 1]) if std1 > 0 and std2 > 0 else np.nan
             slope = float(linregress(np.arange(n), diffs).slope) if n >= 2 else np.nan
 
-            # Proportion & binomial sign-test
-            n_greater = int(np.sum(d2[:n] > d1[:n]))
-            n_less = int(np.sum(d2[:n] < d1[:n]))
+            n_greater = int(np.sum(d2 > d1))
+            n_less = int(np.sum(d2 < d1))
             n_total = int(n_greater + n_less)
             sign_p = float(binom_p(n_greater, n_total))
 
-            # Paired tests
-            t_stat, t_p = ttest_rel(d1[:n], d2[:n])
+            t_stat, t_p = ttest_rel(d1, d2)
             try:
-                w_stat, w_p = wilcoxon(d1[:n], d2[:n])
+                w_stat, w_p = wilcoxon(d1, d2)
             except ValueError:
                 w_stat, w_p = np.nan, np.nan
 
@@ -606,7 +557,7 @@ class ExperimentComparator:
                     "cohens_d": cohens_d,
                     "corr_pearson": corr_pearson,
                     "slope": slope,
-                    "perc_exp2_maior": float(np.mean(d2[:n] > d1[:n]) * 100.0),
+                    "perc_exp2_maior": float(np.mean(d2 > d1) * 100.0),
                     "sign_p": sign_p,
                     "CI_low": ci_low,
                     "CI_high": ci_high,
@@ -620,7 +571,6 @@ class ExperimentComparator:
 
         dfres = pd.DataFrame(results)
         if not dfres.empty:
-            # Multiple testing correction (FDR) for paired tests
             t_corrected = multipletests(dfres["t_p"].fillna(1.0), method="fdr_bh")[1]
             w_corrected = multipletests(dfres["w_p"].fillna(1.0), method="fdr_bh")[1]
             dfres["signif_t"] = t_corrected < 0.05
@@ -630,20 +580,7 @@ class ExperimentComparator:
 
 
 class ComparisonPlotter:
-    """Visualization helper for :class:`ExperimentComparator` outputs.
-
-    Parameters
-    ----------
-    comparison_df : pandas.DataFrame
-        Output of :meth:`ExperimentComparator.compare` with per-KX/channel stats.
-
-    Notes
-    -----
-    The input DataFrame is expected to contain at least the columns
-    ``['kx', 'mean_diff']``. Additional columns such as ``CI_low``, ``CI_high``,
-    ``signif_t``/``signif_w`` (booleans) are optionally used for CI/errorbars and
-    significance highlights.
-    """
+    """Visualization helper for :class:`ExperimentComparator` outputs."""
 
     def __init__(self, comparison_df: pd.DataFrame):
         self.df = comparison_df
@@ -655,29 +592,7 @@ class ComparisonPlotter:
         highlight_significance: bool = True,
         figsize: Tuple[int, int] = (12, 6),
     ) -> plt.Axes:
-        """Plot differences between experiments with CI and significance markers.
-
-        Parameters
-        ----------
-        metric : str, default: 'mean_diff'
-            Column to render as bar heights (e.g., ``'mean_diff'``, ``'cohens_d'``).
-        ci : bool, default: True
-            Show 95% confidence intervals if ``CI_low``/``CI_high`` are present.
-        highlight_significance : bool, default: True
-            Draw an asterisk above bars where either ``signif_t`` or ``signif_w`` is True.
-        figsize : tuple of int, default: (12, 6)
-            Figure size passed to Matplotlib.
-
-        Returns
-        -------
-        matplotlib.axes.Axes
-            The axes containing the bar plot.
-
-        Examples
-        --------
-        >>> plotter = ComparisonPlotter(cmpx.comparison_df)
-        >>> _ = plotter.plot_diff(metric="cohens_d", ci=False)
-        """
+        """Plot differences between experiments with CI and significance markers."""
         df = self.df.sort_values("kx")
         if df.empty:
             fig, ax = plt.subplots(figsize=figsize)
@@ -725,30 +640,7 @@ def plot_metric_series(
     metric: Literal["TI", "FI", "FBI"] = "TI",
     color: Optional[str] = None,
 ) -> plt.Axes:
-    """Plot mean ± std envelopes of a metric across a series of analyzers.
-
-    Parameters
-    ----------
-    analyzers : list of ImpactAnalyzer
-        One analyzer per cycle/time index (all must share the same groups).
-    label : str
-        Series label used in the plot title.
-    metric : {'TI', 'FI', 'FBI'}, default: 'TI'
-        Which metric to summarize.
-    color : str, optional
-        Base color for the mean line and the ±1 STD fill area.
-
-    Returns
-    -------
-    matplotlib.axes.Axes
-        The axes containing the plot.
-
-    Examples
-    --------
-    >>> axs = [ImpactAnalyzer.from_pair(o, a, var="t") for (o, a) in cycles]
-    >>> _ = plot_metric_series(axs, "EXP1", metric="FI")
-    """
-    # Concatenate per-cycle tables and extract the selected metric
+    """Plot mean ± std envelopes of a metric across a series of analyzers."""
     dfs = [a.compute_all_metrics().set_index("kx") for a in analyzers]
     if not dfs:
         fig, ax = plt.subplots(figsize=(10, 2))
@@ -756,19 +648,15 @@ def plot_metric_series(
         ax.set_axis_off()
         return ax
 
-    # Ensure consistent ordering by index (KX/channel)
     dfs = [df.sort_index() for df in dfs]
-    # Stack into (n_cycles, n_groups); raises if groups differ
     vals = [df[metric] for df in dfs]
-    arr = np.stack([v.values for v in vals])  # shape: n_cycles x n_groups
+    arr = np.stack([v.values for v in vals])
     kx = dfs[0].index.values
 
     fig, ax = plt.subplots(figsize=(12, 6))
-    # All individual series in light gray for context
     for row in arr:
         ax.plot(kx, row, color="lightgray", alpha=0.6, zorder=1)
 
-    # Mean ± std envelope
     mu = arr.mean(axis=0)
     sd = arr.std(axis=0)
     base_color = color or "C0"
@@ -785,10 +673,8 @@ def plot_metric_series(
 
 
 # ---------------------------------------------------------------------------
-# Back-compatibility shims
+# Backward-compatibility shims
 # ---------------------------------------------------------------------------
-
-# Accept alias `n=` for `top_k=` in plot_impact_bar (old callers)
 try:
     _orig_plot_impact_bar = ImpactAnalyzer.plot_impact_bar  # type: ignore[attr-defined]
 
@@ -799,13 +685,10 @@ try:
         n: Optional[int] = None,
         **kwargs,
     ):
-        # If old code passes `n=`, map it to the modern `top_k=`
         if n is not None and "top_k" not in kwargs:
             kwargs["top_k"] = n
         return _orig_plot_impact_bar(self, metric, *args, **kwargs)
 
     ImpactAnalyzer.plot_impact_bar = _plot_impact_bar_shim  # type: ignore[assignment]
 except Exception:
-    # If anything goes wrong, keep the original method intact.
     pass
-
