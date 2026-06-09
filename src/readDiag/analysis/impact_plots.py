@@ -1,20 +1,24 @@
-"""Nature-style plotting helpers for observation-impact diagnostics.
+"""Modern academic plotting helpers for observation-impact diagnostics.
 
 The functions in this module operate on tables returned by
 ``ImpactAnalyzer.compute_all_metrics()`` or on concatenated tables containing a
 ``data`` cycle column. They intentionally keep plotting separate from metric
 calculation so that the numerical impact workflow remains stable.
+
+The visual style is academic-modern rather than strictly minimalist: compact
+panels, readable annotations, subtle reference shading, accessible colours,
+clear zero lines, and editable vector export.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Iterable, Literal, Optional, Sequence
+from typing import Literal, Optional, Sequence
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from matplotlib.colors import TwoSlopeNorm
+from matplotlib.colors import LinearSegmentedColormap, TwoSlopeNorm
 from matplotlib.ticker import ScalarFormatter
 
 from ..plotting.style import NatureFigureStyle
@@ -30,6 +34,14 @@ __all__ = [
     "plot_impact_summary_bar",
     "save_impact_figure",
 ]
+
+
+# Wong-style accessible colours used throughout the impact plots.
+NEGATIVE_COLOR = "#0072B2"      # blue
+POSITIVE_COLOR = "#D55E00"      # vermillion
+NEUTRAL_COLOR = "#4D4D4D"
+SHADE_COLOR = "#F2F2F2"
+BAND_COLOR = "#DDEBF2"
 
 
 def signed_log10(values) -> np.ndarray:
@@ -54,17 +66,34 @@ def select_top_kx(table: pd.DataFrame, metric: str = "FI", top_k: int = 15) -> l
 
 
 def _style_or_default(style: Optional[NatureFigureStyle] = None) -> NatureFigureStyle:
+    """Return a readable academic style based on NatureFigureStyle."""
     if style is not None:
         style.set_global_style()
         return style
-    style = NatureFigureStyle()
+
+    # Slightly larger than strict Nature defaults because diagnostic plots are
+    # often inspected interactively before being prepared for manuscripts.
+    style = NatureFigureStyle(
+        base_fontsize=7.0,
+        min_fontsize=6.0,
+        max_fontsize=9.0,
+        panel_label_size=10.0,
+        axis_width=0.6,
+        line_width=0.8,
+        tick_length=3.0,
+        dpi=450,
+        use_grid=False,
+    )
     style.set_global_style()
     return style
 
 
 def _metric_label(metric: str, use_signed_log: bool = False) -> str:
+    """Return publication-friendly metric labels."""
     if use_signed_log:
-        return rf"sign({metric}) log10(|{metric}| + 1)"
+        return rf"sign({metric}) log$_{{10}}$(|{metric}| + 1)"
+    if metric in {"FI", "FBI"}:
+        return f"{metric} (%)"
     return metric
 
 
@@ -72,6 +101,21 @@ def _format_scientific_x(ax) -> None:
     formatter = ScalarFormatter(useMathText=True)
     formatter.set_powerlimits((-3, 3))
     ax.xaxis.set_major_formatter(formatter)
+
+
+def _impact_cmap() -> LinearSegmentedColormap:
+    """Return a blue-white-vermillion diverging colormap."""
+    return LinearSegmentedColormap.from_list(
+        "readDiagImpactDiverging",
+        [NEGATIVE_COLOR, "#FFFFFF", POSITIVE_COLOR],
+        N=256,
+    )
+
+
+def _bar_colors(values) -> list[str]:
+    """Assign accessible colours by sign."""
+    arr = np.asarray(values, dtype=float)
+    return [POSITIVE_COLOR if value > 0 else NEGATIVE_COLOR for value in arr]
 
 
 def _prepare_ranked_data(
@@ -105,6 +149,105 @@ def _prepare_ranked_data(
     return data, plot_metric
 
 
+def _apply_academic_axes(
+    ax,
+    style: NatureFigureStyle,
+    xlabel: Optional[str] = None,
+    ylabel: Optional[str] = None,
+    title: Optional[str] = None,
+    show_xgrid: bool = True,
+) -> None:
+    """Apply modern academic axes styling."""
+    style.apply_to_axes(
+        ax,
+        xlabel=xlabel,
+        ylabel=ylabel,
+        title=title,
+        grid=False,
+        despine_top=True,
+        despine_right=True,
+    )
+
+    if show_xgrid:
+        ax.grid(
+            True,
+            axis="x",
+            linestyle="--",
+            linewidth=0.45,
+            alpha=0.35,
+            color="0.55",
+        )
+    ax.grid(False, axis="y")
+
+    ax.tick_params(axis="both", labelsize=style.min_fontsize)
+    ax.title.set_fontweight("bold")
+
+
+def _shade_negative_side(ax) -> None:
+    """Shade the negative-impact side, similar to a contextual phase band."""
+    xmin, xmax = ax.get_xlim()
+    if xmin < 0:
+        ax.axvspan(xmin, min(0.0, xmax), color=SHADE_COLOR, zorder=0)
+    ax.set_xlim(xmin, xmax)
+
+
+def _annotate_extremes(
+    ax,
+    data: pd.DataFrame,
+    plot_metric: str,
+    metric: str,
+    use_signed_log: bool,
+    style: NatureFigureStyle,
+) -> None:
+    """Annotate the strongest negative and positive KX only."""
+    if data.empty:
+        return
+
+    candidates = []
+    if (data[plot_metric] < 0).any():
+        candidates.append(data.loc[data[plot_metric].idxmin()])
+    if (data[plot_metric] > 0).any():
+        candidates.append(data.loc[data[plot_metric].idxmax()])
+
+    y_lookup = {str(label.get_text()): pos for pos, label in enumerate(ax.get_yticklabels())}
+    x_span = ax.get_xlim()[1] - ax.get_xlim()[0]
+
+    for row in candidates:
+        kx_label = str(int(row["kx"]))
+        if kx_label not in y_lookup:
+            continue
+
+        x = float(row[plot_metric])
+        y = y_lookup[kx_label]
+        raw = float(row[metric]) if metric in row else x
+        ha = "left" if x >= 0 else "right"
+        dx = 0.025 * x_span if x >= 0 else -0.025 * x_span
+
+        if use_signed_log:
+            text = f"KX {kx_label}\n{metric}={raw:.2e}"
+        elif metric in {"FI", "FBI"}:
+            text = f"KX {kx_label}\n{metric}={raw:.2f}%"
+        else:
+            text = f"KX {kx_label}\n{metric}={raw:.2e}"
+
+        ax.annotate(
+            text,
+            xy=(x, y),
+            xytext=(x + dx, y),
+            ha=ha,
+            va="center",
+            fontsize=style.min_fontsize,
+            color="black",
+            arrowprops={
+                "arrowstyle": "-",
+                "color": NEUTRAL_COLOR,
+                "lw": 0.6,
+                "shrinkA": 0,
+                "shrinkB": 4,
+            },
+        )
+
+
 def plot_impact_ranked_bar(
     table: pd.DataFrame,
     metric: Metric = "FI",
@@ -114,29 +257,9 @@ def plot_impact_ranked_bar(
     ax: Optional[plt.Axes] = None,
     style: Optional[NatureFigureStyle] = None,
     title: Optional[str] = None,
+    annotate_extremes: bool = True,
 ):
-    """Plot a compact horizontal ranked bar chart for one impact metric.
-
-    Parameters
-    ----------
-    table : pandas.DataFrame
-        Impact table containing at least ``kx`` and the selected metric. A
-        ``data`` column is optional and can be used with ``cycle``.
-    metric : {'TI', 'FI', 'FBI'}, default 'FI'
-        Metric to plot.
-    cycle : str, optional
-        Cycle identifier to filter when ``table`` contains multiple cycles.
-    top_k : int, default 15
-        Number of KX values to show, selected by largest absolute metric.
-    use_signed_log : bool, default False
-        If True, use a signed log10 transform. This is especially useful for TI.
-    ax : matplotlib.axes.Axes, optional
-        Existing axes. If omitted, a Nature-style figure is created.
-    style : NatureFigureStyle, optional
-        Style object. If omitted, the default Nature-inspired style is used.
-    title : str, optional
-        Custom title.
-    """
+    """Plot a modern horizontal ranked bar chart for one impact metric."""
     style = _style_or_default(style)
     data, plot_metric = _prepare_ranked_data(
         table=table,
@@ -147,8 +270,8 @@ def plot_impact_ranked_bar(
     )
 
     if ax is None:
-        height_mm = max(55.0, 6.0 * max(len(data), 1) + 22.0)
-        fig, ax = style.create_figure(kind="single", height_mm=height_mm, aspect=0.8)
+        height_mm = max(70.0, 6.5 * max(len(data), 1) + 30.0)
+        fig, ax = style.create_figure(kind="double", height_mm=height_mm, aspect=0.55)
     else:
         fig = ax.figure
 
@@ -157,31 +280,58 @@ def plot_impact_ranked_bar(
         ax.set_axis_off()
         return ax
 
-    palette = style.get_palette()
-    color = palette[5] if len(palette) > 5 else palette[0]
-    ax.barh(data["kx"].astype(str), data[plot_metric], color=color)
-    ax.axvline(0.0, color="black", linewidth=style.axis_width)
+    values = data[plot_metric].to_numpy(dtype=float)
+    colors = _bar_colors(values)
+    y_labels = data["kx"].astype(str)
+
+    bars = ax.barh(
+        y_labels,
+        values,
+        color=colors,
+        edgecolor="white",
+        linewidth=0.4,
+        alpha=0.92,
+        zorder=2,
+    )
+
+    # Endpoint markers give a cleaner modern look and help identify short bars.
+    ax.scatter(
+        values,
+        np.arange(len(values)),
+        s=22,
+        c=colors,
+        edgecolors="white",
+        linewidths=0.7,
+        zorder=4,
+    )
+
+    max_abs = float(np.nanmax(np.abs(values))) if values.size else 1.0
+    if not np.isfinite(max_abs) or max_abs == 0:
+        max_abs = 1.0
+    ax.set_xlim(-1.18 * max_abs, 1.18 * max_abs)
+    _shade_negative_side(ax)
+    ax.axvline(0.0, color="black", linewidth=0.7, zorder=3)
 
     if title is None:
-        if cycle is None:
-            title = f"{metric} impact — top {top_k} KX"
-        else:
-            title = f"{metric} impact — {cycle} — top {top_k} KX"
+        cycle_text = f" — {cycle}" if cycle is not None else ""
+        title = f"{metric} impact{cycle_text}: top {top_k} KX"
         if use_signed_log:
-            title += " — signed log"
+            title += " (signed log scale)"
 
-    style.apply_to_axes(
+    _apply_academic_axes(
         ax,
+        style,
         xlabel=_metric_label(metric, use_signed_log),
         ylabel="KX",
         title=title,
-        grid=False,
-        despine_top=False,
-        despine_right=False,
+        show_xgrid=True,
     )
 
     if metric == "TI" and not use_signed_log:
         _format_scientific_x(ax)
+
+    if annotate_extremes:
+        _annotate_extremes(ax, data, plot_metric, metric, use_signed_log, style)
 
     fig.canvas.draw_idle()
     return ax
@@ -193,21 +343,22 @@ def plot_impact_cycle_comparison(
     top_k: int = 15,
     use_signed_log: bool = False,
     style: Optional[NatureFigureStyle] = None,
+    annotate_extremes: bool = False,
 ):
     """Plot one aligned panel per cycle using the same top-K KX set."""
+    style = _style_or_default(style)
+
     if table.empty:
-        style = _style_or_default(style)
-        fig, ax = style.create_figure(kind="single", height_mm=45.0)
+        fig, ax = style.create_figure(kind="double", height_mm=55.0)
         ax.text(0.5, 0.5, "No data", ha="center", va="center", transform=ax.transAxes)
         ax.set_axis_off()
         return ax
 
-    style = _style_or_default(style)
     cycles = sorted(table["data"].astype(str).unique()) if "data" in table.columns else [None]
     top_kx = select_top_kx(table, metric=metric, top_k=top_k)
-
     nrows = len(cycles)
-    height_mm = min(style.max_main_height_mm, max(55.0, 45.0 * nrows))
+
+    height_mm = min(style.max_main_height_mm, max(75.0, 58.0 * nrows))
     fig, axes = style.create_figure(
         kind="double",
         height_mm=height_mm,
@@ -218,8 +369,8 @@ def plot_impact_cycle_comparison(
     )
     axes_flat = list(axes.ravel())
 
-    values_for_xlim = []
     prepared = []
+    values_for_xlim = []
     for cycle in cycles:
         data, plot_metric = _prepare_ranked_data(
             table=table,
@@ -231,15 +382,12 @@ def plot_impact_cycle_comparison(
         )
         prepared.append((cycle, data, plot_metric))
         if not data.empty:
-            values_for_xlim.extend(data[plot_metric].tolist())
+            values_for_xlim.extend(data[plot_metric].to_numpy(dtype=float).tolist())
 
     max_abs = float(np.nanmax(np.abs(values_for_xlim))) if values_for_xlim else 1.0
     if not np.isfinite(max_abs) or max_abs == 0:
         max_abs = 1.0
-    xlim = (-1.08 * max_abs, 1.08 * max_abs)
-
-    palette = style.get_palette()
-    color = palette[5] if len(palette) > 5 else palette[0]
+    xlim = (-1.18 * max_abs, 1.18 * max_abs)
 
     for ax, (cycle, data, plot_metric) in zip(axes_flat, prepared):
         if data.empty:
@@ -247,17 +395,46 @@ def plot_impact_cycle_comparison(
             ax.set_axis_off()
             continue
 
-        ax.barh(data["kx"].astype(str), data[plot_metric], color=color)
-        ax.axvline(0.0, color="black", linewidth=style.axis_width)
+        values = data[plot_metric].to_numpy(dtype=float)
+        colors = _bar_colors(values)
+        y_labels = data["kx"].astype(str)
+
+        ax.barh(
+            y_labels,
+            values,
+            color=colors,
+            edgecolor="white",
+            linewidth=0.35,
+            alpha=0.92,
+            zorder=2,
+        )
+        ax.scatter(
+            values,
+            np.arange(len(values)),
+            s=18,
+            c=colors,
+            edgecolors="white",
+            linewidths=0.6,
+            zorder=4,
+        )
         ax.set_xlim(xlim)
+        _shade_negative_side(ax)
+        ax.axvline(0.0, color="black", linewidth=0.7, zorder=3)
 
         subtitle = f"Cycle {cycle}" if cycle is not None else "Impact"
-        style.apply_to_axes(ax, ylabel="KX", title=subtitle, grid=False)
+        _apply_academic_axes(ax, style, ylabel="KX", title=subtitle, show_xgrid=True)
         if metric == "TI" and not use_signed_log:
             _format_scientific_x(ax)
+        if annotate_extremes:
+            _annotate_extremes(ax, data, plot_metric, metric, use_signed_log, style)
 
     axes_flat[-1].set_xlabel(_metric_label(metric, use_signed_log))
-    fig.suptitle(f"{metric} impact by cycle — top {top_k} KX", fontsize=style.max_fontsize)
+    fig.suptitle(
+        f"{metric} impact by cycle — top {top_k} KX",
+        fontsize=style.max_fontsize,
+        fontweight="bold",
+        y=0.995,
+    )
     fig.canvas.draw_idle()
     return axes_flat[-1]
 
@@ -268,12 +445,13 @@ def plot_impact_heatmap(
     top_k: int = 20,
     use_signed_log: bool = False,
     style: Optional[NatureFigureStyle] = None,
+    annotate: Optional[bool] = None,
 ):
     """Plot a compact cycle-by-KX heatmap centered at zero."""
     style = _style_or_default(style)
 
     if table.empty:
-        fig, ax = style.create_figure(kind="single", height_mm=45.0)
+        fig, ax = style.create_figure(kind="double", height_mm=55.0)
         ax.text(0.5, 0.5, "No data", ha="center", va="center", transform=ax.transAxes)
         ax.set_axis_off()
         return ax
@@ -297,32 +475,60 @@ def plot_impact_heatmap(
     if not np.isfinite(vmax) or vmax == 0:
         vmax = 1.0
 
-    height_mm = min(style.max_main_height_mm, max(65.0, 5.0 * len(pivot.index) + 25.0))
-    fig, ax = style.create_figure(kind="single", height_mm=height_mm, aspect=0.9)
+    height_mm = min(style.max_main_height_mm, max(75.0, 5.2 * len(pivot.index) + 32.0))
+    fig, ax = style.create_figure(kind="double", height_mm=height_mm, aspect=0.55)
 
     image = ax.imshow(
         values,
         aspect="auto",
-        cmap="coolwarm",
+        cmap=_impact_cmap(),
         norm=TwoSlopeNorm(vmin=-vmax, vcenter=0.0, vmax=vmax),
+        zorder=1,
     )
 
     ax.set_xticks(range(len(pivot.columns)))
-    ax.set_xticklabels(pivot.columns.astype(str), rotation=45, ha="right")
+    ax.set_xticklabels(pivot.columns.astype(str), rotation=35, ha="right")
     ax.set_yticks(range(len(pivot.index)))
     ax.set_yticklabels(pivot.index.astype(str))
 
-    style.apply_to_axes(
+    # Thin separators improve readability without decorative grid clutter.
+    ax.set_xticks(np.arange(-0.5, len(pivot.columns), 1), minor=True)
+    ax.set_yticks(np.arange(-0.5, len(pivot.index), 1), minor=True)
+    ax.grid(which="minor", color="white", linewidth=0.6)
+    ax.tick_params(which="minor", bottom=False, left=False)
+
+    if annotate is None:
+        annotate = values.size <= 60 and metric in {"FI", "FBI"} and not use_signed_log
+
+    if annotate:
+        for i in range(values.shape[0]):
+            for j in range(values.shape[1]):
+                value = values[i, j]
+                label = f"{value:.1f}" if metric in {"FI", "FBI"} else f"{value:.1e}"
+                color = "white" if abs(value) > 0.55 * vmax else "black"
+                ax.text(
+                    j,
+                    i,
+                    label,
+                    ha="center",
+                    va="center",
+                    fontsize=max(style.min_fontsize - 1.0, 5.0),
+                    color=color,
+                )
+
+    _apply_academic_axes(
         ax,
+        style,
         xlabel="Cycle",
         ylabel="KX",
-        title=f"{metric} heatmap — top {top_k} KX",
-        grid=False,
+        title=f"{metric} impact heatmap — top {top_k} KX",
+        show_xgrid=False,
     )
 
-    cbar = fig.colorbar(image, ax=ax)
+    cbar = fig.colorbar(image, ax=ax, shrink=0.88, pad=0.02)
     cbar.set_label(_metric_label(metric, use_signed_log), fontsize=style.base_fontsize)
     cbar.ax.tick_params(labelsize=style.min_fontsize, width=style.axis_width, length=style.tick_length)
+    cbar.outline.set_linewidth(style.axis_width)
 
     fig.canvas.draw_idle()
     return ax
@@ -333,12 +539,13 @@ def plot_impact_summary_bar(
     metric: str = "FI_mean",
     top_k: int = 15,
     style: Optional[NatureFigureStyle] = None,
+    annotate_extremes: bool = True,
 ):
-    """Plot a compact summary bar chart from a KX summary table."""
+    """Plot a modern compact summary bar chart from a KX summary table."""
     style = _style_or_default(style)
 
     if summary.empty or metric not in summary.columns:
-        fig, ax = style.create_figure(kind="single", height_mm=45.0)
+        fig, ax = style.create_figure(kind="double", height_mm=55.0)
         ax.text(0.5, 0.5, "No data", ha="center", va="center", transform=ax.transAxes)
         ax.set_axis_off()
         return ax
@@ -348,24 +555,64 @@ def plot_impact_summary_bar(
     data = data.sort_values("_abs_metric", ascending=False).head(top_k)
     data = data.sort_values(metric, ascending=True)
 
-    height_mm = max(55.0, 6.0 * len(data) + 22.0)
-    fig, ax = style.create_figure(kind="single", height_mm=height_mm, aspect=0.8)
+    height_mm = max(70.0, 6.5 * len(data) + 30.0)
+    fig, ax = style.create_figure(kind="double", height_mm=height_mm, aspect=0.55)
 
-    palette = style.get_palette()
-    color = palette[5] if len(palette) > 5 else palette[0]
-    ax.barh(data["kx"].astype(str), data[metric], color=color)
-    ax.axvline(0.0, color="black", linewidth=style.axis_width)
+    values = data[metric].to_numpy(dtype=float)
+    colors = _bar_colors(values)
+    ax.barh(
+        data["kx"].astype(str),
+        values,
+        color=colors,
+        edgecolor="white",
+        linewidth=0.4,
+        alpha=0.92,
+        zorder=2,
+    )
+    ax.scatter(
+        values,
+        np.arange(len(values)),
+        s=22,
+        c=colors,
+        edgecolors="white",
+        linewidths=0.7,
+        zorder=4,
+    )
 
-    style.apply_to_axes(
+    max_abs = float(np.nanmax(np.abs(values))) if values.size else 1.0
+    if not np.isfinite(max_abs) or max_abs == 0:
+        max_abs = 1.0
+    ax.set_xlim(-1.18 * max_abs, 1.18 * max_abs)
+    _shade_negative_side(ax)
+    ax.axvline(0.0, color="black", linewidth=0.7, zorder=3)
+
+    xlabel = metric
+    if metric in {"FI_mean", "FI_min", "FI_max", "FBI_mean", "FBI_min", "FBI_max"}:
+        xlabel = f"{metric} (%)"
+
+    _apply_academic_axes(
         ax,
-        xlabel=metric,
+        style,
+        xlabel=xlabel,
         ylabel="KX",
-        title=f"Top {top_k} KX by |{metric}|",
-        grid=False,
+        title=f"Summary impact — top {top_k} KX by |{metric}|",
+        show_xgrid=True,
     )
 
     if metric.startswith("TI"):
         _format_scientific_x(ax)
+
+    if annotate_extremes:
+        tmp = data.rename(columns={metric: "_summary_metric"}).copy()
+        tmp["kx"] = data["kx"].astype(int)
+        _annotate_extremes(
+            ax,
+            tmp,
+            "_summary_metric",
+            "_summary_metric",
+            False,
+            style,
+        )
 
     fig.canvas.draw_idle()
     return ax
@@ -378,7 +625,7 @@ def save_impact_figure(
     mode: str = "main",
     validate: bool = False,
 ) -> list[str]:
-    """Save an impact figure using the Nature-style exporter."""
+    """Save an impact figure using the style exporter."""
     style = _style_or_default(style)
 
     fig = ax_or_fig
