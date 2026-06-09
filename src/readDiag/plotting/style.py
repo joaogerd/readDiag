@@ -1,38 +1,23 @@
 """
-style.py
+Reusable Matplotlib styling helpers for readDiag.
 
-Reusable Matplotlib styling helper inspired by the official Nature Research
-Figure Guide.
-
-The class implements explicit recommendations from the guide where possible:
-- single-column width: 89 mm
-- double-column width: 183 mm
-- maximum main figure height: 170 mm
-- standard sans-serif fonts
-- editable text in PDF/EPS/SVG
-- font sizes mostly between 5 and 7 pt
-- panel labels: lowercase, bold, upright, 8 pt
-- accessible colour palette
-- no decorative gridlines by default
-- high-resolution export
-
-Some implementation choices are derived best practices, not explicit Nature
-rules. These are documented in comments.
+This module provides a Nature-inspired figure style while preserving the
+historical ``PlotConfig`` API used by older plotting code.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Literal, Optional, Sequence, Tuple, Union, Any
-import warnings
+from typing import Any, Dict, List, Literal, Optional, Sequence, Tuple, Union
 import string
+import warnings
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
-from matplotlib.figure import Figure
 from matplotlib.colors import to_rgb
+from matplotlib.figure import Figure
 
 
 FigureKind = Literal["single", "double", "wide", "extended", "custom"]
@@ -44,33 +29,7 @@ __all__ = ["NatureFigureStyle", "PlotConfig", "use_nature_style"]
 
 @dataclass
 class NatureFigureStyle:
-    """
-    Matplotlib helper for producing Nature-inspired scientific figures.
-
-    Parameters
-    ----------
-    base_fontsize : float
-        Default text size in points. Nature recommends 5--7 pt for most text.
-    min_fontsize : float
-        Minimum allowed text size for validation.
-    max_fontsize : float
-        Maximum allowed text size for ordinary figure text.
-    panel_label_size : float
-        Size for panel labels. Nature recommends 8 pt bold lowercase labels.
-    font_family : str
-        Preferred sans-serif font family.
-    dpi : int
-        Default export DPI for raster outputs.
-    line_width : float
-        Default line width in points.
-    axis_width : float
-        Width of axes spines and ticks in points.
-    tick_length : float
-        Tick length in points.
-    use_grid : bool
-        Whether to use gridlines. Default is False because Nature asks authors
-        to avoid background gridlines.
-    """
+    """Matplotlib helper for producing Nature-inspired scientific figures."""
 
     base_fontsize: float = 6.0
     min_fontsize: float = 5.0
@@ -78,7 +37,12 @@ class NatureFigureStyle:
     panel_label_size: float = 8.0
 
     font_family: str = "Arial"
-    fallback_fonts: Tuple[str, ...] = ("Arial", "Helvetica", "DejaVu Sans", "Liberation Sans")
+    fallback_fonts: Tuple[str, ...] = (
+        "Arial",
+        "Helvetica",
+        "DejaVu Sans",
+        "Liberation Sans",
+    )
 
     dpi: int = 450
     line_width: float = 0.6
@@ -93,7 +57,6 @@ class NatureFigureStyle:
     single_column_width_mm: float = 89.0
     double_column_width_mm: float = 183.0
     max_main_height_mm: float = 170.0
-
     extended_width_mm: float = 180.0
     extended_height_mm: float = 170.0
 
@@ -117,29 +80,14 @@ class NatureFigureStyle:
         return value_inch * 25.4
 
     def get_palette(self, include_black: bool = False) -> List[str]:
-        """
-        Return a colour-blind-accessible palette.
-
-        Parameters
-        ----------
-        include_black : bool
-            If True, include black as a data colour. Usually False because
-            black is often reserved for text and axes.
-        """
+        """Return a colour-blind-accessible palette."""
         keys = list(self.palette.keys())
         if not include_black and "black" in keys:
             keys.remove("black")
         return [self.palette[k] for k in keys]
 
     def set_global_style(self) -> None:
-        """
-        Configure Matplotlib rcParams for Nature-inspired figures.
-
-        Important:
-        - pdf.fonttype = 42 keeps text editable as TrueType.
-        - ps.fonttype = 42 does the same for PostScript/EPS.
-        - svg.fonttype = "none" keeps SVG text editable.
-        """
+        """Configure Matplotlib rcParams for Nature-inspired figures."""
         mpl.rcParams.update({
             "font.family": "sans-serif",
             "font.sans-serif": list(self.fallback_fonts),
@@ -149,15 +97,12 @@ class NatureFigureStyle:
             "xtick.labelsize": self.min_fontsize,
             "ytick.labelsize": self.min_fontsize,
             "legend.fontsize": self.min_fontsize,
-
             "pdf.fonttype": 42,
             "ps.fonttype": 42,
             "svg.fonttype": "none",
-
             "lines.linewidth": self.line_width,
             "lines.markersize": self.marker_size,
             "patch.linewidth": self.line_width,
-
             "axes.linewidth": self.axis_width,
             "axes.grid": self.use_grid,
             "axes.spines.top": True,
@@ -172,21 +117,17 @@ class NatureFigureStyle:
             "ytick.major.size": self.tick_length,
             "xtick.direction": "out",
             "ytick.direction": "out",
-
             "legend.frameon": False,
             "legend.handlelength": 1.2,
             "legend.borderaxespad": 0.4,
-
             "figure.dpi": 150,
             "savefig.dpi": self.dpi,
             "savefig.transparent": False,
             "savefig.facecolor": "white",
             "savefig.edgecolor": "white",
             "figure.facecolor": "white",
-
             "figure.constrained_layout.use": True,
         })
-
         mpl.rcParams["axes.prop_cycle"] = mpl.cycler(color=self.get_palette())
 
     def _size_mm(
@@ -198,29 +139,27 @@ class NatureFigureStyle:
     ) -> Tuple[float, float]:
         """Resolve figure size in millimetres."""
         if kind == "single":
-            w = self.single_column_width_mm
+            width = self.single_column_width_mm
         elif kind in {"double", "wide"}:
-            w = self.double_column_width_mm
+            width = self.double_column_width_mm
         elif kind == "extended":
-            w = self.extended_width_mm
+            width = self.extended_width_mm
         elif kind == "custom":
             if width_mm is None:
                 raise ValueError("width_mm must be provided when kind='custom'.")
-            w = float(width_mm)
+            width = float(width_mm)
         else:
             raise ValueError(f"Unknown figure kind: {kind}")
 
-        h = float(height_mm) if height_mm is not None else w * aspect
-
-        max_h = self.extended_height_mm if kind == "extended" else self.max_main_height_mm
-        if h > max_h:
+        height = float(height_mm) if height_mm is not None else width * aspect
+        max_height = self.extended_height_mm if kind == "extended" else self.max_main_height_mm
+        if height > max_height:
             warnings.warn(
-                f"Requested height {h:.1f} mm exceeds recommended maximum "
-                f"{max_h:.1f} mm for kind='{kind}'.",
+                f"Requested height {height:.1f} mm exceeds recommended maximum "
+                f"{max_height:.1f} mm for kind='{kind}'.",
                 UserWarning,
             )
-
-        return w, h
+        return width, height
 
     def create_figure(
         self,
@@ -237,10 +176,16 @@ class NatureFigureStyle:
     ):
         """Create a new Matplotlib figure using Nature-inspired dimensions."""
         self.set_global_style()
-
-        w_mm, h_mm = self._size_mm(kind, height_mm, width_mm, aspect)
-        figsize = (self.mm_to_inch(w_mm), self.mm_to_inch(h_mm))
-
+        width_mm_resolved, height_mm_resolved = self._size_mm(
+            kind=kind,
+            height_mm=height_mm,
+            width_mm=width_mm,
+            aspect=aspect,
+        )
+        figsize = (
+            self.mm_to_inch(width_mm_resolved),
+            self.mm_to_inch(height_mm_resolved),
+        )
         fig, axes = plt.subplots(
             nrows=nrows,
             ncols=ncols,
@@ -251,7 +196,6 @@ class NatureFigureStyle:
             constrained_layout=True,
             **subplots_kwargs,
         )
-
         self.apply_to_figure(fig)
         return fig, axes
 
@@ -266,7 +210,7 @@ class NatureFigureStyle:
         label_panels: bool = True,
         **kwargs,
     ):
-        """Create a multi-panel figure with optional lowercase bold panel labels."""
+        """Create a multi-panel figure with optional lowercase panel labels."""
         fig, axes = self.create_figure(
             kind=kind,
             height_mm=height_mm,
@@ -277,16 +221,13 @@ class NatureFigureStyle:
             squeeze=False,
             **kwargs,
         )
-
         axes_flat = list(axes.ravel())
-
         if label_panels:
             self.add_panel_labels(fig, axes_flat)
-
         return fig, axes_flat
 
     def apply_to_figure(self, fig: Figure) -> Figure:
-        """Apply styling to all axes in an existing Matplotlib Figure."""
+        """Apply styling to all axes in an existing figure."""
         for ax in fig.get_axes():
             self.apply_to_axes(ax)
         return fig
@@ -327,7 +268,6 @@ class NatureFigureStyle:
             direction="out",
             colors="black",
         )
-
         ax.tick_params(
             axis="both",
             which="minor",
@@ -338,12 +278,15 @@ class NatureFigureStyle:
         )
 
         use_grid = self.use_grid if grid is None else grid
-        ax.grid(
-            use_grid,
-            linewidth=self.grid_width,
-            alpha=self.grid_alpha,
-            color="0.5",
-        )
+        if use_grid:
+            ax.grid(
+                True,
+                linewidth=self.grid_width,
+                alpha=self.grid_alpha,
+                color="0.5",
+            )
+        else:
+            ax.grid(False)
 
         ax.xaxis.label.set_color("black")
         ax.yaxis.label.set_color("black")
@@ -369,10 +312,8 @@ class NatureFigureStyle:
         """Add lowercase bold panel labels to axes."""
         if axes is None:
             axes = fig.get_axes()
-
         if labels is None:
-            labels = list(string.ascii_lowercase[:len(axes)])
-
+            labels = list(string.ascii_lowercase[: len(axes)])
         for ax, label in zip(axes, labels):
             ax.text(
                 x,
@@ -395,12 +336,7 @@ class NatureFigureStyle:
         left: bool = False,
         bottom: bool = False,
     ) -> Axes:
-        """
-        Hide selected spines.
-
-        This is not a Nature requirement, but can improve clarity for simple
-        statistical plots when axis meaning remains clear.
-        """
+        """Hide selected spines."""
         ax.spines["top"].set_visible(not top)
         ax.spines["right"].set_visible(not right)
         ax.spines["left"].set_visible(not left)
@@ -414,11 +350,7 @@ class NatureFigureStyle:
         ylabel: str,
         require_units: bool = True,
     ) -> Axes:
-        """
-        Set axis labels and optionally warn if units are missing.
-
-        Nature asks that axes be labelled with units in parentheses.
-        """
+        """Set axis labels and optionally warn if units are missing."""
         if require_units:
             for name, label in {"x": xlabel, "y": ylabel}.items():
                 if "(" not in label or ")" not in label:
@@ -426,18 +358,11 @@ class NatureFigureStyle:
                         f"{name}-axis label '{label}' may be missing units in parentheses.",
                         UserWarning,
                     )
-
         ax.set_xlabel(xlabel, fontsize=self.base_fontsize, color="black")
         ax.set_ylabel(ylabel, fontsize=self.base_fontsize, color="black")
         return ax
 
-    def style_legend(
-        self,
-        ax: Axes,
-        loc: str = "best",
-        ncol: int = 1,
-        **kwargs,
-    ):
+    def style_legend(self, ax: Axes, loc: str = "best", ncol: int = 1, **kwargs):
         """Create or restyle a legend using black text and no frame."""
         legend = ax.legend(
             loc=loc,
@@ -446,11 +371,9 @@ class NatureFigureStyle:
             fontsize=self.min_fontsize,
             **kwargs,
         )
-
         for text in legend.get_texts():
             text.set_color("black")
             text.set_fontsize(self.min_fontsize)
-
         return legend
 
     def contrast_ratio(self, color1: str, color2: str) -> float:
@@ -467,13 +390,10 @@ class NatureFigureStyle:
 
         rgb1 = to_rgb(color1)
         rgb2 = to_rgb(color2)
-
         l1 = relative_luminance(rgb1)
         l2 = relative_luminance(rgb2)
-
         lighter = max(l1, l2)
         darker = min(l1, l2)
-
         return (lighter + 0.05) / (darker + 0.05)
 
     def validate_figure(
@@ -485,13 +405,8 @@ class NatureFigureStyle:
         check_contrast: bool = True,
         max_axes: int = 12,
     ) -> List[str]:
-        """
-        Validate a figure against key Nature-inspired checks.
-
-        Returns a list of human-readable warnings.
-        """
+        """Validate a figure against key Nature-inspired checks."""
         issues: List[str] = []
-
         width_mm = self.inch_to_mm(fig.get_figwidth())
         height_mm = self.inch_to_mm(fig.get_figheight())
 
@@ -507,7 +422,6 @@ class NatureFigureStyle:
                 f"Figure width is {width_mm:.1f} mm; recommended maximum is "
                 f"{max_width:.1f} mm for mode='{mode}'."
             )
-
         if height_mm > max_height + 0.5:
             issues.append(
                 f"Figure height is {height_mm:.1f} mm; recommended maximum is "
@@ -515,7 +429,6 @@ class NatureFigureStyle:
             )
 
         axes = fig.get_axes()
-
         if len(axes) > max_axes:
             issues.append(
                 f"Figure contains {len(axes)} axes/panels. Check whether the "
@@ -534,12 +447,10 @@ class NatureFigureStyle:
             if check_units:
                 xlabel = ax.get_xlabel()
                 ylabel = ax.get_ylabel()
-
                 if xlabel and ("(" not in xlabel or ")" not in xlabel):
                     issues.append(
                         f"Axes {ax_idx}: x-label '{xlabel}' may be missing units in parentheses."
                     )
-
                 if ylabel and ("(" not in ylabel or ")" not in ylabel):
                     issues.append(
                         f"Axes {ax_idx}: y-label '{ylabel}' may be missing units in parentheses."
@@ -549,7 +460,6 @@ class NatureFigureStyle:
             texts.extend([ax.title, ax.xaxis.label, ax.yaxis.label])
             texts.extend(ax.get_xticklabels())
             texts.extend(ax.get_yticklabels())
-
             legend = ax.get_legend()
             if legend is not None:
                 texts.extend(legend.get_texts())
@@ -557,36 +467,30 @@ class NatureFigureStyle:
             for text in texts:
                 if not text.get_visible():
                     continue
-
                 content = text.get_text()
                 size = text.get_fontsize()
-
                 if content and size < self.min_fontsize:
                     issues.append(
                         f"Axes {ax_idx}: text '{content[:30]}' has size "
                         f"{size:.1f} pt, below {self.min_fontsize:.1f} pt."
                     )
-
                 is_panel_label = (
                     len(content) == 1
                     and content in string.ascii_lowercase
                     and text.get_fontweight() in {"bold", 700, "heavy"}
                 )
-
                 if content and size > self.max_fontsize and not is_panel_label:
                     issues.append(
                         f"Axes {ax_idx}: text '{content[:30]}' has size "
                         f"{size:.1f} pt, above ordinary text maximum "
                         f"{self.max_fontsize:.1f} pt."
                     )
-
                 color = text.get_color()
                 if color not in {"black", "white", "#000000", "#ffffff", "#FFFFFF"}:
                     issues.append(
                         f"Axes {ax_idx}: text '{content[:30]}' appears to use "
                         f"coloured text ({color}). Nature discourages coloured text."
                     )
-
                 if check_contrast and content:
                     try:
                         ratio = self.contrast_ratio(color, "white")
@@ -602,9 +506,7 @@ class NatureFigureStyle:
             for line in ax.lines:
                 lw = line.get_linewidth()
                 if lw < 0.25:
-                    issues.append(
-                        f"Axes {ax_idx}: line width {lw:.2f} pt is very thin."
-                    )
+                    issues.append(f"Axes {ax_idx}: line width {lw:.2f} pt is very thin.")
                 if lw > 1.0:
                     issues.append(
                         f"Axes {ax_idx}: line width {lw:.2f} pt exceeds 1 pt. "
@@ -613,12 +515,10 @@ class NatureFigureStyle:
 
         if target_format is not None:
             fmt = target_format.lower()
-
             if mode == "main":
                 preferred = {"pdf", "eps"}
                 acceptable = {"svg", "ps"}
                 not_accepted = {"png", "tiff", "tif", "jpg", "jpeg"}
-
                 if fmt in not_accepted:
                     issues.append(
                         f"Format '.{fmt}' is not accepted by Nature for main figures. "
@@ -629,7 +529,6 @@ class NatureFigureStyle:
                         f"Format '.{fmt}' is not listed as a preferred/acceptable "
                         "main-figure format."
                     )
-
             if mode == "extended":
                 accepted = {"jpg", "jpeg", "tiff", "tif", "eps"}
                 if fmt not in accepted:
@@ -637,7 +536,6 @@ class NatureFigureStyle:
                         f"Format '.{fmt}' is not listed for Extended Data. "
                         "Nature lists JPEG, TIFF or EPS."
                     )
-
         return issues
 
     def export(
@@ -652,35 +550,21 @@ class NatureFigureStyle:
         fail_on_warning: bool = False,
         **savefig_kwargs,
     ) -> List[str]:
-        """
-        Export figure with Nature-inspired settings.
-
-        Returns validation issues found before export.
-        """
+        """Export a figure with Nature-inspired settings."""
         path = Path(filename)
         fmt = path.suffix.lower().replace(".", "")
-
         if not fmt:
             raise ValueError("Filename must include an extension, e.g. .pdf or .png.")
-
         if dpi is None:
             dpi = 300 if mode == "extended" else self.dpi
 
         issues: List[str] = []
         if validate:
-            issues = self.validate_figure(
-                fig,
-                mode=mode,
-                target_format=fmt,  # type: ignore[arg-type]
-            )
-
+            issues = self.validate_figure(fig, mode=mode, target_format=fmt)  # type: ignore[arg-type]
             for issue in issues:
                 warnings.warn(issue, UserWarning)
-
             if fail_on_warning and issues:
-                raise RuntimeError(
-                    "Figure validation failed:\n- " + "\n- ".join(issues)
-                )
+                raise RuntimeError("Figure validation failed:\n- " + "\n- ".join(issues))
 
         savefig_defaults = {
             "dpi": dpi,
@@ -690,19 +574,13 @@ class NatureFigureStyle:
             "edgecolor": "white",
         }
         savefig_defaults.update(savefig_kwargs)
-
         fig.savefig(path, **savefig_defaults)
         return issues
 
 
 @dataclass
 class PlotConfig:
-    """Backward-compatible lightweight plotting configuration.
-
-    This class preserves the historical ``readDiag.plotting.style.PlotConfig``
-    API used by older plotting code and tests. New code should prefer
-    :class:`NatureFigureStyle`.
-    """
+    """Backward-compatible lightweight plotting configuration."""
 
     style: str = "default"
     rc_params: Dict[str, Any] = field(default_factory=lambda: {
