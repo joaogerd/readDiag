@@ -209,6 +209,20 @@ def _add_panel_cycle_label(ax, label: str, style: NatureFigureStyle) -> None:
     )
 
 
+def _add_external_title(fig, text: str, style: NatureFigureStyle) -> None:
+    """Add a title outside the axes area so it never overlaps panel content."""
+    fig.text(
+        0.5,
+        1.018,
+        text,
+        ha="center",
+        va="bottom",
+        fontsize=style.max_fontsize + 1,
+        fontweight="bold",
+        color="black",
+    )
+
+
 def _format_annotation_value(metric: str, value: float, use_signed_log: bool) -> str:
     """Format annotation values without exposing internal column names."""
     if use_signed_log:
@@ -450,11 +464,10 @@ def plot_impact_cycle_comparison(
             _annotate_extremes(ax, data, plot_metric, metric, use_signed_log, style)
 
     axes_flat[-1].set_xlabel(_metric_label(metric, use_signed_log))
-    fig.suptitle(
+    _add_external_title(
+        fig,
         f"{metric} impact by cycle — top {top_k} KX",
-        fontsize=style.max_fontsize + 1,
-        fontweight="bold",
-        y=0.995,
+        style,
     )
     fig.canvas.draw_idle()
     return axes_flat[-1]
